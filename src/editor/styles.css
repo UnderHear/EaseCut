@@ -1,0 +1,534 @@
+.oc-editor {
+  --oc-background: #141414;
+  --oc-panel: #1d1d1d;
+  --oc-panel-raised: #242424;
+  --oc-panel-hover: #333333;
+  --oc-border: rgb(255 255 255 / 12%);
+  --oc-border-strong: rgb(255 255 255 / 22%);
+  --oc-text: #f5f5f5;
+  --oc-text-muted: #a3a3a3;
+  --oc-primary: #f5f5f5;
+  --oc-primary-text: #171717;
+  --oc-accent: #38bdf8;
+  --oc-danger: #fb7185;
+  --oc-radius: 6px;
+  --oc-scrollbar: rgb(255 255 255 / 18%);
+  --oc-scrollbar-hover: rgb(255 255 255 / 30%);
+
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--oc-text);
+  color-scheme: dark;
+  background: var(--oc-background);
+  font-family:
+    Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  outline: none;
+  container-name: opencut-editor;
+  container-type: inline-size;
+  -webkit-font-smoothing: antialiased;
+}
+
+.oc-editor,
+.oc-editor *,
+.oc-editor *::before,
+.oc-editor *::after {
+  box-sizing: border-box;
+}
+
+.oc-editor button,
+.oc-editor input,
+.oc-editor summary {
+  font: inherit;
+}
+
+.oc-editor button,
+.oc-editor summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.oc-editor button:focus-visible,
+.oc-editor input:focus-visible,
+.oc-editor summary:focus-visible,
+.oc-editor:focus-visible {
+  outline: 2px solid var(--oc-accent);
+  outline-offset: 2px;
+}
+
+.oc-editor__header {
+  display: flex;
+  height: 48px;
+  flex: 0 0 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--oc-border);
+  background: #191919;
+}
+
+.oc-editor__header h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oc-editor__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.oc-button,
+.oc-icon-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--oc-radius);
+  color: var(--oc-text);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.oc-button {
+  height: 34px;
+  gap: 7px;
+  padding: 0 11px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.oc-button--secondary {
+  border-color: var(--oc-border);
+  background: var(--oc-panel-raised);
+}
+
+.oc-button--primary {
+  color: var(--oc-primary-text);
+  background: var(--oc-primary);
+}
+
+.oc-button:hover:not(:disabled),
+.oc-icon-button:hover:not(:disabled),
+.oc-shortcuts > summary:hover {
+  background: var(--oc-panel-hover);
+}
+
+.oc-button--primary:hover:not(:disabled) {
+  background: #d4d4d4;
+}
+
+.oc-button:disabled,
+.oc-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.oc-icon-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.oc-icon-button svg {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.oc-icon-button.oc-is-active {
+  color: #fff;
+  background: #3a3a3a;
+}
+
+.oc-icon-button--transport {
+  border-radius: 999px;
+  background: #323232;
+}
+
+.oc-editor__main {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.oc-editor__notice {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgb(56 189 248 / 26%);
+  border-radius: var(--oc-radius);
+  color: #bae6fd;
+  background: rgb(14 116 144 / 16%);
+  font-size: 12px;
+}
+
+.oc-editor__notice.oc-is-error {
+  border-color: rgb(251 113 133 / 30%);
+  color: #fecdd3;
+  background: rgb(159 18 57 / 18%);
+}
+
+.oc-preview-panel {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--oc-border);
+  border-radius: var(--oc-radius);
+  background: #000;
+}
+
+.oc-preview-panel__viewport,
+.oc-preview-panel__canvas-wrap {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  background: #111;
+}
+
+.oc-preview-panel__canvas-wrap {
+  position: relative;
+}
+
+.oc-preview-panel__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #111;
+  touch-action: none;
+}
+
+.oc-preview-panel__media {
+  display: none;
+}
+
+.oc-preview-panel__error {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  max-width: min(420px, calc(100% - 20px));
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid rgb(251 113 133 / 28%);
+  border-radius: 5px;
+  color: #fecdd3;
+  background: rgb(17 17 17 / 88%);
+  font-size: 12px;
+}
+
+.oc-timeline-panel {
+  display: flex;
+  height: 320px;
+  min-height: 220px;
+  flex: 0 0 320px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--oc-border);
+  border-radius: var(--oc-radius);
+  background: rgb(29 29 29 / 78%);
+}
+
+.oc-timeline-panel__body {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.oc-timeline-toolbar {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  height: 48px;
+  min-width: 0;
+  flex: 0 0 48px;
+  grid-template-columns: minmax(160px, 1fr) auto minmax(250px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--oc-border);
+  background: rgb(31 31 31 / 96%);
+}
+
+.oc-timeline-toolbar__group,
+.oc-timeline-toolbar__transport {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+}
+
+.oc-timeline-toolbar__group--end {
+  justify-content: flex-end;
+}
+
+.oc-timeline-toolbar__transport {
+  justify-content: center;
+  gap: 8px;
+}
+
+.oc-timeline-toolbar__separator {
+  width: 1px;
+  height: 17px;
+  margin: 0 4px;
+  background: var(--oc-border-strong);
+}
+
+.oc-timeline-toolbar__time {
+  min-width: 44px;
+  color: var(--oc-text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.oc-timeline-toolbar__time--muted {
+  color: var(--oc-text-muted);
+  text-align: left;
+}
+
+.oc-timeline-toolbar__zoom {
+  width: min(120px, 10vw);
+  min-width: 64px;
+  height: 18px;
+  margin: 0 3px;
+  accent-color: var(--oc-accent);
+  cursor: pointer;
+}
+
+.oc-timeline-toolbar__zoom-value {
+  min-width: 47px;
+  color: var(--oc-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.oc-shortcuts {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.oc-shortcuts > summary {
+  list-style: none;
+}
+
+.oc-shortcuts > summary::-webkit-details-marker {
+  display: none;
+}
+
+.oc-shortcuts__panel {
+  position: absolute;
+  right: 0;
+  bottom: 38px;
+  z-index: 20;
+  width: 260px;
+  padding: 12px;
+  border: 1px solid var(--oc-border-strong);
+  border-radius: var(--oc-radius);
+  background: #222;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 48%);
+}
+
+.oc-shortcuts__title {
+  display: block;
+  margin-bottom: 9px;
+}
+
+.oc-shortcuts__list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.oc-shortcuts__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--oc-text-muted);
+  font-size: 12px;
+}
+
+.oc-shortcuts__item dd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+
+.oc-shortcuts__key-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.oc-shortcuts kbd {
+  min-width: 22px;
+  padding: 2px 5px;
+  border: 1px solid var(--oc-border-strong);
+  border-radius: 4px;
+  color: var(--oc-text);
+  background: #303030;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  text-align: center;
+}
+
+.oc-track-headers {
+  min-width: 0;
+  border-right: 1px solid var(--oc-border);
+  background: #1b1b1b;
+}
+
+.oc-track-headers__ruler-space {
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+}
+
+.oc-track-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  color: var(--oc-text-muted);
+  border-bottom: 1px solid rgb(255 255 255 / 5%);
+}
+
+.oc-track-header__icon {
+  display: inline-flex;
+  min-width: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.oc-track-header__mute {
+  width: 26px;
+  height: 26px;
+}
+
+.oc-timeline-canvas {
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  background: #171717;
+}
+
+.oc-timeline-canvas > div,
+.oc-timeline-canvas canvas {
+  display: block;
+}
+
+.oc-timeline-canvas--fallback {
+  display: flex;
+  min-height: 160px;
+  align-items: center;
+  justify-content: center;
+  color: var(--oc-text-muted);
+  font-size: 12px;
+}
+
+.oc-scrollbar {
+  scrollbar-color: var(--oc-scrollbar) transparent;
+  scrollbar-width: thin;
+}
+
+.oc-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.oc-scrollbar::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--oc-scrollbar);
+  background-clip: padding-box;
+}
+
+.oc-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--oc-scrollbar-hover);
+  background-clip: padding-box;
+}
+
+.oc-scrollbar::-webkit-scrollbar-track,
+.oc-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@container opencut-editor (max-width: 1080px) {
+  .oc-timeline-toolbar {
+    grid-template-columns: auto auto 1fr;
+  }
+
+  .oc-timeline-toolbar__zoom-value {
+    display: none;
+  }
+
+  .oc-timeline-toolbar__transport {
+    gap: 4px;
+  }
+}
+
+@container opencut-editor (max-width: 820px) {
+  .oc-editor__header {
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    padding-block: 7px;
+  }
+
+  .oc-editor__header-actions {
+    flex-wrap: wrap;
+  }
+
+  .oc-timeline-toolbar {
+    height: auto;
+    min-height: 78px;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: 36px 36px;
+  }
+
+  .oc-timeline-toolbar__transport {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .oc-timeline-toolbar__group--end {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oc-editor *,
+  .oc-editor *::before,
+  .oc-editor *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

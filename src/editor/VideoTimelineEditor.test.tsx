@@ -1,0 +1,476 @@
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type {
+  VideoTimelineDraft,
+  VideoTimelineExportRequest,
+  VideoTimelineSource,
+} from './types';
+
+vi.mock('./components/PreviewPanel', () => ({
+  PreviewPanel: () => <div data-testid='preview-panel' />,
+}));
+
+vi.mock('./components/TimelineCanvas', async () => {
+  const { useTimelineStore } = await import(
+    './store/timeline-store-context'
+  );
+
+  return {
+    TimelineCanvas: () => {
+      const clips = useTimelineStore((state) => state.clips);
+      const isPlaying = useTimelineStore((state) => state.isPlaying);
+      const selectClip = useTimelineStore((state) => state.selectClip);
+      const setIsPlaying = useTimelineStore((state) => state.setIsPlaying);
+      const toggleTrackMute = useTimelineStore(
+        (state) => state.toggleTrackMute,
+      );
+      const tracks = useTimelineStore((state) => state.tracks);
+      const firstClip = clips[0];
+      const firstClipTrack = tracks.find(
+        (track) => track.id === firstClip?.trackId,
+      );
+
+      return (
+        <div
+          data-clip-count={clips.length}
+          data-first-duration={firstClip?.duration ?? ''}
+          data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
+          data-first-track-volume={firstClipTrack?.volume ?? ''}
+          data-playing={String(isPlaying)}
+          data-testid='timeline-state'
+        >
+          <button
+            aria-label='测试：切换播放'
+            onClick={() => setIsPlaying(!isPlaying)}
+            type='button'
+          />
+          <button
+            aria-label='测试：切换首个片段静音'
+            disabled={!firstClip}
+            onClick={() => {
+              if (firstClip) toggleTrackMute(firstClip.trackId);
+            }}
+            type='button'
+          />
+          <button
+            aria-label='测试：选择首个片段'
+            disabled={!firstClip}
+            onClick={() => selectClip(firstClip?.id ?? null)}
+            type='button'
+          />
+          <input aria-label='测试：编辑器内输入框' />
+        </div>
+      );
+    },
+  };
+});
+
+import { VideoTimelineEditor } from './VideoTimelineEditor';
+
+const videoSource: VideoTimelineSource = {
+  durationSeconds: 5,
+  fileName: 'video.mp4',
+  height: 720,
+  id: 'video-1',
+  src: '/video.mp4',
+  type: 'video',
+  width: 1280,
+};
+
+const audioSource: VideoTimelineSource = {
+  durationSeconds: 4,
+  fileName: 'music.mp3',
+  id: 'audio-1',
+  src: '/music.mp3',
+  type: 'audio',
+};
+
+const flushEffects = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+};
+
+const readBlobText = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.readAsText(blob);
+  });
+
+describe('VideoTimelineEditor', () => {
+  beforeEach(() => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('always shows JSON export and only renders optional export and close actions', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onExport = vi.fn();
+    const { rerender } = render(
+      <VideoTimelineEditor sources={[videoSource]} title='剪辑项目' />,
+    );
+
+    expect(screen.getByRole('heading', { name: '剪辑项目' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '导出 JSON' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: '导出视频' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '关闭视频编辑器' }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <VideoTimelineEditor
+        onClose={onClose}
+        onExport={onExport}
+        sources={[videoSource]}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: '导出视频' })).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: '关闭视频编辑器' }),
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('passes the latest draft and derived payload to onExport', async () => {
+    const user = userEvent.setup();
+    const onExport = vi
+      .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    render(
+      <VideoTimelineEditor onExport={onExport} sources={[audioSource]} />,
+    );
+    await flushEffects();
+
+    await user.click(
+      screen.getByRole('button', { name: '测试：切换首个片段静音' }),
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-first-track-volume',
+      '0',
+    );
+    await user.click(screen.getByRole('button', { name: '导出视频' }));
+
+    await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
+    const request = onExport.mock.calls[0][0];
+    expect(
+      request.draft.tracks.find((track) => track.type === 'audio')?.volume,
+    ).toBe(0);
+    expect(request.payload.Track.flat()).toEqual([
+      expect.objectContaining({
+        Extra: expect.arrayContaining([{ Type: 'a_volume', Volume: 0 }]),
+        Source: audioSource.src,
+        Type: 'audio',
+      }),
+    ]);
+  });
+
+  it('downloads the current composition payload as JSON', async () => {
+    const user = userEvent.setup();
+    let exportedBlob: Blob | null = null;
+    let downloadedFileName = '';
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      exportedBlob = blob as Blob;
+      return 'blob:composition-json';
+    });
+    const revokeObjectUrl = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(
+      function captureDownload(this: HTMLAnchorElement) {
+        downloadedFileName = this.download;
+      },
+    );
+    render(
+      <VideoTimelineEditor
+        jsonFileName='my-cut.json'
+        sources={[audioSource]}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: '测试：切换首个片段静音' }),
+    );
+
+    await user.click(screen.getByRole('button', { name: '导出 JSON' }));
+
+    expect(downloadedFileName).toBe('my-cut.json');
+    expect(exportedBlob).not.toBeNull();
+    const payload = JSON.parse(
+      await readBlobText(exportedBlob as unknown as Blob),
+    );
+    expect(payload.Track.flat()).toEqual([
+      expect.objectContaining({
+        Extra: expect.arrayContaining([{ Type: 'a_volume', Volume: 0 }]),
+        Source: audioSource.src,
+      }),
+    ]);
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:composition-json');
+  });
+
+  it('fills a missing audio duration through the injected metadata loader', async () => {
+    const loadMetadata = vi.fn().mockResolvedValue({ durationSeconds: 9 });
+    const loadBlob = vi.fn();
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob, loadMetadata }}
+        sources={[{ ...audioSource, durationSeconds: undefined }]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+        'data-first-duration',
+        '9',
+      ),
+    );
+    expect(loadMetadata).toHaveBeenCalledOnce();
+    expect(loadBlob).not.toHaveBeenCalled();
+  });
+
+  it('contains a square video after metadata is resolved and exports that transform', async () => {
+    const user = userEvent.setup();
+    const onExport = vi
+      .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const squareSource: VideoTimelineSource = {
+      fileName: 'square.mp4',
+      id: 'square-video',
+      src: '/square.mp4',
+      type: 'video',
+    };
+    const loadMetadata = vi.fn().mockResolvedValue({
+      durationSeconds: 6,
+      height: 1080,
+      width: 1080,
+    });
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
+        onExport={onExport}
+        sources={[squareSource]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+        'data-first-transform',
+        JSON.stringify({ height: 720, width: 720, x: 280, y: 0 }),
+      ),
+    );
+    await user.click(screen.getByRole('button', { name: '导出视频' }));
+
+    await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
+    expect(onExport.mock.calls[0][0].payload.Track.flat()[0]?.Extra).toContainEqual(
+      {
+        Height: 720,
+        PosX: 280,
+        PosY: 0,
+        Type: 'transform',
+        Width: 720,
+      },
+    );
+  });
+
+  it('blocks repeated export while keeping exit actions available, then allows retry', async () => {
+    const user = userEvent.setup();
+    const deferred = createDeferred<void>();
+    const onClose = vi.fn();
+    const onExport = vi
+      .fn<(request: VideoTimelineExportRequest) => void | Promise<void>>()
+      .mockReturnValueOnce(deferred.promise)
+      .mockResolvedValueOnce(undefined);
+    render(
+      <VideoTimelineEditor
+        onClose={onClose}
+        onExport={onExport}
+        sources={[videoSource]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '导出视频' }));
+
+    expect(screen.getByRole('button', { name: '导出中…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '导出 JSON' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: '关闭视频编辑器' }),
+    ).toBeEnabled();
+    expect(onExport).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      deferred.reject(new Error('导出服务暂不可用'));
+      await deferred.promise.catch(() => undefined);
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '导出服务暂不可用',
+    );
+    const retryButton = screen.getByRole('button', { name: '导出视频' });
+    expect(retryButton).toBeEnabled();
+    await user.click(retryButton);
+
+    await waitFor(() => expect(onExport).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole('button', { name: '导出视频' })).toBeEnabled();
+  });
+
+  it('emits draft changes for persistent edits but not playback state', async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn<(draft: VideoTimelineDraft) => void>();
+    render(
+      <VideoTimelineEditor
+        onDraftChange={onDraftChange}
+        sources={[audioSource]}
+      />,
+    );
+    await flushEffects();
+    onDraftChange.mockClear();
+
+    await user.click(screen.getByRole('button', { name: '测试：切换播放' }));
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-playing',
+      'true',
+    );
+    expect(onDraftChange).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole('button', { name: '测试：切换首个片段静音' }),
+    );
+    await waitFor(() => expect(onDraftChange).toHaveBeenCalledOnce());
+    expect(
+      onDraftChange.mock.calls[0][0].tracks.find(
+        (track) => track.type === 'audio',
+      )?.volume,
+    ).toBe(0);
+  });
+
+  it('handles shortcuts only when they originate inside the focused editor', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <>
+        <input aria-label='编辑器外输入框' />
+        <VideoTimelineEditor sources={[videoSource]} />
+      </>,
+    );
+    const editor = container.querySelector<HTMLElement>('.oc-editor');
+    const state = screen.getByTestId('timeline-state');
+    if (!editor) throw new Error('编辑器根节点未渲染');
+
+    await user.click(screen.getByRole('textbox', { name: '编辑器外输入框' }));
+    await user.keyboard(' ');
+    expect(state).toHaveAttribute('data-playing', 'false');
+
+    editor.focus();
+    await user.keyboard(' ');
+    expect(state).toHaveAttribute('data-playing', 'true');
+
+    await user.click(screen.getByRole('textbox', { name: '编辑器外输入框' }));
+    await user.keyboard(' ');
+    expect(state).toHaveAttribute('data-playing', 'true');
+
+    editor.focus();
+    await user.keyboard(' ');
+    expect(state).toHaveAttribute('data-playing', 'false');
+  });
+
+  it('ignores playback and delete shortcuts from an input inside the editor', async () => {
+    const user = userEvent.setup();
+    render(<VideoTimelineEditor sources={[videoSource]} />);
+    const state = screen.getByTestId('timeline-state');
+    await user.click(
+      screen.getByRole('button', { name: '测试：选择首个片段' }),
+    );
+    await user.click(
+      screen.getByRole('textbox', { name: '测试：编辑器内输入框' }),
+    );
+
+    await user.keyboard(' ');
+    await user.keyboard('{Backspace}');
+
+    expect(state).toHaveAttribute('data-playing', 'false');
+    expect(state).toHaveAttribute('data-clip-count', '1');
+  });
+
+  it('routes Ctrl+Z and Ctrl+Y to the focused editor undo history', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <VideoTimelineEditor sources={[audioSource]} />,
+    );
+    const editor = container.querySelector<HTMLElement>('.oc-editor');
+    const state = screen.getByTestId('timeline-state');
+    if (!editor) throw new Error('编辑器根节点未渲染');
+    await user.click(
+      screen.getByRole('button', { name: '测试：切换首个片段静音' }),
+    );
+    expect(state).toHaveAttribute('data-first-track-volume', '0');
+
+    editor.focus();
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'z' });
+    expect(state).toHaveAttribute('data-first-track-volume', '1');
+
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'y' });
+    expect(state).toHaveAttribute('data-first-track-volume', '0');
+  });
+
+  it('keeps playback state isolated between two editor instances', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <>
+        <VideoTimelineEditor sources={[videoSource]} title='编辑器 A' />
+        <VideoTimelineEditor sources={[videoSource]} title='编辑器 B' />
+      </>,
+    );
+    const editors = Array.from(
+      container.querySelectorAll<HTMLElement>('.oc-editor'),
+    );
+    const states = screen.getAllByTestId('timeline-state');
+
+    editors[0].focus();
+    await user.keyboard(' ');
+    expect(states[0]).toHaveAttribute('data-playing', 'true');
+    expect(states[1]).toHaveAttribute('data-playing', 'false');
+
+    editors[1].focus();
+    await user.keyboard(' ');
+    expect(states[0]).toHaveAttribute('data-playing', 'true');
+    expect(states[1]).toHaveAttribute('data-playing', 'true');
+
+    await user.click(
+      within(editors[0]).getByRole('button', { name: '测试：切换播放' }),
+    );
+    await user.click(
+      within(editors[1]).getByRole('button', { name: '测试：切换播放' }),
+    );
+  });
+});
