@@ -1,7 +1,7 @@
 import {
   FilePlus2,
   Keyboard,
-  Maximize2,
+  Maximize,
   Magnet,
   Pause,
   Play,
@@ -124,7 +124,7 @@ export function TimelineToolbar({
           {formatTimelineTime(duration)}
         </time>
         <ToolbarButton label='全屏预览' onClick={onRequestPreviewFullscreen}>
-          <Maximize2 aria-hidden='true' />
+          <Maximize aria-hidden='true' />
         </ToolbarButton>
       </div>
 
@@ -202,9 +202,6 @@ export function TimelineToolbar({
         >
           <ZoomIn aria-hidden='true' />
         </ToolbarButton>
-        <output className='oc-timeline-toolbar__zoom-value'>
-          {Math.round(pixelsPerSecond)}px/s
-        </output>
       </div>
     </div>
   );

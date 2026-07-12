@@ -378,5 +378,6 @@ export function useTimelineController({
     displayClips,
     dropPreview,
     isInteracting: gesture !== null,
+    isScrubbing: gesture?.kind === 'scrub',
   };
 }

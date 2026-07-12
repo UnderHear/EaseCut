@@ -53,16 +53,6 @@ export function TimelineRuler({
           {formatTick(tick)}
         </time>
       ))}
-      <button
-        aria-label='拖动播放头'
-        className='oc-timeline-ruler__playhead'
-        onPointerDown={onPointerDown}
-        style={{
-          left:
-            TIMELINE_CONTENT_PADDING_X + timeToX(currentTime, pixelsPerSecond),
-        }}
-        type='button'
-      />
     </div>
   );
 }

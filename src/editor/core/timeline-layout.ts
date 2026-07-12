@@ -1,6 +1,6 @@
 import type { TimelineClipType, TimelineTrack } from '../types';
 
-export const TIMELINE_RULER_HEIGHT = 26;
+export const TIMELINE_RULER_HEIGHT = 32;
 export const TIMELINE_TRACK_HEIGHT = 56;
 export const TIMELINE_CLIP_HEIGHT = 48;
 export const TIMELINE_AUDIO_TRACK_HEIGHT = 40;

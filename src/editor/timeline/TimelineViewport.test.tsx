@@ -181,11 +181,19 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 1,
     });
     expect(testTimelineStore.getState().currentTime).toBe(2.5);
+    expect(screen.getByLabelText('时间线轨道区域')).toHaveAttribute(
+      'data-scrubbing',
+      'true',
+    );
     fireEvent.pointerUp(window, {
       clientX: 308,
       clientY: 10,
       pointerId: 1,
     });
+    expect(screen.getByLabelText('时间线轨道区域')).toHaveAttribute(
+      'data-scrubbing',
+      'false',
+    );
 
     const videoLane = document.querySelector(
       `[data-track-id="${MAIN_VIDEO_TRACK_ID}"]`,
@@ -199,9 +207,13 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(testTimelineStore.getState().currentTime).toBe(4);
-    expect(
-      screen.getByRole('button', { name: '拖动播放头' }),
-    ).toHaveStyle({ left: '332px' });
+    const playhead = document.querySelector('.oc-timeline-playhead');
+    expect(playhead).toHaveStyle({ left: '428px' });
+    expect(playhead?.children).toHaveLength(2);
+    expect(playhead?.children[0]).toHaveClass(
+      'oc-timeline-playhead__handle',
+    );
+    expect(playhead?.children[1]).toHaveClass('oc-timeline-playhead__line');
   });
 
   it('uses Shift+wheel for horizontal scroll and Ctrl+wheel for zoom', () => {

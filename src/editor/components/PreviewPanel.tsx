@@ -465,7 +465,7 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
         return;
       }
 
-      context.fillStyle = '#111111';
+      context.fillStyle = '#1f1f1f';
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = '#000000';
       context.fillRect(

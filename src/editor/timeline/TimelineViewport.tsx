@@ -246,6 +246,7 @@ export function TimelineViewport() {
       aria-label='时间线轨道区域'
       className='oc-timeline-viewport oc-scrollbar'
       data-interacting={controller.isInteracting}
+      data-scrubbing={controller.isScrubbing}
       ref={viewportRef}
     >
       <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
@@ -260,6 +261,28 @@ export function TimelineViewport() {
           pixelsPerSecond={pixelsPerSecond}
           width={laneWidth}
         />
+        <div
+          aria-hidden='true'
+          className='oc-timeline-playhead'
+          onPointerDown={controller.beginScrub}
+          style={{ left: playheadLeft }}
+        >
+          <svg
+            aria-hidden='true'
+            className='oc-timeline-playhead__handle'
+            viewBox='0 0 12 18'
+          >
+            <path
+              d='M0 3C0 1.34314 1.34315 0 3 0h6c1.6569 0 3 1.34315 3 3v8.8287c0 .9207-.4228 1.7904-1.1469 2.3592L6 18l-4.8531-3.8121C.4228 13.6191 0 12.7494 0 11.8287V3Z'
+              fill='none'
+              stroke='currentColor'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              strokeWidth='2'
+            />
+          </svg>
+          <span className='oc-timeline-playhead__line' />
+        </div>
 
         {visibleTracks.map((track, index) => {
           const pending = isPendingTrack(track);
@@ -376,11 +399,6 @@ export function TimelineViewport() {
           className='oc-timeline-tail'
           onPointerDown={controller.beginScrub}
           style={{ gridRow: visibleTracks.length + 2 }}
-        />
-        <div
-          aria-hidden='true'
-          className='oc-timeline-playhead-line'
-          style={{ left: playheadLeft }}
         />
         {dropPreview?.snapTime !== null &&
           dropPreview?.snapTime !== undefined && (
