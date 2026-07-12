@@ -81,6 +81,8 @@ export function Editor() {
 
 视频源建议提供时长、宽度和高度；音频源建议提供时长。如果缺失，编辑器会通过浏览器媒体元素异步读取。
 
+配置 `onImportMedia` 后，在线素材弹窗会根据 URL 路径中的文件后缀自动识别视频或音频，无需用户选择类型；查询参数和签名不会影响识别。
+
 ```ts
 type VideoTimelineSource = {
   id: string;

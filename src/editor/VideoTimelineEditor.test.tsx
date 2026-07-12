@@ -203,7 +203,7 @@ describe('VideoTimelineEditor', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('validates URL imports, submits the selected media type, and closes after success', async () => {
+  it('detects the media type from the URL suffix and closes after import', async () => {
     const user = userEvent.setup();
     const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
     render(
@@ -224,8 +224,7 @@ describe('VideoTimelineEditor', () => {
 
     await user.clear(urlInput);
     await user.type(urlInput, 'https://cdn.example.com/music.mp3?signature=1');
-    await user.click(screen.getByRole('button', { name: '素材类型：视频' }));
-    await user.click(screen.getByRole('button', { name: '音频' }));
+    expect(screen.queryByText('素材类型')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '确认导入' }));
 
     expect(onImportMedia).toHaveBeenCalledWith({
@@ -237,6 +236,33 @@ describe('VideoTimelineEditor', () => {
         screen.queryByRole('dialog', { name: '导入在线素材' }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it('rejects missing or unsupported URL file suffixes', async () => {
+    const user = userEvent.setup();
+    const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
+    render(
+      <VideoTimelineEditor
+        onImportMedia={onImportMedia}
+        sources={[videoSource]}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '导入素材' }));
+    const urlInput = screen.getByLabelText('素材 URL');
+
+    await user.type(urlInput, 'https://cdn.example.com/document.pdf');
+    await user.click(screen.getByRole('button', { name: '确认导入' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '不支持的素材文件后缀：.pdf。',
+    );
+
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://cdn.example.com/no-extension');
+    await user.click(screen.getByRole('button', { name: '确认导入' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '无法从 URL 文件后缀识别素材类型。',
+    );
+    expect(onImportMedia).not.toHaveBeenCalled();
   });
 
   it('prevents duplicate import submissions and displays callback failures', async () => {
@@ -263,6 +289,10 @@ describe('VideoTimelineEditor', () => {
     expect(screen.getByRole('button', { name: '取消' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: '导入中…' }));
     expect(onImportMedia).toHaveBeenCalledOnce();
+    expect(onImportMedia).toHaveBeenCalledWith({
+      type: 'video',
+      url: 'https://cdn.example.com/video.mp4',
+    });
 
     pendingImport.resolve();
     await waitFor(() =>

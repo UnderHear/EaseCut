@@ -6,7 +6,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { ChevronDown, FileJson, FileVideo, X } from 'lucide-react';
+import { FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
 import { MediaRuntimeProvider, useMediaRuntime } from './media';
@@ -38,6 +38,51 @@ const hasCompleteSourceMetadata = (source: VideoTimelineSource) =>
     : isPositiveNumber(source.durationSeconds) &&
       isPositiveNumber(source.height) &&
       isPositiveNumber(source.width);
+
+const VIDEO_FILE_EXTENSIONS = new Set([
+  '3g2',
+  '3gp',
+  'avi',
+  'm2ts',
+  'm4v',
+  'mkv',
+  'mov',
+  'mp4',
+  'mpeg',
+  'mpg',
+  'm3u8',
+  'ogv',
+  'ts',
+  'webm',
+]);
+
+const AUDIO_FILE_EXTENSIONS = new Set([
+  'aac',
+  'aif',
+  'aiff',
+  'flac',
+  'm4a',
+  'mp3',
+  'oga',
+  'ogg',
+  'opus',
+  'wav',
+  'weba',
+  'wma',
+]);
+
+const detectOnlineMediaType = (url: URL): VideoTimelineMediaType => {
+  const fileName = url.pathname.split('/').at(-1)?.toLowerCase() ?? '';
+  const extension = fileName.match(/\.([a-z0-9]+)$/)?.[1];
+
+  if (!extension) {
+    throw new Error('无法从 URL 文件后缀识别素材类型。');
+  }
+  if (VIDEO_FILE_EXTENSIONS.has(extension)) return 'video';
+  if (AUDIO_FILE_EXTENSIONS.has(extension)) return 'audio';
+
+  throw new Error(`不支持的素材文件后缀：.${extension}。`);
+};
 
 const shouldIgnoreShortcutTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -109,15 +154,12 @@ function VideoTimelineEditorView({
   const syncSources = useTimelineStore((state) => state.syncSources);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [importType, setImportType] =
-    useState<VideoTimelineMediaType>('video');
   const [importUrl, setImportUrl] = useState('');
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const importTypePickerRef = useRef<HTMLDetailsElement | null>(null);
   const importUrlInputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const onDraftChangeRef = useRef(onDraftChange);
@@ -244,7 +286,6 @@ function VideoTimelineEditorView({
 
   const resetImportForm = () => {
     setImportError(null);
-    setImportType('video');
     setImportUrl('');
   };
 
@@ -259,18 +300,14 @@ function VideoTimelineEditorView({
     setIsImportDialogOpen(true);
   };
 
-  const selectImportType = (type: VideoTimelineMediaType) => {
-    setImportType(type);
-    importTypePickerRef.current?.removeAttribute('open');
-  };
-
   const submitMediaImport = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!onImportMedia || isImporting) return;
 
     const url = importUrl.trim();
+    let parsedUrl: URL;
     try {
-      const parsedUrl = new URL(url);
+      parsedUrl = new URL(url);
       if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
         throw new TypeError('Unsupported protocol');
       }
@@ -279,10 +316,20 @@ function VideoTimelineEditorView({
       return;
     }
 
+    let type: VideoTimelineMediaType;
+    try {
+      type = detectOnlineMediaType(parsedUrl);
+    } catch (error) {
+      setImportError(
+        error instanceof Error ? error.message : '无法识别素材类型。',
+      );
+      return;
+    }
+
     setImportError(null);
     setIsImporting(true);
     try {
-      await onImportMedia({ type: importType, url });
+      await onImportMedia({ type, url });
       setIsImportDialogOpen(false);
       resetImportForm();
     } catch (error) {
@@ -298,10 +345,6 @@ function VideoTimelineEditorView({
     if (isImportDialogOpen && event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
-      if (importTypePickerRef.current?.open) {
-        importTypePickerRef.current.removeAttribute('open');
-        return;
-      }
       closeImportDialog();
       return;
     }
@@ -504,41 +547,6 @@ function VideoTimelineEditorView({
                   value={importUrl}
                 />
               </label>
-
-              <div className='oc-import-dialog__field'>
-                <span>素材类型</span>
-                <details
-                  className='oc-import-type-picker'
-                  ref={importTypePickerRef}
-                >
-                  <summary
-                    aria-label={`素材类型：${importType === 'video' ? '视频' : '音频'}`}
-                    className='oc-import-type-picker__trigger'
-                    role='button'
-                  >
-                    <span>{importType === 'video' ? '视频' : '音频'}</span>
-                    <ChevronDown aria-hidden='true' size={16} />
-                  </summary>
-                  <div className='oc-import-type-picker__menu'>
-                    <button
-                      aria-pressed={importType === 'video'}
-                      className='oc-import-type-picker__option'
-                      onClick={() => selectImportType('video')}
-                      type='button'
-                    >
-                      视频
-                    </button>
-                    <button
-                      aria-pressed={importType === 'audio'}
-                      className='oc-import-type-picker__option'
-                      onClick={() => selectImportType('audio')}
-                      type='button'
-                    >
-                      音频
-                    </button>
-                  </div>
-                </details>
-              </div>
 
               {importError && (
                 <p className='oc-import-dialog__error' id={importErrorId} role='alert'>
