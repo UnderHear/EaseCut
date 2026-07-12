@@ -27,29 +27,6 @@ export const sortClipsByStart = (clips: TimelineClip[]) =>
 export const getTrackClips = (clips: TimelineClip[], trackId: string) =>
   sortClipsByStart(clips.filter((clip) => clip.trackId === trackId));
 
-export const getNonOverlappingClipStart = (
-  trackClips: TimelineClip[],
-  draggedClipId: string,
-  candidateStart: number,
-  duration: number,
-) => {
-  let nextStart = roundTimelineTime(Math.max(0, candidateStart));
-
-  for (const clip of sortClipsByStart(trackClips).filter(
-    (candidate) => candidate.id !== draggedClipId,
-  )) {
-    const nextEnd = roundTimelineTime(nextStart + duration);
-    const clipEnd = roundTimelineTime(clip.start + clip.duration);
-    if (nextEnd <= clip.start || nextStart >= clipEnd) {
-      continue;
-    }
-
-    nextStart = clipEnd;
-  }
-
-  return roundTimelineTime(nextStart);
-};
-
 export const layoutTrackSequentially = (clips: TimelineClip[]) => {
   let cursor = 0;
 
@@ -108,18 +85,6 @@ export const getInsertionIndex = (
   return candidates.length;
 };
 
-export const getSequentialGhostStart = (
-  trackClips: TimelineClip[],
-  draggedClipId: string,
-  insertionIndex: number,
-) => {
-  const clipsBeforeSlot = sortClipsByStart(trackClips)
-    .filter((clip) => clip.id !== draggedClipId)
-    .slice(0, insertionIndex);
-
-  return clipsBeforeSlot.reduce((start, clip) => start + clip.duration, 0);
-};
-
 export const getPreservedGapInsertionLayout = (
   trackClips: TimelineClip[],
   draggedClip: TimelineClip,
@@ -171,12 +136,12 @@ export const getPreservedGapInsertionLayout = (
 
     cursor = roundTimelineTime(nextStart + clip.duration);
 
-    if (nextStart === clip.start) {
+    if (nextStart === clip.start && clip.zIndex === index) {
       return clip;
     }
 
-    shiftedClipIds.push(clip.id);
-    return { ...clip, start: nextStart };
+    if (nextStart !== clip.start) shiftedClipIds.push(clip.id);
+    return { ...clip, start: nextStart, zIndex: index };
   });
 
   return {
@@ -224,12 +189,21 @@ export const getCompactInsertionLayout = (
   };
 };
 
-export const getDragGhostDisplayX = (
-  dropX: number,
-  ghostWidth: number,
-  sourceIndex: number,
+export const planClipInsertion = (
+  trackClips: TimelineClip[],
+  draggedClip: TimelineClip,
   insertionIndex: number,
-) => (insertionIndex > sourceIndex ? dropX + ghostWidth : dropX);
+  candidateStart: number,
+  compact: boolean,
+) =>
+  compact
+    ? getCompactInsertionLayout(trackClips, draggedClip, insertionIndex)
+    : getPreservedGapInsertionLayout(
+        trackClips,
+        draggedClip,
+        insertionIndex,
+        candidateStart,
+      );
 
 export const getClipSnapCandidates = (
   clips: TimelineClip[],

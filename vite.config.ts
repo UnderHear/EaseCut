@@ -4,12 +4,10 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 const libraryExternals = [
-  'konva',
   'lucide-react',
   'react',
   'react-dom',
   'react/jsx-runtime',
-  'react-konva',
   'zustand',
   'zustand/react',
   'zustand/vanilla',

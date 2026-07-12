@@ -1,11 +1,12 @@
 import type { TimelineClipType, TimelineTrack } from '../types';
 
-export const TIMELINE_RULER_HEIGHT = 32;
-export const TIMELINE_TRACK_HEIGHT = 66;
-export const TIMELINE_CLIP_HEIGHT = 64;
-export const TIMELINE_AUDIO_TRACK_HEIGHT = 44;
-export const TIMELINE_AUDIO_CLIP_HEIGHT = TIMELINE_AUDIO_TRACK_HEIGHT - 2;
-export const TIMELINE_TRACK_HEADER_WIDTH = 104;
+export const TIMELINE_RULER_HEIGHT = 26;
+export const TIMELINE_TRACK_HEIGHT = 56;
+export const TIMELINE_CLIP_HEIGHT = 48;
+export const TIMELINE_AUDIO_TRACK_HEIGHT = 40;
+export const TIMELINE_AUDIO_CLIP_HEIGHT = 32;
+export const TIMELINE_TRACK_HEADER_WIDTH = 96;
+export const TIMELINE_CONTENT_PADDING_X = 12;
 
 export const getTimelineTrackHeight = (track: Pick<TimelineTrack, 'type'>) =>
   track.type === 'audio' ? TIMELINE_AUDIO_TRACK_HEIGHT : TIMELINE_TRACK_HEIGHT;

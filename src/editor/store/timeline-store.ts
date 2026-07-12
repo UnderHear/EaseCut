@@ -1,10 +1,9 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import {
-  getCompactInsertionLayout,
-  getPreservedGapInsertionLayout,
   getTimelineDuration,
   getTrackClips,
+  planClipInsertion,
   relayoutTrackInClipSet,
   sortClipsByStart,
 } from '../core/collision';
@@ -846,6 +845,23 @@ const recordClipsChange = (
   };
 };
 
+const hasSameClipLayout = (
+  currentClips: TimelineClip[],
+  nextClips: TimelineClip[],
+) => {
+  if (currentClips.length !== nextClips.length) return false;
+  const currentById = new Map(currentClips.map((clip) => [clip.id, clip]));
+
+  return nextClips.every((clip) => {
+    const current = currentById.get(clip.id);
+    return (
+      current?.start === clip.start &&
+      current.trackId === clip.trackId &&
+      current.zIndex === clip.zIndex
+    );
+  });
+};
+
 export const normalizeTimelineClips = (clips: TimelineClip[]) =>
   sortClipsByStart(clips);
 
@@ -1102,23 +1118,18 @@ export const createTimelineStore = (
         trackId: nextTargetTrackId,
         zIndex: targetTrackClips.length,
       };
-      const insertionLayout = shouldCompactMainVideoTrackAfterDrop(
-        nextTracks,
-        state.clips,
-        clipId,
-        nextTargetTrackId,
-      )
-        ? getCompactInsertionLayout(
-            targetTrackClips,
-            targetClip,
-            insertionIndex,
-          )
-        : getPreservedGapInsertionLayout(
-            targetTrackClips,
-            targetClip,
-            insertionIndex,
-            requestedStart,
-          );
+      const insertionLayout = planClipInsertion(
+        targetTrackClips,
+        targetClip,
+        insertionIndex,
+        requestedStart,
+        shouldCompactMainVideoTrackAfterDrop(
+          nextTracks,
+          state.clips,
+          clipId,
+          nextTargetTrackId,
+        ),
+      );
       const nextTargetClipIds = new Set(
         insertionLayout.clips.map((clip) => clip.id),
       );
@@ -1128,6 +1139,14 @@ export const createTimelineStore = (
         ),
         ...insertionLayout.clips,
       ];
+
+      if (
+        nextTracks === state.tracks &&
+        hasSameClipLayout(state.clips, nextClips)
+      ) {
+        if (state.selectedClipId !== clipId) set({ selectedClipId: clipId });
+        return;
+      }
 
       set(recordClipsChange(state, nextClips, clipId, nextTracks));
     },

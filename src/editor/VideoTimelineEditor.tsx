@@ -1,7 +1,6 @@
 import {
   useEffect,
   useId,
-  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -10,20 +9,11 @@ import {
 import { ChevronDown, FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
-import { TimelineCanvas } from './components/TimelineCanvas';
-import { TimelineToolbar } from './components/TimelineToolbar';
-import { TrackHeader } from './components/TrackHeader';
-import {
-  TIMELINE_RULER_HEIGHT,
-  TIMELINE_TRACK_HEADER_WIDTH,
-} from './core/timeline-layout';
 import { MediaRuntimeProvider, useMediaRuntime } from './media';
 import {
   createTimelineStore,
   createVideoTimelineDraft,
-  getVisibleTimelineTracks,
   selectTimelineDuration,
-  type PendingTimelineTrack,
 } from './store/timeline-store';
 import {
   TimelineStoreProvider,
@@ -37,6 +27,7 @@ import type {
   VideoTimelineMediaType,
   VideoTimelineSource,
 } from './types';
+import { TimelinePanel } from './timeline/TimelinePanel';
 
 const isPositiveNumber = (value: number | undefined) =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -116,8 +107,6 @@ function VideoTimelineEditorView({
   const runtime = useMediaRuntime();
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const syncSources = useTimelineStore((state) => state.syncSources);
-  const toggleTrackMute = useTimelineStore((state) => state.toggleTrackMute);
-  const tracks = useTimelineStore((state) => state.tracks);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importType, setImportType] =
@@ -127,11 +116,6 @@ function VideoTimelineEditorView({
   const [isImporting, setIsImporting] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [pendingTrack, setPendingTrack] = useState<PendingTimelineTrack | null>(
-    null,
-  );
-  const [timelineScrollElement, setTimelineScrollElement] =
-    useState<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const importTypePickerRef = useRef<HTMLDetailsElement | null>(null);
   const importUrlInputRef = useRef<HTMLInputElement | null>(null);
@@ -139,10 +123,6 @@ function VideoTimelineEditorView({
   const onDraftChangeRef = useRef(onDraftChange);
   const importDialogTitleId = useId();
   const importErrorId = useId();
-  const visibleTracks = useMemo(
-    () => getVisibleTimelineTracks(tracks, pendingTrack),
-    [pendingTrack, tracks],
-  );
 
   useEffect(() => {
     onDraftChangeRef.current = onDraftChange;
@@ -475,31 +455,10 @@ function VideoTimelineEditorView({
 
         <PreviewPanel previewRef={previewRef} />
 
-        <section className='oc-timeline-panel' aria-label='时间线编辑区域'>
-          <TimelineToolbar
-            onRequestImport={onImportMedia ? openImportDialog : undefined}
-            onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
-          />
-          <div
-            ref={setTimelineScrollElement}
-            className='oc-timeline-panel__body oc-scrollbar'
-            style={{
-              gridTemplateColumns: `${TIMELINE_TRACK_HEADER_WIDTH}px minmax(0, 1fr)`,
-            }}
-          >
-            <TrackHeader
-              onToggleTrackMute={toggleTrackMute}
-              rulerHeight={TIMELINE_RULER_HEIGHT}
-              tracks={visibleTracks}
-            />
-            <TimelineCanvas
-              onPendingTrackChange={setPendingTrack}
-              pendingTrack={pendingTrack}
-              verticalScrollContainer={timelineScrollElement}
-              visibleTracks={visibleTracks}
-            />
-          </div>
-        </section>
+        <TimelinePanel
+          onRequestImport={onImportMedia ? openImportDialog : undefined}
+          onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
+        />
       </main>
 
       {isImportDialogOpen && (

@@ -629,8 +629,8 @@ describe('timelineStore video track layout', () => {
     let revision = timelineStore.getState().layoutRevision;
 
     timelineStore.getState().commitClipDrop({
-      clipId: 'clip-video-1',
-      insertionIndex: 0,
+      clipId: 'clip-video-3',
+      insertionIndex: 1,
       targetTrackId: MAIN_VIDEO_TRACK_ID,
     });
     expect(timelineStore.getState().layoutRevision).toBe(revision + 1);

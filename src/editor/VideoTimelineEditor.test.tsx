@@ -20,13 +20,20 @@ vi.mock('./components/PreviewPanel', () => ({
   PreviewPanel: () => <div data-testid='preview-panel' />,
 }));
 
-vi.mock('./components/TimelineCanvas', async () => {
+vi.mock('./timeline/TimelinePanel', async () => {
   const { useTimelineStore } = await import(
     './store/timeline-store-context'
   );
+  const { TimelineToolbar } = await import('./components/TimelineToolbar');
 
   return {
-    TimelineCanvas: () => {
+    TimelinePanel: ({
+      onRequestImport,
+      onRequestPreviewFullscreen,
+    }: {
+      onRequestImport?: () => void;
+      onRequestPreviewFullscreen: () => void;
+    }) => {
       const clips = useTimelineStore((state) => state.clips);
       const isPlaying = useTimelineStore((state) => state.isPlaying);
       const selectClip = useTimelineStore((state) => state.selectClip);
@@ -41,35 +48,41 @@ vi.mock('./components/TimelineCanvas', async () => {
       );
 
       return (
-        <div
-          data-clip-count={clips.length}
-          data-first-duration={firstClip?.duration ?? ''}
-          data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
-          data-first-track-volume={firstClipTrack?.volume ?? ''}
-          data-playing={String(isPlaying)}
-          data-testid='timeline-state'
-        >
-          <button
-            aria-label='测试：切换播放'
-            onClick={() => setIsPlaying(!isPlaying)}
-            type='button'
+        <>
+          <TimelineToolbar
+            onRequestImport={onRequestImport}
+            onRequestPreviewFullscreen={onRequestPreviewFullscreen}
           />
-          <button
-            aria-label='测试：切换首个片段静音'
-            disabled={!firstClip}
-            onClick={() => {
-              if (firstClip) toggleTrackMute(firstClip.trackId);
-            }}
-            type='button'
-          />
-          <button
-            aria-label='测试：选择首个片段'
-            disabled={!firstClip}
-            onClick={() => selectClip(firstClip?.id ?? null)}
-            type='button'
-          />
-          <input aria-label='测试：编辑器内输入框' />
-        </div>
+          <div
+            data-clip-count={clips.length}
+            data-first-duration={firstClip?.duration ?? ''}
+            data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
+            data-first-track-volume={firstClipTrack?.volume ?? ''}
+            data-playing={String(isPlaying)}
+            data-testid='timeline-state'
+          >
+            <button
+              aria-label='测试：切换播放'
+              onClick={() => setIsPlaying(!isPlaying)}
+              type='button'
+            />
+            <button
+              aria-label='测试：切换首个片段静音'
+              disabled={!firstClip}
+              onClick={() => {
+                if (firstClip) toggleTrackMute(firstClip.trackId);
+              }}
+              type='button'
+            />
+            <button
+              aria-label='测试：选择首个片段'
+              disabled={!firstClip}
+              onClick={() => selectClip(firstClip?.id ?? null)}
+              type='button'
+            />
+            <input aria-label='测试：编辑器内输入框' />
+          </div>
+        </>
       );
     },
   };

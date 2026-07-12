@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getCompactInsertionLayout,
-  getDragGhostDisplayX,
   getInsertionIndex,
   getPreservedGapInsertionLayout,
   snapClipMoveToCandidates,
@@ -28,20 +27,6 @@ const createClip = (
   transform: { height: 720, width: 1280, x: 0, y: 0 },
   type: 'video',
   zIndex: start,
-});
-
-describe('getDragGhostDisplayX', () => {
-  it('shifts the highlight by the dragged clip width when moving right', () => {
-    expect(getDragGhostDisplayX(160, 80, 0, 2)).toBe(240);
-  });
-
-  it('keeps the highlight at the drop position when moving left', () => {
-    expect(getDragGhostDisplayX(160, 80, 2, 0)).toBe(160);
-  });
-
-  it('keeps the highlight at the drop position when the index is unchanged', () => {
-    expect(getDragGhostDisplayX(160, 80, 1, 1)).toBe(160);
-  });
 });
 
 describe('getInsertionIndex', () => {

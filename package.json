@@ -42,9 +42,7 @@
     "react-dom": ">=19.0.0 <20.0.0"
   },
   "dependencies": {
-    "konva": "^10.3.0",
     "lucide-react": "^1.14.0",
-    "react-konva": "^19.2.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

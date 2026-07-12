@@ -2,7 +2,7 @@
 
 OpenCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频轨、拖拽编排、裁剪、分割、吸附、撤销重做、音量调节、画面变换、预览以及可扩展导出接口。
 
-项目不依赖 React Flow、Tailwind、shadcn 或 Base UI。界面由语义 HTML、普通 CSS、Konva 和 lucide-react 构成。
+项目不依赖 React Flow、Tailwind、shadcn 或 Base UI。界面由语义 HTML、普通 CSS、原生 Canvas 和 lucide-react 构成。
 
 > 当前包名为 `opencut-react`，并设置了 `private: true`。这是为了先稳定公开 API；正式发布到 npm 前需要确认包名和版权主体。
 
