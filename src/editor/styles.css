@@ -54,14 +54,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.oc-editor button:focus-visible,
-.oc-editor input:focus-visible,
-.oc-editor summary:focus-visible,
-.oc-editor:focus-visible {
-  outline: 2px solid var(--oc-accent);
-  outline-offset: 2px;
-}
-
 .oc-editor__header {
   display: flex;
   height: 48px;
@@ -326,6 +318,149 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.oc-import-dialog__backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 58%);
+}
+
+.oc-import-dialog {
+  width: min(100%, 420px);
+  padding: 16px;
+  border: 1px solid var(--oc-border-strong);
+  border-radius: calc(var(--oc-radius) + 2px);
+  background: var(--oc-panel);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 50%);
+}
+
+.oc-import-dialog form {
+  display: grid;
+  gap: 14px;
+}
+
+.oc-import-dialog__header,
+.oc-import-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.oc-import-dialog__header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.oc-import-dialog__header .oc-icon-button {
+  margin-left: auto;
+}
+
+.oc-import-dialog__field {
+  display: grid;
+  gap: 6px;
+  color: var(--oc-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.oc-import-dialog__field input,
+.oc-import-type-picker__trigger {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--oc-border-strong);
+  border-radius: var(--oc-radius);
+  color: var(--oc-text);
+  background: #191919;
+}
+
+.oc-import-dialog__field input::placeholder {
+  color: #737373;
+}
+
+.oc-import-type-picker {
+  position: relative;
+}
+
+.oc-import-type-picker__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+
+.oc-import-type-picker__trigger::-webkit-details-marker {
+  display: none;
+}
+
+.oc-import-type-picker__trigger svg {
+  color: var(--oc-text-muted);
+  transition: transform 120ms ease;
+}
+
+.oc-import-type-picker[open] .oc-import-type-picker__trigger {
+  border-color: var(--oc-border-strong);
+  background: #202020;
+}
+
+.oc-import-type-picker[open] .oc-import-type-picker__trigger svg {
+  transform: rotate(180deg);
+}
+
+.oc-import-type-picker__menu {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--oc-border-strong);
+  border-radius: var(--oc-radius);
+  background: #1b1b1b;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 28%);
+}
+
+.oc-import-type-picker__option {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--oc-radius) - 2px);
+  color: var(--oc-text-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.oc-import-type-picker__option:hover,
+.oc-import-type-picker__option[aria-pressed='true'] {
+  background: var(--oc-panel-hover);
+}
+
+.oc-import-type-picker__option[aria-pressed='true'] {
+  color: var(--oc-text);
+}
+
+.oc-import-dialog__error {
+  margin: -2px 0 0;
+  color: var(--oc-danger);
+  font-size: 12px;
+}
+
+.oc-import-dialog__actions {
+  justify-content: flex-end;
+  padding-top: 2px;
 }
 
 .oc-shortcuts {

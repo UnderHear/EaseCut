@@ -23,6 +23,7 @@ export type {
   VideoTimelineDraft,
   VideoTimelineEditorProps,
   VideoTimelineExportRequest,
+  VideoTimelineImportRequest,
   VideoTimelineMediaLoader,
   VideoTimelineMediaMetadata,
   VideoTimelineMediaType,

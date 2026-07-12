@@ -135,6 +135,11 @@ export type VideoTimelineExportRequest = {
   payload: CompositionExportPayload;
 };
 
+export type VideoTimelineImportRequest = {
+  type: VideoTimelineMediaType;
+  url: string;
+};
+
 export type VideoTimelineEditorProps = {
   sources: VideoTimelineSource[];
   initialDraft?: VideoTimelineDraft;
@@ -145,6 +150,9 @@ export type VideoTimelineEditorProps = {
   mediaLoader?: VideoTimelineMediaLoader;
   onDraftChange?: (draft: VideoTimelineDraft) => void;
   onExport?: (request: VideoTimelineExportRequest) => void | Promise<void>;
+  onImportMedia?: (
+    request: VideoTimelineImportRequest,
+  ) => void | Promise<void>;
   onClose?: () => void;
 };
 

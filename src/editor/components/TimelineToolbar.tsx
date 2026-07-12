@@ -1,4 +1,5 @@
 import {
+  FilePlus2,
   Keyboard,
   Maximize2,
   Magnet,
@@ -23,6 +24,7 @@ import { canSplitClipAtTime } from '../store/timeline-store';
 import { useTimelineStore } from '../store/timeline-store-context';
 
 type TimelineToolbarProps = {
+  onRequestImport?: () => void;
   onRequestPreviewFullscreen: () => void;
 };
 
@@ -36,6 +38,7 @@ const timelineShortcutItems = [
 ] as const;
 
 export function TimelineToolbar({
+  onRequestImport,
   onRequestPreviewFullscreen,
 }: TimelineToolbarProps) {
   const canRedo = useTimelineStore((state) => state.future.length > 0);
@@ -96,6 +99,11 @@ export function TimelineToolbar({
         >
           <Trash2 aria-hidden='true' />
         </ToolbarButton>
+        {onRequestImport && (
+          <ToolbarButton label='导入素材' onClick={onRequestImport}>
+            <FilePlus2 aria-hidden='true' />
+          </ToolbarButton>
+        )}
       </div>
 
       <div className='oc-timeline-toolbar__transport'>

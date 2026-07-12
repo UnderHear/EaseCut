@@ -59,6 +59,30 @@ describe('TimelineToolbar', () => {
     );
   });
 
+  it('only shows the import action when the editor provides an import handler', async () => {
+    const user = userEvent.setup();
+    const onRequestImport = vi.fn();
+    const { rerender } = renderWithEditorProviders(
+      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: '导入素材' }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <TimelineToolbar
+        onRequestImport={onRequestImport}
+        onRequestPreviewFullscreen={vi.fn()}
+      />,
+    );
+
+    const importButton = screen.getByRole('button', { name: '导入素材' });
+    expect(importButton).toHaveAttribute('title', '导入素材');
+    await user.click(importButton);
+    expect(onRequestImport).toHaveBeenCalledOnce();
+  });
+
   it('shows timeline keyboard shortcuts from native details', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(

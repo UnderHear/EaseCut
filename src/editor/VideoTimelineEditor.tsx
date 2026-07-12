@@ -4,9 +4,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { FileJson, FileVideo, X } from 'lucide-react';
+import { ChevronDown, FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
 import { TimelineCanvas } from './components/TimelineCanvas';
@@ -33,6 +34,7 @@ import type {
   CompositionExportPayload,
   VideoTimelineDraft,
   VideoTimelineEditorProps,
+  VideoTimelineMediaType,
   VideoTimelineSource,
 } from './types';
 
@@ -104,6 +106,7 @@ function VideoTimelineEditorView({
   onClose,
   onDraftChange,
   onExport,
+  onImportMedia,
   sources,
   style,
   title = '视频合成',
@@ -116,6 +119,12 @@ function VideoTimelineEditorView({
   const toggleTrackMute = useTimelineStore((state) => state.toggleTrackMute);
   const tracks = useTimelineStore((state) => state.tracks);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importType, setImportType] =
+    useState<VideoTimelineMediaType>('video');
+  const [importUrl, setImportUrl] = useState('');
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [pendingTrack, setPendingTrack] = useState<PendingTimelineTrack | null>(
@@ -124,8 +133,12 @@ function VideoTimelineEditorView({
   const [timelineScrollElement, setTimelineScrollElement] =
     useState<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const importTypePickerRef = useRef<HTMLDetailsElement | null>(null);
+  const importUrlInputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const onDraftChangeRef = useRef(onDraftChange);
+  const importDialogTitleId = useId();
+  const importErrorId = useId();
   const visibleTracks = useMemo(
     () => getVisibleTimelineTracks(tracks, pendingTrack),
     [pendingTrack, tracks],
@@ -134,6 +147,15 @@ function VideoTimelineEditorView({
   useEffect(() => {
     onDraftChangeRef.current = onDraftChange;
   }, [onDraftChange]);
+
+  useEffect(() => {
+    if (!isImportDialogOpen) return undefined;
+
+    const focusTimer = window.setTimeout(() => {
+      importUrlInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [isImportDialogOpen]);
 
   useEffect(() => {
     let previousDraftJson = JSON.stringify(
@@ -240,7 +262,69 @@ function VideoTimelineEditorView({
     return () => root.removeEventListener('wheel', preventNativeZoom);
   }, []);
 
+  const resetImportForm = () => {
+    setImportError(null);
+    setImportType('video');
+    setImportUrl('');
+  };
+
+  const closeImportDialog = () => {
+    if (isImporting) return;
+    setIsImportDialogOpen(false);
+    resetImportForm();
+  };
+
+  const openImportDialog = () => {
+    resetImportForm();
+    setIsImportDialogOpen(true);
+  };
+
+  const selectImportType = (type: VideoTimelineMediaType) => {
+    setImportType(type);
+    importTypePickerRef.current?.removeAttribute('open');
+  };
+
+  const submitMediaImport = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onImportMedia || isImporting) return;
+
+    const url = importUrl.trim();
+    try {
+      const parsedUrl = new URL(url);
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        throw new TypeError('Unsupported protocol');
+      }
+    } catch {
+      setImportError('请输入有效的 http 或 https 素材地址。');
+      return;
+    }
+
+    setImportError(null);
+    setIsImporting(true);
+    try {
+      await onImportMedia({ type: importType, url });
+      setIsImportDialogOpen(false);
+      resetImportForm();
+    } catch (error) {
+      setImportError(
+        error instanceof Error ? error.message : '导入素材失败，请稍后重试。',
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (isImportDialogOpen && event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (importTypePickerRef.current?.open) {
+        importTypePickerRef.current.removeAttribute('open');
+        return;
+      }
+      closeImportDialog();
+      return;
+    }
     if (shouldIgnoreShortcutTarget(event.target)) return;
 
     const state = store.getState();
@@ -331,7 +415,11 @@ function VideoTimelineEditorView({
       onKeyDown={handleKeyDown}
       onPointerDownCapture={(event) => {
         if (!(event.target instanceof HTMLElement)) return;
-        if (!event.target.closest('button, input, summary, a[href]')) {
+        if (
+          !event.target.closest(
+            'button, input, select, textarea, summary, a[href], [role="dialog"]',
+          )
+        ) {
           rootRef.current?.focus({ preventScroll: true });
         }
       }}
@@ -389,6 +477,7 @@ function VideoTimelineEditorView({
 
         <section className='oc-timeline-panel' aria-label='时间线编辑区域'>
           <TimelineToolbar
+            onRequestImport={onImportMedia ? openImportDialog : undefined}
             onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
           />
           <div
@@ -412,6 +501,113 @@ function VideoTimelineEditorView({
           </div>
         </section>
       </main>
+
+      {isImportDialogOpen && (
+        <div
+          className='oc-import-dialog__backdrop'
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeImportDialog();
+          }}
+        >
+          <div
+            aria-describedby={importError ? importErrorId : undefined}
+            aria-labelledby={importDialogTitleId}
+            aria-modal='true'
+            className='oc-import-dialog'
+            role='dialog'
+          >
+            <form noValidate onSubmit={(event) => void submitMediaImport(event)}>
+              <div className='oc-import-dialog__header'>
+                <h2 id={importDialogTitleId}>导入在线素材</h2>
+                <button
+                  aria-label='关闭导入素材弹窗'
+                  className='oc-icon-button'
+                  disabled={isImporting}
+                  onClick={closeImportDialog}
+                  title='关闭'
+                  type='button'
+                >
+                  <X aria-hidden='true' size={17} />
+                </button>
+              </div>
+
+              <label className='oc-import-dialog__field' htmlFor='oc-import-url'>
+                <span>素材 URL</span>
+                <input
+                  aria-invalid={Boolean(importError)}
+                  autoComplete='url'
+                  id='oc-import-url'
+                  onChange={(event) => setImportUrl(event.target.value)}
+                  placeholder='https://example.com/video.mp4'
+                  ref={importUrlInputRef}
+                  required
+                  type='url'
+                  value={importUrl}
+                />
+              </label>
+
+              <div className='oc-import-dialog__field'>
+                <span>素材类型</span>
+                <details
+                  className='oc-import-type-picker'
+                  ref={importTypePickerRef}
+                >
+                  <summary
+                    aria-label={`素材类型：${importType === 'video' ? '视频' : '音频'}`}
+                    className='oc-import-type-picker__trigger'
+                    role='button'
+                  >
+                    <span>{importType === 'video' ? '视频' : '音频'}</span>
+                    <ChevronDown aria-hidden='true' size={16} />
+                  </summary>
+                  <div className='oc-import-type-picker__menu'>
+                    <button
+                      aria-pressed={importType === 'video'}
+                      className='oc-import-type-picker__option'
+                      onClick={() => selectImportType('video')}
+                      type='button'
+                    >
+                      视频
+                    </button>
+                    <button
+                      aria-pressed={importType === 'audio'}
+                      className='oc-import-type-picker__option'
+                      onClick={() => selectImportType('audio')}
+                      type='button'
+                    >
+                      音频
+                    </button>
+                  </div>
+                </details>
+              </div>
+
+              {importError && (
+                <p className='oc-import-dialog__error' id={importErrorId} role='alert'>
+                  {importError}
+                </p>
+              )}
+
+              <div className='oc-import-dialog__actions'>
+                <button
+                  className='oc-button oc-button--secondary'
+                  disabled={isImporting}
+                  onClick={closeImportDialog}
+                  type='button'
+                >
+                  取消
+                </button>
+                <button
+                  className='oc-button oc-button--primary'
+                  disabled={isImporting}
+                  type='submit'
+                >
+                  {isImporting ? '导入中…' : '确认导入'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

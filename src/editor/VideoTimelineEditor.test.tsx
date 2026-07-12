@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   VideoTimelineDraft,
   VideoTimelineExportRequest,
+  VideoTimelineImportRequest,
   VideoTimelineSource,
 } from './types';
 
@@ -160,6 +161,114 @@ describe('VideoTimelineEditor', () => {
       screen.getByRole('button', { name: '关闭视频编辑器' }),
     );
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('opens the online import dialog only when onImportMedia is configured', async () => {
+    const user = userEvent.setup();
+    const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
+    const { rerender } = render(<VideoTimelineEditor sources={[videoSource]} />);
+
+    expect(
+      screen.queryByRole('button', { name: '导入素材' }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <VideoTimelineEditor
+        onImportMedia={onImportMedia}
+        sources={[videoSource]}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '导入素材' }));
+
+    expect(screen.getByRole('dialog', { name: '导入在线素材' })).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByLabelText('素材 URL')).toHaveFocus(),
+    );
+    await user.keyboard('{Escape}');
+    expect(
+      screen.queryByRole('dialog', { name: '导入在线素材' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('validates URL imports, submits the selected media type, and closes after success', async () => {
+    const user = userEvent.setup();
+    const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
+    render(
+      <VideoTimelineEditor
+        onImportMedia={onImportMedia}
+        sources={[videoSource]}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '导入素材' }));
+
+    const urlInput = screen.getByLabelText('素材 URL');
+    await user.type(urlInput, 'file:///private/video.mp4');
+    await user.click(screen.getByRole('button', { name: '确认导入' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '请输入有效的 http 或 https 素材地址。',
+    );
+    expect(onImportMedia).not.toHaveBeenCalled();
+
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://cdn.example.com/music.mp3?signature=1');
+    await user.click(screen.getByRole('button', { name: '素材类型：视频' }));
+    await user.click(screen.getByRole('button', { name: '音频' }));
+    await user.click(screen.getByRole('button', { name: '确认导入' }));
+
+    expect(onImportMedia).toHaveBeenCalledWith({
+      type: 'audio',
+      url: 'https://cdn.example.com/music.mp3?signature=1',
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: '导入在线素材' }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it('prevents duplicate import submissions and displays callback failures', async () => {
+    const user = userEvent.setup();
+    const pendingImport = createDeferred<void>();
+    const onImportMedia = vi
+      .fn<(request: VideoTimelineImportRequest) => Promise<void>>()
+      .mockReturnValueOnce(pendingImport.promise)
+      .mockRejectedValueOnce(new Error('素材服务暂不可用'));
+    render(
+      <VideoTimelineEditor
+        onImportMedia={onImportMedia}
+        sources={[videoSource]}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: '导入素材' }));
+    await user.type(
+      screen.getByLabelText('素材 URL'),
+      'https://cdn.example.com/video.mp4',
+    );
+    await user.click(screen.getByRole('button', { name: '确认导入' }));
+
+    expect(screen.getByRole('button', { name: '导入中…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '取消' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: '导入中…' }));
+    expect(onImportMedia).toHaveBeenCalledOnce();
+
+    pendingImport.resolve();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: '导入在线素材' }),
+      ).not.toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByRole('button', { name: '导入素材' }));
+    await user.type(
+      screen.getByLabelText('素材 URL'),
+      'https://cdn.example.com/retry.mp4',
+    );
+    await user.click(screen.getByRole('button', { name: '确认导入' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '素材服务暂不可用',
+    );
+    expect(screen.getByRole('dialog', { name: '导入在线素材' })).toBeVisible();
   });
 
   it('passes the latest draft and derived payload to onExport', async () => {
