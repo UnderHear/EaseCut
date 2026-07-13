@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { getTrackClips } from '../core/collision';
 import {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
-  NEW_AUDIO_TRACK_DROP_ID,
-  NEW_VIDEO_TRACK_DROP_ID,
   createVideoTimelineDraft,
   MAIN_VIDEO_TRACK_ID,
   createTimelineStore,
@@ -12,6 +10,11 @@ import {
 import type { TimelineClip, VideoTimelineSource } from '../types';
 
 const timelineStore = createTimelineStore();
+
+const existingTarget = (trackId: string) =>
+  ({ kind: 'existing', trackId }) as const;
+const insertTarget = (type: TimelineClip['type'], index: number) =>
+  ({ insert: { index, type }, kind: 'insert' }) as const;
 
 const defaultClipTransform = {
   height: 720,
@@ -303,7 +306,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-1',
       freeStart: 13,
       insertionIndex: 2,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
     expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
@@ -319,7 +322,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-2',
       freeStart: 7,
       insertionIndex: 2,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
     expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
@@ -335,7 +338,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-3',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
     expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
@@ -346,13 +349,12 @@ describe('timelineStore video track layout', () => {
     expectTrackClipsNotToOverlap();
   });
 
-  it('creates a dynamic video track after dropping on the temporary track target', () => {
+  it('creates a dynamic video track from an insert target', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-1',
       freeStart: 2,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 1,
+      target: insertTarget('video', 1),
     });
 
     expect(timelineStore.getState().tracks).toEqual([
@@ -372,13 +374,28 @@ describe('timelineStore video track layout', () => {
     );
   });
 
+  it('rejects an insert target that mismatches the dragged clip type', () => {
+    const state = timelineStore.getState();
+    const tracksBefore = state.tracks;
+    const clipsBefore = state.clips;
+
+    state.commitClipDrop({
+      clipId: 'clip-video-1',
+      insertionIndex: 0,
+      target: insertTarget('audio', 1),
+    });
+
+    expect(timelineStore.getState().tracks).toBe(tracksBefore);
+    expect(timelineStore.getState().clips).toBe(clipsBefore);
+    expect(timelineStore.getState().past).toHaveLength(0);
+  });
+
   it('can insert a dynamic video track above the main video track', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-1',
       freeStart: 2,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 0,
+      target: insertTarget('video', 0),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -393,13 +410,12 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-1',
       freeStart: 2,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 0,
+      target: insertTarget('video', 0),
     });
     state.commitClipDrop({
       clipId: 'clip-video-1',
       insertionIndex: 2,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -419,14 +435,13 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-1',
       freeStart: 2,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 1,
+      target: insertTarget('video', 1),
     });
     state.commitClipDrop({
       clipId: 'clip-video-1',
       freeStart: 13,
       insertionIndex: 2,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -453,8 +468,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-2',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 2,
+      target: insertTarget('video', 2),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -490,14 +504,13 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-2',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 2,
+      target: insertTarget('video', 2),
     });
     state.commitClipDrop({
       clipId: 'clip-video-1',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: 'video-overlay-2',
+      target: existingTarget('video-overlay-2'),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -529,20 +542,19 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-1',
       freeStart: 2,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 1,
+      target: insertTarget('video', 1),
     });
     state.commitClipDrop({
       clipId: 'clip-video-2',
       freeStart: 7,
       insertionIndex: 1,
-      targetTrackId: 'video-overlay-1',
+      target: existingTarget('video-overlay-1'),
     });
     state.commitClipDrop({
       clipId: 'clip-video-1',
       freeStart: 13,
       insertionIndex: 1,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -604,8 +616,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-1',
       freeStart: 2,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 1,
+      target: insertTarget('video', 1),
     });
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
       [MAIN_VIDEO_TRACK_ID, 'video-overlay-1'],
@@ -657,7 +668,7 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-3',
       insertionIndex: 1,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
     expect(timelineStore.getState().layoutRevision).toBe(revision + 1);
     revision = timelineStore.getState().layoutRevision;
@@ -778,8 +789,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-1',
       freeStart: 1,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 1,
+      target: insertTarget('video', 1),
     });
 
     const payload = timelineStore.getState().createExportPayload();
@@ -810,15 +820,14 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-video-1',
       freeStart: 1,
       insertionIndex: 0,
-      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 1,
+      target: insertTarget('video', 1),
     });
     state.toggleTrackMute('video-overlay-1');
     state.commitClipDrop({
       clipId: 'clip-video-2',
       freeStart: 5,
       insertionIndex: 1,
-      targetTrackId: 'video-overlay-1',
+      target: existingTarget('video-overlay-1'),
     });
 
     expect(
@@ -1144,8 +1153,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-audio-b',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: NEW_AUDIO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 3,
+      target: insertTarget('audio', 3),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -1181,14 +1189,13 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-audio-b',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: NEW_AUDIO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 3,
+      target: insertTarget('audio', 3),
     });
     state.commitClipDrop({
       clipId: 'clip-audio-a',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: 'audio-track-3',
+      target: existingTarget('audio-track-3'),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -1243,14 +1250,13 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-audio-b',
       freeStart: 0,
       insertionIndex: 0,
-      targetTrackId: NEW_AUDIO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 3,
+      target: insertTarget('audio', 3),
     });
     state.commitClipDrop({
       clipId: 'clip-audio-b',
       freeStart: 0,
       insertionIndex: 1,
-      targetTrackId: 'audio-track-1',
+      target: existingTarget('audio-track-1'),
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
@@ -1456,8 +1462,7 @@ describe('timelineStore video track layout', () => {
       clipId: 'clip-audio',
       freeStart: 2,
       insertionIndex: 0,
-      targetTrackId: NEW_AUDIO_TRACK_DROP_ID,
-      targetTrackInsertIndex: 0,
+      target: insertTarget('audio', 0),
     });
 
     expect(
@@ -1471,7 +1476,7 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-audio',
       insertionIndex: 0,
-      targetTrackId: MAIN_VIDEO_TRACK_ID,
+      target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
     expect(
       timelineStore.getState().clips.find((clip) => clip.id === 'clip-audio')

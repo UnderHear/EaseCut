@@ -11,25 +11,20 @@ import { createCompositionExportPayload } from '../core/export-schema';
 import {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
   MAIN_VIDEO_TRACK_ID,
-  NEW_AUDIO_TRACK_DROP_ID,
-  NEW_VIDEO_TRACK_DROP_ID,
   insertTimelineTrack,
   normalizeTimelineTracks,
   normalizeTrackVolume,
+  type TrackDropTarget,
 } from '../core/timeline-tracks';
 export {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
   AUDIO_TRACK_ID_PREFIX,
   DYNAMIC_VIDEO_TRACK_ID_PREFIX,
   MAIN_VIDEO_TRACK_ID,
-  NEW_AUDIO_TRACK_DROP_ID,
-  NEW_VIDEO_TRACK_DROP_ID,
-  createPendingTrack,
-  getVisibleTimelineTracks,
   isDynamicVideoTrack,
   normalizeTimelineTracks,
   normalizeTrackVolume,
-  type PendingTimelineTrack,
+  type TrackDropTarget,
   type TrackInsertTarget,
 } from '../core/timeline-tracks';
 import {
@@ -76,8 +71,7 @@ export type CommitClipDropParams = {
   clipId: string;
   freeStart?: number;
   insertionIndex: number;
-  targetTrackId: string;
-  targetTrackInsertIndex?: number;
+  target: TrackDropTarget;
 };
 
 export type CommitClipTrimParams = {
@@ -1046,8 +1040,7 @@ export const createTimelineStore = (
       clipId,
       freeStart,
       insertionIndex,
-      targetTrackId,
-      targetTrackInsertIndex,
+      target,
     }) => {
       const state = get();
       const draggedClip = state.clips.find((clip) => clip.id === clipId);
@@ -1056,26 +1049,21 @@ export const createTimelineStore = (
       }
 
       let nextTracks = state.tracks;
-      let nextTargetTrackId = targetTrackId;
-      let targetTrack = getTrackById(nextTracks, targetTrackId);
+      let nextTargetTrackId: string;
+      let targetTrack: TimelineTrack | undefined;
 
-      if (
-        targetTrackId === NEW_VIDEO_TRACK_DROP_ID ||
-        targetTrackId === NEW_AUDIO_TRACK_DROP_ID
-      ) {
-        const pendingType =
-          targetTrackId === NEW_VIDEO_TRACK_DROP_ID ? 'video' : 'audio';
-        if (draggedClip.type !== pendingType) {
+      if (target.kind === 'insert') {
+        if (draggedClip.type !== target.insert.type) {
           return;
         }
 
-        const inserted = insertTimelineTrack(state.tracks, {
-          index: targetTrackInsertIndex ?? state.tracks.length,
-          type: pendingType,
-        });
+        const inserted = insertTimelineTrack(state.tracks, target.insert);
         nextTracks = inserted.tracks;
         nextTargetTrackId = inserted.track.id;
         targetTrack = inserted.track;
+      } else {
+        nextTargetTrackId = target.trackId;
+        targetTrack = getTrackById(nextTracks, target.trackId);
       }
 
       if (!canMoveClipToTrack(draggedClip, targetTrack)) {

@@ -7,8 +7,6 @@ import {
 } from '../core/timeline-math';
 import {
   MAIN_VIDEO_TRACK_ID,
-  NEW_AUDIO_TRACK_DROP_ID,
-  NEW_VIDEO_TRACK_DROP_ID,
 } from '../store/timeline-store';
 import type { TimelineClip, TimelineTrack } from '../types';
 import {
@@ -321,9 +319,15 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       document.querySelector('.oc-timeline-clip-placeholder'),
     ).toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toHaveStyle({
+      height: '40px',
+      left: '508px',
+      top: '92px',
+      width: '240px',
+    });
     expect(
-      screen.getByRole('article', { name: 'audio clip: background.mp3' }),
-    ).toHaveStyle({ left: '412px' });
+      screen.queryByRole('article', { name: 'audio clip: background.mp3' }),
+    ).not.toBeInTheDocument();
     fireEvent.pointerUp(window, {
       clientX: 528,
       clientY: 100,
@@ -354,8 +358,10 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 15,
     });
 
-    expect(clip).toHaveAttribute('data-dragging', 'true');
-    expect(clip).toHaveStyle({ left: '412px' });
+    expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toHaveStyle({
+      left: '508px',
+      top: '32px',
+    });
     expect(document.querySelector('.oc-timeline-drag-ghost')).toHaveStyle({
       left: '12px',
       width: '320px',
@@ -454,7 +460,7 @@ describe('TimelineViewport DOM interactions', () => {
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
-  it('keeps a pending row stable until a drag over a real track is released', () => {
+  it('keeps track rows stable while switching from an insert line to a track', () => {
     renderTimeline();
     const clip = screen.getByRole('article', {
       name: 'audio clip: background.mp3',
@@ -471,22 +477,19 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 150,
       pointerId: 14,
     });
-    expect(document.querySelector('.oc-timeline-drag-ghost')).toHaveAttribute(
-      'data-track-changed',
-      'true',
-    );
-    expect(
-      document.querySelector('.oc-timeline-track__control[data-pending="true"]'),
-    ).toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
+      top: '134px',
+    });
+    expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(2);
 
     fireEvent.pointerMove(window, {
       clientX: 208,
       clientY: 100,
       pointerId: 14,
     });
-    expect(
-      document.querySelector('.oc-timeline-track__control[data-pending="true"]'),
-    ).toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toBeNull();
+    expect(document.querySelector('.oc-timeline-drag-ghost')).toBeInTheDocument();
+    expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(2);
     fireEvent.pointerUp(window, {
       clientX: 208,
       clientY: 100,
@@ -500,7 +503,7 @@ describe('TimelineViewport DOM interactions', () => {
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
-  it('keeps a new track targeted when its insertion creates a gap under the pointer', () => {
+  it('keeps an insertion line targeted without creating a temporary row', () => {
     renderTimeline();
     const clip = screen.getByRole('article', {
       name: 'audio clip: background.mp3',
@@ -518,10 +521,9 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 17,
     });
 
-    const pendingLane = document.querySelector(
-      `[data-track-id="${NEW_AUDIO_TRACK_DROP_ID}"]`,
-    );
-    expect(pendingLane).toHaveAttribute('data-drop-target', 'true');
+    const insertLine = document.querySelector('.oc-timeline-track-insert-line');
+    expect(insertLine).toHaveStyle({ top: '134px' });
+    expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(2);
 
     fireEvent.pointerMove(window, {
       clientX: 340,
@@ -529,7 +531,7 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 17,
     });
 
-    expect(pendingLane).toHaveAttribute('data-drop-target', 'true');
+    expect(insertLine).toHaveStyle({ top: '134px' });
     expect(
       document.querySelector(`[data-track-id="${audioTrack.id}"]`),
     ).toHaveAttribute('data-drop-target', 'false');
@@ -549,6 +551,96 @@ describe('TimelineViewport DOM interactions', () => {
     ).toEqual(
       expect.objectContaining({ start: 2.65, trackId: 'audio-track-2' }),
     );
+  });
+
+  it('creates a video track from the leading insertion line', () => {
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 108,
+      clientY: 50,
+      pointerId: 24,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 31,
+      pointerId: 24,
+    });
+
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
+      top: '32px',
+    });
+    expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toHaveStyle({
+      top: '32px',
+    });
+    expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(2);
+
+    fireEvent.pointerUp(window, {
+      clientX: 300,
+      clientY: 31,
+      pointerId: 24,
+    });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      'video-overlay-1',
+      MAIN_VIDEO_TRACK_ID,
+      audioTrack.id,
+    ]);
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
+    ).toEqual(expect.objectContaining({ trackId: 'video-overlay-1' }));
+  });
+
+  it('creates an audio track from the video and audio type boundary', () => {
+    const remainingAudioClip = createClip({
+      ...audioClip,
+      id: 'remaining-audio-clip',
+      name: 'remaining.mp3',
+      sourceId: 'remaining-audio-source',
+      start: 5,
+    });
+    testTimelineStore.setState({
+      clips: [videoClip, audioClip, remainingAudioClip],
+    });
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'audio clip: background.mp3',
+    });
+
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 208,
+      clientY: 100,
+      pointerId: 25,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 25,
+    });
+
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
+      top: '90px',
+    });
+
+    fireEvent.pointerUp(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 25,
+    });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      'audio-track-2',
+      audioTrack.id,
+    ]);
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
+    ).toEqual(expect.objectContaining({ trackId: 'audio-track-2' }));
   });
 
   it('creates a video track from the gap between two video tracks', () => {
@@ -585,9 +677,10 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 18,
     });
 
-    expect(
-      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
-    ).toHaveAttribute('data-drop-target', 'true');
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
+      top: '90px',
+    });
+    expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(3);
 
     fireEvent.pointerUp(window, {
       clientX: 300,
@@ -653,9 +746,10 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 19,
     });
 
-    expect(
-      document.querySelector(`[data-track-id="${NEW_AUDIO_TRACK_DROP_ID}"]`),
-    ).toHaveAttribute('data-drop-target', 'true');
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
+      top: '134px',
+    });
+    expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(3);
 
     fireEvent.pointerUp(window, {
       clientX: 300,
@@ -674,7 +768,7 @@ describe('TimelineViewport DOM interactions', () => {
     ).toEqual(expect.objectContaining({ trackId: 'audio-track-3' }));
   });
 
-  it('keeps a pending track stable after switching to another video gap', () => {
+  it('switches insertion lines and retains the target within the release range', () => {
     const firstOverlayTrack: TimelineTrack = {
       ...videoTrack,
       id: 'video-overlay-1',
@@ -729,25 +823,25 @@ describe('TimelineViewport DOM interactions', () => {
     });
     fireEvent.pointerMove(window, {
       clientX: 300,
-      clientY: 210,
+      clientY: 150,
       pointerId: 20,
     });
     fireEvent.pointerMove(window, {
       clientX: 340,
-      clientY: 210,
+      clientY: 159,
       pointerId: 20,
     });
 
-    expect(
-      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
-    ).toHaveAttribute('data-drop-target', 'true');
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
+      top: '150px',
+    });
     expect(
       document.querySelector(`[data-track-id="${secondOverlayTrack.id}"]`),
     ).toHaveAttribute('data-drop-target', 'false');
 
     fireEvent.pointerUp(window, {
       clientX: 340,
-      clientY: 210,
+      clientY: 159,
       pointerId: 20,
     });
 
@@ -796,6 +890,8 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 90,
       pointerId: 21,
     });
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toBeNull();
+    expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toBeInTheDocument();
     fireEvent.pointerUp(window, {
       clientX: 208,
       clientY: 90,
@@ -847,9 +943,7 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 90,
       pointerId: 22,
     });
-    expect(
-      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
-    ).toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toBeInTheDocument();
 
     fireEvent.pointerCancel(window, { pointerId: 22 });
 
@@ -857,9 +951,53 @@ describe('TimelineViewport DOM interactions', () => {
       MAIN_VIDEO_TRACK_ID,
       overlayTrack.id,
     ]);
-    expect(
-      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
-    ).not.toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-track-insert-line')).not.toBeInTheDocument();
+  });
+
+  it('cancels an insertion preview when the window loses focus', () => {
+    const overlayTrack: TimelineTrack = {
+      ...videoTrack,
+      id: 'video-overlay-1',
+      name: '视频轨 2',
+      zIndex: 1,
+    };
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        createClip({
+          id: 'overlay-clip',
+          name: 'overlay.mp4',
+          sourceId: 'overlay-source',
+          trackId: overlayTrack.id,
+        }),
+      ],
+      tracks: [videoTrack, overlayTrack],
+    });
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 108,
+      clientY: 50,
+      pointerId: 26,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 26,
+    });
+    fireEvent.blur(window);
+
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toBeNull();
+    expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toBeNull();
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      overlayTrack.id,
+    ]);
+    expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
   it('does not create an empty track by clicking a track gap', () => {

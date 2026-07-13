@@ -1,3 +1,4 @@
+import type { TrackInsertTarget } from './timeline-tracks';
 import type { TimelineClipType, TimelineTrack } from '../types';
 
 export const TIMELINE_RULER_HEIGHT = 32;
@@ -20,20 +21,9 @@ export type TimelineTrackLayout<
 > = {
   bottom: number;
   height: number;
-  hitTop: number;
   index: number;
   top: number;
   track: T;
-};
-
-export type TimelineTrackGap<
-  T extends Pick<TimelineTrack, 'type'> = Pick<TimelineTrack, 'type'>,
-> = {
-  afterTrack: T;
-  beforeTrack: T;
-  bottom: number;
-  index: number;
-  top: number;
 };
 
 export const getTimelineTrackLayouts = <
@@ -49,7 +39,6 @@ export const getTimelineTrackLayouts = <
     const layout = {
       bottom,
       height,
-      hitTop: index === 0 ? top : top - TIMELINE_TRACK_GAP,
       index,
       top,
       track,
@@ -67,34 +56,34 @@ export const getTimelineTracksHeight = (
   return lastTrack ? lastTrack.bottom - TIMELINE_RULER_HEIGHT : 0;
 };
 
-export const getTimelineTrackGapAtY = <
-  T extends Pick<TimelineTrack, 'type'>,
->(
-  tracks: readonly T[],
-  y: number,
-): TimelineTrackGap<T> | null => {
-  const layout = getTimelineTrackLayouts(tracks).find(
-    ({ index, top }) =>
-      index > 0 && y >= top - TIMELINE_TRACK_GAP && y < top,
-  );
-  const beforeTrack = layout ? tracks[layout.index - 1] : undefined;
-
-  if (!layout || !beforeTrack) return null;
-
-  return {
-    afterTrack: layout.track,
-    beforeTrack,
-    bottom: layout.top,
-    index: layout.index,
-    top: layout.top - TIMELINE_TRACK_GAP,
-  };
-};
-
 export const getTimelineTrackY = (
   tracks: Pick<TimelineTrack, 'type'>[],
   trackIndex: number,
-) =>
-  TIMELINE_RULER_HEIGHT + getTimelineTracksHeight(tracks.slice(0, trackIndex));
+) => {
+  const layouts = getTimelineTrackLayouts(tracks);
+  const layout = layouts[trackIndex];
+  if (layout) return layout.top;
+
+  const lastLayout = layouts.at(-1);
+  return lastLayout
+    ? lastLayout.bottom + TIMELINE_TRACK_GAP
+    : TIMELINE_RULER_HEIGHT;
+};
+
+export const getTimelineTrackInsertY = (
+  tracks: Pick<TimelineTrack, 'type'>[],
+  target: TrackInsertTarget,
+) => {
+  const layouts = getTimelineTrackLayouts(tracks);
+  if (target.index <= 0) return TIMELINE_RULER_HEIGHT;
+
+  const before = layouts[target.index - 1];
+  const after = layouts[target.index];
+  if (before && after) return (before.bottom + after.top) / 2;
+  if (before) return before.bottom + TIMELINE_TRACK_GAP / 2;
+
+  return TIMELINE_RULER_HEIGHT;
+};
 
 export const getTimelineClipY = (
   tracks: Pick<TimelineTrack, 'type'>[],

@@ -3,16 +3,18 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
-  type SetStateAction,
 } from 'react';
 
 import {
   getClipSnapCandidates,
   snapTimeToCandidates,
 } from '../core/collision';
+import {
+  getTimelineClipHeight,
+  getTimelineClipY,
+} from '../core/timeline-layout';
 import {
   SNAP_THRESHOLD_PX,
   roundTimelineTime,
@@ -21,7 +23,6 @@ import {
 import {
   getTrimmedClip,
   getTrimmedTimelineClips,
-  type PendingTimelineTrack,
 } from '../store/timeline-store';
 import {
   useTimelineStore,
@@ -30,14 +31,12 @@ import {
 import type {
   TimelineClip,
   TimelineClipTrimEdge,
-  TimelineTrack,
 } from '../types';
 import {
   DRAG_ACTIVATION_DISTANCE,
   getContentPoint,
   getVolumeAtPointer,
   planClipDrop,
-  samePendingTrack,
   type ClipDropPreview,
   type TimelineGesture,
   type TrimPreview,
@@ -46,14 +45,10 @@ import {
 
 type TimelineControllerOptions = {
   gridRef: RefObject<HTMLDivElement | null>;
-  setPendingTrack: Dispatch<SetStateAction<PendingTimelineTrack | null>>;
-  visibleTracks: TimelineTrack[];
 };
 
 export function useTimelineController({
   gridRef,
-  setPendingTrack,
-  visibleTracks,
 }: TimelineControllerOptions) {
   const clips = useTimelineStore((state) => state.clips);
   const currentTime = useTimelineStore((state) => state.currentTime);
@@ -66,7 +61,6 @@ export function useTimelineController({
   const [trimPreview, setTrimPreview] = useState<TrimPreview | null>(null);
   const dropPreviewRef = useRef<ClipDropPreview | null>(null);
   const moveActivatedRef = useRef(false);
-  const pendingTrackRef = useRef<PendingTimelineTrack | null>(null);
   const trimPreviewRef = useRef<TrimPreview | null>(null);
 
   const displayClips = useMemo(() => {
@@ -86,19 +80,6 @@ export function useTimelineController({
   useEffect(() => {
     if (!gesture) return undefined;
 
-    const publishPendingTrack = (next: PendingTimelineTrack | null) => {
-      if (next) pendingTrackRef.current = next;
-      const stablePendingTrack = next ?? pendingTrackRef.current;
-      setPendingTrack((current) =>
-        samePendingTrack(current, stablePendingTrack)
-          ? current
-          : stablePendingTrack,
-      );
-    };
-    const clearPendingTrack = () => {
-      pendingTrackRef.current = null;
-      setPendingTrack(null);
-    };
     const updateScrub = (clientX: number, clientY: number) => {
       if (gesture.kind !== 'scrub') return;
       const point = getContentPoint(gridRef.current, clientX, clientY);
@@ -128,22 +109,9 @@ export function useTimelineController({
       moveActivatedRef.current = true;
       const point = getContentPoint(gridRef.current, clientX, clientY);
       if (!point) return;
-      const next = planClipDrop(
-        gesture,
-        point,
-        visibleTracks,
-        dropPreviewRef.current,
-      );
-      if (!next) {
-        dropPreviewRef.current = null;
-        setDropPreview(null);
-        publishPendingTrack(null);
-        return;
-      }
-
+      const next = planClipDrop(gesture, point, dropPreviewRef.current);
       dropPreviewRef.current = next;
       setDropPreview(next);
-      publishPendingTrack(next.pendingTrack);
     };
     const updateTrim = (clientX: number, clientY: number) => {
       if (gesture.kind !== 'trim') return;
@@ -190,13 +158,12 @@ export function useTimelineController({
       if (commit && event && gesture.kind === 'move') {
         updateMove(event.clientX, event.clientY);
         const preview = dropPreviewRef.current;
-        if (preview) {
+        if (preview?.target) {
           store.getState().commitClipDrop({
             clipId: preview.clipId,
             freeStart: preview.start,
             insertionIndex: preview.insertionIndex,
-            targetTrackId: preview.targetTrackId,
-            targetTrackInsertIndex: preview.targetTrackInsertIndex,
+            target: preview.target,
           });
         }
       }
@@ -225,7 +192,6 @@ export function useTimelineController({
       setDropPreview(null);
       setTrimPreview(null);
       setGesture(null);
-      clearPendingTrack();
       const grid = gridRef.current;
       if (grid?.hasPointerCapture?.(gesture.pointerId)) {
         grid.releasePointerCapture(gesture.pointerId);
@@ -254,7 +220,7 @@ export function useTimelineController({
       window.removeEventListener('blur', handleWindowBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [gesture, gridRef, setPendingTrack, store, visibleTracks]);
+  }, [gesture, gridRef, store]);
 
   const beginMove = (
     event: ReactPointerEvent<HTMLElement>,
@@ -272,8 +238,10 @@ export function useTimelineController({
     event.stopPropagation();
     store.getState().setIsPlaying(false);
     store.getState().selectClip(clip.id);
-    pendingTrackRef.current = null;
     moveActivatedRef.current = false;
+    const originTrackIndex = tracks.findIndex(({ id }) => id === clip.trackId);
+    const clipTop = getTimelineClipY(tracks, originTrackIndex);
+    const clipHeight = getTimelineClipHeight(clip.type);
     gridRef.current?.setPointerCapture?.(event.pointerId);
     setGesture({
       clip,
@@ -282,6 +250,10 @@ export function useTimelineController({
       grabOffsetTime: Math.min(
         clip.duration,
         Math.max(0, xToTime(point.x, pixelsPerSecond) - clip.start),
+      ),
+      grabOffsetY: Math.min(
+        clipHeight,
+        Math.max(0, point.y - clipTop),
       ),
       initialClientX: event.clientX,
       initialClientY: event.clientY,

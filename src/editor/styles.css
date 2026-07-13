@@ -631,21 +631,12 @@
   background: #1c1c1c;
 }
 
-.oc-timeline-track__control[data-pending="true"] {
-  color: var(--oc-accent);
-  background: rgb(45 212 191 / 7%);
-}
-
 .oc-timeline-track__icon,
 .oc-timeline-track__mute {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #d8d8d8;
-}
-
-.oc-timeline-track__control[data-pending="true"] .oc-timeline-track__icon {
-  color: var(--oc-accent);
 }
 
 .oc-timeline-track__icon svg,
@@ -665,13 +656,8 @@
   cursor: pointer;
 }
 
-.oc-timeline-track__mute:hover:not(:disabled) {
+.oc-timeline-track__mute:hover {
   background: rgb(255 255 255 / 8%);
-}
-
-.oc-timeline-track__mute:disabled {
-  cursor: default;
-  opacity: 0.3;
 }
 
 .oc-timeline-track__lane,
@@ -687,21 +673,20 @@
   background-color: #262626;
 }
 
-.oc-timeline-track__lane[data-pending="true"] {
-  background-color: rgb(45 212 191 / 5%);
-}
-
 .oc-timeline-track__control--tail,
 .oc-timeline-tail {
   background-color: #1c1c1c;
 }
 
-.oc-timeline-track__lane[data-drop-source=true] {
-  
-}
-
-.oc-timeline-track__lane[data-drop-target=true] {
-  
+.oc-timeline-track-insert-line {
+  position: absolute;
+  right: 0;
+  left: var(--oc-timeline-header-width);
+  z-index: 8;
+  height: 2px;
+  background: var(--oc-accent);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .oc-timeline-snap-line {
@@ -747,14 +732,15 @@
   border-color: var(--oc-accent);
 }
 
-.oc-timeline-clip[data-dragging="true"] {
-  z-index: 7;
-  opacity: 0.7;
-  border-color: rgb(255 255 255 / 34%);
+.oc-timeline-clip--drag-overlay {
+  z-index: 9;
+  bottom: auto;
+  opacity: 0.88;
+  border-color: var(--oc-accent);
   box-shadow: 0 8px 22px rgb(0 0 0 / 42%);
   cursor: grabbing;
-  transform: none;
-  will-change: left, transform;
+  pointer-events: none;
+  will-change: left, top;
 }
 
 .oc-timeline-clip__media,
@@ -901,10 +887,6 @@
   box-shadow:
     0 0 0 1px rgb(207 250 254 / 24%),
     0 0 18px rgb(103 232 249 / 38%);
-}
-
-.oc-timeline-drag-ghost[data-track-changed=true] {
-  
 }
 
 .oc-timeline-drag-ghost__edge {

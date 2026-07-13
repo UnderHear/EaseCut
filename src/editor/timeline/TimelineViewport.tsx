@@ -14,6 +14,7 @@ import {
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_GAP,
   TIMELINE_TRACK_HEADER_WIDTH,
+  getTimelineClipHeight,
   getTimelineTrackLayouts,
 } from '../core/timeline-layout';
 import {
@@ -25,24 +26,17 @@ import {
   timeToX,
 } from '../core/timeline-math';
 import {
-  NEW_AUDIO_TRACK_DROP_ID,
-  NEW_VIDEO_TRACK_DROP_ID,
-  getVisibleTimelineTracks,
-  type PendingTimelineTrack,
-} from '../store/timeline-store';
-import {
   useTimelineStore,
   useTimelineStoreApi,
 } from '../store/timeline-store-context';
-import type { TimelineTrack } from '../types';
-import { TimelineClipView } from './TimelineClip';
+import {
+  TimelineClipDragOverlay,
+  TimelineClipView,
+} from './TimelineClip';
 import { TimelineDragGhost } from './TimelineDragGhost';
 import { TimelineRuler } from './TimelineRuler';
 import { getTimelineContentDuration } from './timeline-interaction';
 import { useTimelineController } from './useTimelineController';
-
-const isPendingTrack = ({ id }: TimelineTrack) =>
-  id === NEW_VIDEO_TRACK_DROP_ID || id === NEW_AUDIO_TRACK_DROP_ID;
 
 export function TimelineViewport() {
   const clips = useTimelineStore((state) => state.clips);
@@ -54,8 +48,6 @@ export function TimelineViewport() {
   const selectClip = useTimelineStore((state) => state.selectClip);
   const toggleTrackMute = useTimelineStore((state) => state.toggleTrackMute);
   const store = useTimelineStoreApi();
-  const [pendingTrack, setPendingTrack] =
-    useState<PendingTimelineTrack | null>(null);
   const [viewportWidth, setViewportWidth] = useState(900);
   const [viewportHeight, setViewportHeight] = useState(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -66,19 +58,11 @@ export function TimelineViewport() {
     pixelsPerSecond: number;
     scrollLeft: number;
   } | null>(null);
-  const visibleTracks = useMemo(
-    () => getVisibleTimelineTracks(tracks, pendingTrack),
-    [pendingTrack, tracks],
+  const trackLayouts = useMemo(
+    () => getTimelineTrackLayouts(tracks),
+    [tracks],
   );
-  const visibleTrackLayouts = useMemo(
-    () => getTimelineTrackLayouts(visibleTracks),
-    [visibleTracks],
-  );
-  const controller = useTimelineController({
-    gridRef,
-    setPendingTrack,
-    visibleTracks,
-  });
+  const controller = useTimelineController({ gridRef });
   const { displayClips } = controller;
   const dropPreview = controller.dropPreview;
   const draggedClip = dropPreview
@@ -87,6 +71,9 @@ export function TimelineViewport() {
   const dragWidth = draggedClip
     ? durationToWidth(draggedClip.duration, pixelsPerSecond)
     : 0;
+  const draggedTrackVolume = draggedClip
+    ? tracks.find(({ id }) => id === draggedClip.trackId)?.volume ?? 1
+    : 1;
   const contentDuration = Math.max(
     getTimelineContentDuration(displayClips),
     dropPreview && draggedClip
@@ -279,11 +266,12 @@ export function TimelineViewport() {
           />
 
           <div className='oc-timeline-track-stack'>
-            {visibleTrackLayouts.map(({ height, track }) => {
-              const pending = isPendingTrack(track);
+            {trackLayouts.map(({ height, track }) => {
               const muted = track.volume === 0;
               const isDropSource = dropPreview?.originTrackId === track.id;
-              const isDropTarget = dropPreview?.targetTrackId === track.id;
+              const isDropTarget =
+                dropPreview?.target?.kind === 'existing' &&
+                dropPreview.target.trackId === track.id;
               const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
               const trackLabel =
                 track.type === 'video' ? '视频轨道' : track.name;
@@ -295,10 +283,7 @@ export function TimelineViewport() {
                   key={track.id}
                   style={{ height }}
                 >
-                  <div
-                    className='oc-timeline-track__control'
-                    data-pending={pending}
-                  >
+                  <div className='oc-timeline-track__control'>
                     <span
                       className='oc-timeline-track__icon'
                       title={trackLabel}
@@ -309,7 +294,6 @@ export function TimelineViewport() {
                       aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
                       aria-pressed={muted}
                       className='oc-timeline-track__mute'
-                      disabled={pending}
                       onClick={() => toggleTrackMute(track.id)}
                       title={muted ? '取消静音' : '静音'}
                       type='button'
@@ -325,7 +309,6 @@ export function TimelineViewport() {
                     className='oc-timeline-track__lane'
                     data-drop-source={isDropSource}
                     data-drop-target={isDropTarget}
-                    data-pending={pending}
                     data-track-id={track.id}
                     data-type={track.type}
                     onPointerDown={controller.beginScrub}
@@ -352,27 +335,18 @@ export function TimelineViewport() {
                           timeToX(dropPreview.start, pixelsPerSecond)
                         }
                         snapped={dropPreview.snapTime !== null}
-                        trackChanged={
-                          dropPreview.originTrackId !==
-                          dropPreview.targetTrackId
-                        }
+                        trackChanged={dropPreview.originTrackId !== track.id}
                         width={dragWidth}
                       />
                     )}
                     {(clipsByTrack.get(track.id) ?? []).map((clip) => (
                       <TimelineClipView
                         clip={clip}
-                        isDragging={dropPreview?.clipId === clip.id}
                         isSelected={selectedClipId === clip.id}
                         key={clip.id}
                         left={
                           TIMELINE_CONTENT_PADDING_X +
-                          timeToX(
-                            dropPreview?.clipId === clip.id
-                              ? dropPreview.rawStart
-                              : clip.start,
-                            pixelsPerSecond,
-                          )
+                          timeToX(clip.start, pixelsPerSecond)
                         }
                         onMoveStart={controller.beginMove}
                         onSelect={selectClip}
@@ -401,6 +375,30 @@ export function TimelineViewport() {
               />
             </div>
           </div>
+
+          {dropPreview?.insertLineY !== null &&
+            dropPreview?.insertLineY !== undefined && (
+              <div
+                aria-hidden='true'
+                className='oc-timeline-track-insert-line'
+                style={{ top: dropPreview.insertLineY }}
+              />
+            )}
+
+          {dropPreview && draggedClip && (
+            <TimelineClipDragOverlay
+              clip={draggedClip}
+              height={getTimelineClipHeight(draggedClip.type)}
+              left={
+                TIMELINE_TRACK_HEADER_WIDTH +
+                TIMELINE_CONTENT_PADDING_X +
+                timeToX(dropPreview.rawStart, pixelsPerSecond)
+              }
+              top={dropPreview.dragTop}
+              trackVolume={draggedTrackVolume}
+              width={dragWidth}
+            />
+          )}
 
           {dropPreview?.snapTime !== null &&
             dropPreview?.snapTime !== undefined && (

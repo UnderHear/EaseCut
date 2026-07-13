@@ -10,7 +10,7 @@ import {
   TIMELINE_CONTENT_PADDING_X,
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_HEADER_WIDTH,
-  getTimelineTrackGapAtY,
+  getTimelineTrackInsertY,
   getTimelineTrackLayouts,
   getTimelineTracksHeight,
 } from '../core/timeline-layout';
@@ -20,13 +20,11 @@ import {
   timeToX,
   xToTime,
 } from '../core/timeline-math';
-import {
-  NEW_AUDIO_TRACK_DROP_ID,
-  NEW_VIDEO_TRACK_DROP_ID,
-  getVisibleTimelineTracks,
-  shouldCompactMainVideoTrackAfterDrop,
-  type PendingTimelineTrack,
-} from '../store/timeline-store';
+import type {
+  TrackDropTarget,
+  TrackInsertTarget,
+} from '../core/timeline-tracks';
+import { shouldCompactMainVideoTrackAfterDrop } from '../store/timeline-store';
 import type {
   TimelineClip,
   TimelineClipTrimEdge,
@@ -40,6 +38,7 @@ export type MoveGesture = {
   clips: TimelineClip[];
   currentTime: number;
   grabOffsetTime: number;
+  grabOffsetY: number;
   initialClientX: number;
   initialClientY: number;
   kind: 'move';
@@ -84,15 +83,15 @@ export type TimelineGesture =
 export type ClipDropPreview = {
   clipId: string;
   clips: TimelineClip[];
+  dragTop: number;
   insertionIndex: number;
+  insertLineY: number | null;
   originStart: number;
   originTrackId: string;
-  pendingTrack: PendingTimelineTrack | null;
   rawStart: number;
   snapTime: number | null;
   start: number;
-  targetTrackId: string;
-  targetTrackInsertIndex?: number;
+  target: TrackDropTarget | null;
 };
 
 export type TrimPreview = {
@@ -103,11 +102,8 @@ export type TrimPreview = {
 };
 
 export const DRAG_ACTIVATION_DISTANCE = 4;
-
-export const samePendingTrack = (
-  left: PendingTimelineTrack | null,
-  right: PendingTimelineTrack | null,
-) => left?.index === right?.index && left?.type === right?.type;
+export const TRACK_INSERT_ACQUIRE_DISTANCE = 6;
+export const TRACK_INSERT_RELEASE_DISTANCE = 10;
 
 export const getContentPoint = (
   grid: HTMLDivElement | null,
@@ -138,146 +134,146 @@ export const getContentPoint = (
 
 const getTrackAtY = (tracks: TimelineTrack[], y: number) => {
   const layout = getTimelineTrackLayouts(tracks).find(
-    ({ bottom, hitTop }) => y >= hitTop && y < bottom,
+    ({ bottom, top }) => y >= top && y < bottom,
   );
   return layout?.track ?? null;
 };
 
-const isPendingTrack = ({ id }: TimelineTrack) =>
-  id === NEW_VIDEO_TRACK_DROP_ID || id === NEW_AUDIO_TRACK_DROP_ID;
+const getTrackInsertTargets = (
+  tracks: TimelineTrack[],
+  type: TimelineClip['type'],
+) => {
+  const videoTrackCount = tracks.filter(
+    (track) => track.type === 'video',
+  ).length;
+  const firstIndex = type === 'video' ? 0 : videoTrackCount;
+  const lastIndex = type === 'video' ? videoTrackCount : tracks.length;
+
+  return Array.from(
+    { length: lastIndex - firstIndex + 1 },
+    (_, offset): TrackInsertTarget => ({
+      index: firstIndex + offset,
+      type,
+    }),
+  );
+};
+
+const getInsertTargetDistance = (
+  tracks: TimelineTrack[],
+  target: TrackInsertTarget,
+  pointerY: number,
+) => Math.abs(getTimelineTrackInsertY(tracks, target) - pointerY);
+
+export const getTrackInsertTargetAtY = (
+  tracks: TimelineTrack[],
+  type: TimelineClip['type'],
+  pointerY: number,
+  previousInsert: TrackInsertTarget | null = null,
+) => {
+  if (
+    previousInsert?.type === type &&
+    getInsertTargetDistance(tracks, previousInsert, pointerY) <=
+      TRACK_INSERT_RELEASE_DISTANCE
+  ) {
+    return previousInsert;
+  }
+
+  const closest = getTrackInsertTargets(tracks, type)
+    .map((insert) => ({
+      distance: getInsertTargetDistance(tracks, insert, pointerY),
+      insert,
+    }))
+    .sort((left, right) => left.distance - right.distance)[0];
+
+  return closest && closest.distance <= TRACK_INSERT_ACQUIRE_DISTANCE
+    ? closest.insert
+    : null;
+};
+
+const createInsertDropTarget = (
+  tracks: TimelineTrack[],
+  insert: TrackInsertTarget,
+) => ({
+  insertLineY: getTimelineTrackInsertY(tracks, insert),
+  target: { insert, kind: 'insert' } as const,
+  targetTrack: null,
+});
 
 const getDropTarget = (
   tracks: TimelineTrack[],
-  visibleTracks: TimelineTrack[],
   clip: TimelineClip,
   pointerY: number,
   previousPreview: ClipDropPreview | null,
 ) => {
-  const hoveredTrack = getTrackAtY(visibleTracks, pointerY);
+  const previousInsert =
+    previousPreview?.target?.kind === 'insert'
+      ? previousPreview.target.insert
+      : null;
+  const insertTarget = getTrackInsertTargetAtY(
+    tracks,
+    clip.type,
+    pointerY,
+    previousInsert,
+  );
+  if (insertTarget) {
+    return createInsertDropTarget(tracks, insertTarget);
+  }
+
+  const hoveredTrack = getTrackAtY(tracks, pointerY);
   const videoTrackCount = tracks.filter(({ type }) => type === 'video').length;
-  const createPendingTarget = (pendingTrack: PendingTimelineTrack) => {
-    const projectedTracks = getVisibleTimelineTracks(tracks, pendingTrack);
-    const id =
-      pendingTrack.type === 'video'
-        ? NEW_VIDEO_TRACK_DROP_ID
-        : NEW_AUDIO_TRACK_DROP_ID;
 
+  if (hoveredTrack?.type === clip.type) {
     return {
-      pendingTrack,
-      targetTrack: projectedTracks.find((track) => track.id === id) ?? null,
-    };
-  };
-
-  if (hoveredTrack && isPendingTrack(hoveredTrack)) {
-    return {
-      pendingTrack: {
-        index: Math.max(
-          0,
-          visibleTracks.findIndex((track) => track.id === hoveredTrack.id),
-        ),
-        type: hoveredTrack.type,
-      },
+      insertLineY: null,
+      target: { kind: 'existing', trackId: hoveredTrack.id } as const,
       targetTrack: hoveredTrack,
     };
   }
 
-  const hoveredGap = getTimelineTrackGapAtY(visibleTracks, pointerY);
-  if (
-    hoveredGap &&
-    isPendingTrack(hoveredGap.beforeTrack) &&
-    previousPreview?.targetTrackId === hoveredGap.beforeTrack.id &&
-    previousPreview.pendingTrack
-  ) {
-    return {
-      pendingTrack: previousPreview.pendingTrack,
-      targetTrack: hoveredGap.beforeTrack,
-    };
-  }
-
-  if (
-    hoveredGap?.beforeTrack.type === clip.type &&
-    hoveredGap.afterTrack.type === clip.type
-  ) {
-    const beforeTrackIndex = tracks.findIndex(
-      ({ id }) => id === hoveredGap.beforeTrack.id,
-    );
-    const afterTrackIndex = tracks.findIndex(
-      ({ id }) => id === hoveredGap.afterTrack.id,
-    );
-
-    if (
-      beforeTrackIndex >= 0 &&
-      afterTrackIndex === beforeTrackIndex + 1
-    ) {
-      return createPendingTarget({
-        index: afterTrackIndex,
-        type: clip.type,
-      });
-    }
-  }
-  if (
-    hoveredGap &&
-    hoveredGap.beforeTrack.type === hoveredGap.afterTrack.type &&
-    hoveredGap.beforeTrack.type !== clip.type
-  ) {
-    return { pendingTrack: null, targetTrack: null };
-  }
-
-  if (hoveredTrack?.type === clip.type) {
-    return { pendingTrack: null, targetTrack: hoveredTrack };
-  }
-
   const tracksBottom =
-    TIMELINE_RULER_HEIGHT + getTimelineTracksHeight(visibleTracks);
+    TIMELINE_RULER_HEIGHT + getTimelineTracksHeight(tracks);
   if (clip.type === 'video' && pointerY < TIMELINE_RULER_HEIGHT) {
-    return createPendingTarget({ index: 0, type: 'video' });
+    return createInsertDropTarget(tracks, { index: 0, type: 'video' });
   }
   if (
     clip.type === 'video' &&
     (hoveredTrack?.type === 'audio' || pointerY >= tracksBottom)
   ) {
-    return createPendingTarget({ index: videoTrackCount, type: 'video' });
+    return createInsertDropTarget(tracks, {
+      index: videoTrackCount,
+      type: 'video',
+    });
   }
   if (
     clip.type === 'audio' &&
     (hoveredTrack?.type === 'video' || pointerY < TIMELINE_RULER_HEIGHT)
   ) {
-    return createPendingTarget({ index: videoTrackCount, type: 'audio' });
+    return createInsertDropTarget(tracks, {
+      index: videoTrackCount,
+      type: 'audio',
+    });
   }
   if (clip.type === 'audio' && pointerY >= tracksBottom) {
-    return createPendingTarget({ index: tracks.length, type: 'audio' });
+    return createInsertDropTarget(tracks, {
+      index: tracks.length,
+      type: 'audio',
+    });
   }
 
-  const previousTarget = previousPreview
-    ? visibleTracks.find(
-        (track) => track.id === previousPreview.targetTrackId,
-      ) ?? null
-    : null;
-
-  return previousTarget?.type === clip.type
-    ? {
-        pendingTrack: previousPreview?.pendingTrack ?? null,
-        targetTrack: previousTarget,
-      }
-    : { pendingTrack: null, targetTrack: null };
+  return null;
 };
 
 export const planClipDrop = (
   gesture: MoveGesture,
   point: ContentPoint,
-  visibleTracks: TimelineTrack[],
   previousPreview: ClipDropPreview | null = null,
-): ClipDropPreview | null => {
+): ClipDropPreview => {
   const { clip, clips, currentTime, pixelsPerSecond, snappingEnabled, tracks } =
     gesture;
-  const { pendingTrack, targetTrack } = getDropTarget(
-    tracks,
-    visibleTracks,
-    clip,
-    point.y,
-    previousPreview,
-  );
-  if (!targetTrack) return null;
+  const resolvedTarget = getDropTarget(tracks, clip, point.y, previousPreview);
+  const insertLineY = resolvedTarget?.insertLineY ?? null;
+  const target = resolvedTarget?.target ?? null;
+  const targetTrack = resolvedTarget?.targetTrack ?? null;
 
   const requestedStart = Math.max(
     0,
@@ -292,11 +288,7 @@ export const planClipDrop = (
         SNAP_THRESHOLD_PX,
       )
     : { snappedStart: requestedStart, snappedTo: null };
-  const targetClips =
-    targetTrack.id === NEW_VIDEO_TRACK_DROP_ID ||
-    targetTrack.id === NEW_AUDIO_TRACK_DROP_ID
-      ? []
-      : getTrackClips(clips, targetTrack.id);
+  const targetClips = targetTrack ? getTrackClips(clips, targetTrack.id) : [];
   const insertionIndex = getInsertionIndex(
     targetClips,
     clip.id,
@@ -307,36 +299,44 @@ export const planClipDrop = (
   const targetClip = {
     ...clip,
     start: snapped.snappedStart,
-    trackId: targetTrack.id,
+    trackId: targetTrack?.id ?? clip.trackId,
     zIndex: targetClips.length,
   };
-  const layout = planClipInsertion(
-    targetClips,
-    targetClip,
-    insertionIndex,
-    snapped.snappedStart,
-    shouldCompactMainVideoTrackAfterDrop(
-      tracks,
-      clips,
-      clip.id,
-      targetTrack.id,
-    ),
-  );
+  const layout = targetTrack
+    ? planClipInsertion(
+        targetClips,
+        targetClip,
+        insertionIndex,
+        snapped.snappedStart,
+        shouldCompactMainVideoTrackAfterDrop(
+          tracks,
+          clips,
+          clip.id,
+          targetTrack.id,
+        ),
+      )
+    : {
+        clips: [targetClip],
+        insertedStart: snapped.snappedStart,
+        shiftedClipIds: [] as string[],
+      };
   const projectedIds = new Set(layout.clips.map(({ id }) => id));
+  const displayClips = [
+    ...clips.filter(
+      (candidate) =>
+        candidate.id !== clip.id && !projectedIds.has(candidate.id),
+    ),
+    ...layout.clips.filter((candidate) => candidate.id !== clip.id),
+  ];
 
   return {
     clipId: clip.id,
-    clips: [
-      ...clips.filter(
-        (candidate) =>
-          candidate.id !== clip.id && !projectedIds.has(candidate.id),
-      ),
-      ...layout.clips,
-    ],
+    clips: displayClips,
+    dragTop: Math.max(TIMELINE_RULER_HEIGHT, point.y - gesture.grabOffsetY),
     insertionIndex,
+    insertLineY,
     originStart: clip.start,
     originTrackId: clip.trackId,
-    pendingTrack,
     rawStart: requestedStart,
     snapTime:
       snapped.snappedTo !== null &&
@@ -345,8 +345,7 @@ export const planClipDrop = (
         ? snapped.snappedTo
         : null,
     start: layout.insertedStart,
-    targetTrackId: targetTrack.id,
-    targetTrackInsertIndex: pendingTrack?.index,
+    target,
   };
 };
 

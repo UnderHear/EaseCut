@@ -7,15 +7,15 @@ export const MAIN_VIDEO_TRACK_ID = 'video-main';
 export const DYNAMIC_VIDEO_TRACK_ID_PREFIX = 'video-overlay-';
 export const AUDIO_TRACK_ID_PREFIX = 'audio-track-';
 export const AUDIO_SOURCE_TRACK_ID_PREFIX = 'audio-source-track-';
-export const NEW_VIDEO_TRACK_DROP_ID = '__new-video-track-drop__';
-export const NEW_AUDIO_TRACK_DROP_ID = '__new-audio-track-drop__';
 
 export type TrackInsertTarget = {
   index: number;
   type: TimelineTrack['type'];
 };
 
-export type PendingTimelineTrack = TrackInsertTarget;
+export type TrackDropTarget =
+  | { kind: 'existing'; trackId: string }
+  | { insert: TrackInsertTarget; kind: 'insert' };
 
 export const normalizeTrackVolume = (volume: number): TimelineTrackVolume =>
   Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
@@ -79,16 +79,6 @@ const createTimelineTrack = (
   zIndex: getNextTrackZIndex(tracks),
 });
 
-export const createPendingTrack = (
-  tracks: TimelineTrack[],
-  type: TimelineTrack['type'],
-): TimelineTrack =>
-  createTimelineTrack(
-    tracks,
-    type,
-    type === 'video' ? NEW_VIDEO_TRACK_DROP_ID : NEW_AUDIO_TRACK_DROP_ID,
-  );
-
 const createDynamicTrack = (
   tracks: TimelineTrack[],
   type: TimelineTrack['type'],
@@ -113,26 +103,6 @@ export const getSafeTrackInsertIndex = (
     target.type === 'video' ? videoTrackCount : tracks.length;
 
   return Math.min(Math.max(minimum, target.index), maximum);
-};
-
-export const getVisibleTimelineTracks = (
-  tracks: TimelineTrack[],
-  pendingTrack: PendingTimelineTrack | null,
-) => {
-  if (pendingTrack === null) {
-    return tracks;
-  }
-
-  const normalizedTracks = normalizeTimelineTracks(tracks);
-  const insertIndex = getSafeTrackInsertIndex(
-    normalizedTracks,
-    pendingTrack,
-  );
-  return normalizeTimelineTracks([
-    ...normalizedTracks.slice(0, insertIndex),
-    createPendingTrack(normalizedTracks, pendingTrack.type),
-    ...normalizedTracks.slice(insertIndex),
-  ]);
 };
 
 export const insertTimelineTrack = (

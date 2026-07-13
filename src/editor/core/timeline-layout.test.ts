@@ -4,8 +4,9 @@ import type { TimelineTrack } from '../types';
 import {
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_GAP,
-  getTimelineTrackGapAtY,
+  getTimelineTrackInsertY,
   getTimelineTrackLayouts,
+  getTimelineTrackY,
   getTimelineTracksHeight,
 } from './timeline-layout';
 
@@ -19,14 +20,13 @@ const audioTrack = { type: 'audio' } as const satisfies Pick<
 >;
 
 describe('timeline track layout', () => {
-  it('uses one geometry model for row positions and gap hit areas', () => {
+  it('uses one geometry model for row positions', () => {
     const layouts = getTimelineTrackLayouts([videoTrack, audioTrack]);
 
     expect(layouts).toEqual([
       {
         bottom: 88,
         height: 56,
-        hitTop: TIMELINE_RULER_HEIGHT,
         index: 0,
         top: TIMELINE_RULER_HEIGHT,
         track: videoTrack,
@@ -34,7 +34,6 @@ describe('timeline track layout', () => {
       {
         bottom: 132,
         height: 40,
-        hitTop: 88,
         index: 1,
         top: 88 + TIMELINE_TRACK_GAP,
         track: audioTrack,
@@ -43,18 +42,18 @@ describe('timeline track layout', () => {
     expect(getTimelineTracksHeight([videoTrack, audioTrack])).toBe(100);
   });
 
-  it('only recognizes the rendered gap between track rows', () => {
-    const tracks = [videoTrack, videoTrack];
+  it('centers insertion lines at the leading, internal, and trailing edges', () => {
+    const tracks = [videoTrack, audioTrack];
 
-    expect(getTimelineTrackGapAtY(tracks, 88)).toEqual({
-      afterTrack: videoTrack,
-      beforeTrack: videoTrack,
-      bottom: 92,
-      index: 1,
-      top: 88,
-    });
-    expect(getTimelineTrackGapAtY(tracks, 91.999)).not.toBeNull();
-    expect(getTimelineTrackGapAtY(tracks, 87.999)).toBeNull();
-    expect(getTimelineTrackGapAtY(tracks, 92)).toBeNull();
+    expect(getTimelineTrackInsertY(tracks, { index: 0, type: 'video' })).toBe(
+      TIMELINE_RULER_HEIGHT,
+    );
+    expect(getTimelineTrackInsertY(tracks, { index: 1, type: 'video' })).toBe(
+      88 + TIMELINE_TRACK_GAP / 2,
+    );
+    expect(getTimelineTrackInsertY(tracks, { index: 2, type: 'audio' })).toBe(
+      132 + TIMELINE_TRACK_GAP / 2,
+    );
+    expect(getTimelineTrackY(tracks, 1)).toBe(92);
   });
 });

@@ -11,7 +11,6 @@ const AUDIO_VOLUME_INSET = 8;
 
 export type TimelineClipViewProps = {
   clip: TimelineClip;
-  isDragging: boolean;
   isSelected: boolean;
   left: number;
   onMoveStart: (event: PointerEvent<HTMLElement>, clip: TimelineClip) => void;
@@ -57,18 +56,11 @@ const getVisibleSamples = (samples: readonly number[], clip: TimelineClip) => {
   return samples.slice(start, Math.max(start + 1, end));
 };
 
-export function TimelineClipView({
-  clip,
-  isDragging,
-  isSelected,
-  left,
-  onMoveStart,
-  onSelect,
-  onTrimStart,
-  onVolumeStart,
-  trackVolume,
-  width,
-}: TimelineClipViewProps) {
+const useTimelineClipPresentation = (
+  clip: TimelineClip,
+  width: number,
+  trackVolume: number,
+) => {
   const previewCount = Math.max(
     1,
     Math.min(24, Math.ceil(Math.max(0, width) / PREVIEW_TILE_WIDTH)),
@@ -82,44 +74,34 @@ export function TimelineClipView({
     clip.waveformSrc ?? clip.src,
     clip.type === 'audio',
   );
-  const previews = clip.thumbnailUrls.length ? clip.thumbnailUrls : generatedPreviews;
+  const previews = clip.thumbnailUrls.length
+    ? clip.thumbnailUrls
+    : generatedPreviews;
   const waveformPath = useMemo(
     () => createWaveformPath(getVisibleSamples(waveformSamples, clip)),
     [clip, waveformSamples],
   );
-  const volume = clampUnit(trackVolume);
-  const style = {
-    '--oc-timeline-clip-volume-y': `${
-      AUDIO_VOLUME_INSET +
-      (1 - volume) *
-        (TIMELINE_AUDIO_CLIP_HEIGHT - AUDIO_VOLUME_INSET * 2)
-    }px`,
-    left,
-    width,
-  } as CSSProperties;
-  const startTrim = (edge: TimelineClipTrimEdge) =>
-    (event: PointerEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      if (event.button === 0) onTrimStart(event, clip, edge);
-    };
 
+  return {
+    previews,
+    volume: clampUnit(trackVolume),
+    waveformPath,
+  };
+};
+
+type TimelineClipVisualProps = {
+  clip: TimelineClip;
+  previews: readonly (string | null)[];
+  waveformPath: string;
+};
+
+function TimelineClipVisual({
+  clip,
+  previews,
+  waveformPath,
+}: TimelineClipVisualProps) {
   return (
-    <article
-      aria-label={`${clip.type} clip: ${clip.name}`}
-      className='oc-timeline-clip'
-      data-clip-id={clip.id}
-      data-dragging={isDragging}
-      data-selected={isSelected}
-      data-type={clip.type}
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => {
-        event.stopPropagation();
-        if (event.button !== 0) return;
-        onSelect(clip.id);
-        onMoveStart(event, clip);
-      }}
-      style={style}
-    >
+    <>
       <div className='oc-timeline-clip__media'>
         {clip.type === 'video' ? (
           <div className='oc-timeline-clip__preview-strip' aria-hidden='true'>
@@ -161,6 +143,62 @@ export function TimelineClipView({
           </time>
         )}
       </header>
+    </>
+  );
+}
+
+export function TimelineClipView({
+  clip,
+  isSelected,
+  left,
+  onMoveStart,
+  onSelect,
+  onTrimStart,
+  onVolumeStart,
+  trackVolume,
+  width,
+}: TimelineClipViewProps) {
+  const { previews, volume, waveformPath } = useTimelineClipPresentation(
+    clip,
+    width,
+    trackVolume,
+  );
+  const style = {
+    '--oc-timeline-clip-volume-y': `${
+      AUDIO_VOLUME_INSET +
+      (1 - volume) *
+        (TIMELINE_AUDIO_CLIP_HEIGHT - AUDIO_VOLUME_INSET * 2)
+    }px`,
+    left,
+    width,
+  } as CSSProperties;
+  const startTrim = (edge: TimelineClipTrimEdge) =>
+    (event: PointerEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (event.button === 0) onTrimStart(event, clip, edge);
+    };
+
+  return (
+    <article
+      aria-label={`${clip.type} clip: ${clip.name}`}
+      className='oc-timeline-clip'
+      data-clip-id={clip.id}
+      data-selected={isSelected}
+      data-type={clip.type}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        onSelect(clip.id);
+        onMoveStart(event, clip);
+      }}
+      style={style}
+    >
+      <TimelineClipVisual
+        clip={clip}
+        previews={previews}
+        waveformPath={waveformPath}
+      />
 
       {clip.type === 'audio' && (
         <button
@@ -188,5 +226,55 @@ export function TimelineClipView({
           />
         ))}
     </article>
+  );
+}
+
+type TimelineClipDragOverlayProps = {
+  clip: TimelineClip;
+  height: number;
+  left: number;
+  top: number;
+  trackVolume: number;
+  width: number;
+};
+
+export function TimelineClipDragOverlay({
+  clip,
+  height,
+  left,
+  top,
+  trackVolume,
+  width,
+}: TimelineClipDragOverlayProps) {
+  const { previews, volume, waveformPath } = useTimelineClipPresentation(
+    clip,
+    width,
+    trackVolume,
+  );
+  const style = {
+    '--oc-timeline-clip-volume-y': `${
+      AUDIO_VOLUME_INSET +
+      (1 - volume) *
+        (TIMELINE_AUDIO_CLIP_HEIGHT - AUDIO_VOLUME_INSET * 2)
+    }px`,
+    height,
+    left,
+    top,
+    width,
+  } as CSSProperties;
+
+  return (
+    <div
+      aria-hidden='true'
+      className='oc-timeline-clip oc-timeline-clip--drag-overlay'
+      data-type={clip.type}
+      style={style}
+    >
+      <TimelineClipVisual
+        clip={clip}
+        previews={previews}
+        waveformPath={waveformPath}
+      />
+    </div>
   );
 }

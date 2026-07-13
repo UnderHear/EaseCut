@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { TimelineTrack } from '../types';
 import {
   MAIN_VIDEO_TRACK_ID,
-  NEW_AUDIO_TRACK_DROP_ID,
-  getVisibleTimelineTracks,
+  getSafeTrackInsertIndex,
   insertTimelineTrack,
 } from './timeline-tracks';
 
@@ -50,18 +49,15 @@ describe('timeline track creation', () => {
     expect(inserted.tracks.map(({ zIndex }) => zIndex)).toEqual([0, 1, 2, 3]);
   });
 
-  it('uses the same type-bounded insertion rule for pending tracks', () => {
-    const visibleTracks = getVisibleTimelineTracks(tracks, {
+  it('bounds insertion targets to their track type group', () => {
+    expect(getSafeTrackInsertIndex(tracks, {
       index: 0,
       type: 'audio',
-    });
-
-    expect(visibleTracks.map(({ id }) => id)).toEqual([
-      MAIN_VIDEO_TRACK_ID,
-      'video-overlay-1',
-      NEW_AUDIO_TRACK_DROP_ID,
-      'audio-track-1',
-    ]);
+    })).toBe(2);
+    expect(getSafeTrackInsertIndex(tracks, {
+      index: tracks.length,
+      type: 'video',
+    })).toBe(2);
   });
 
   it('clamps committed tracks to their type group', () => {
