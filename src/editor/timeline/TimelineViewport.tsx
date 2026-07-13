@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -63,8 +64,10 @@ export function TimelineViewport() {
   const [pendingTrack, setPendingTrack] =
     useState<PendingTimelineTrack | null>(null);
   const [viewportWidth, setViewportWidth] = useState(900);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const playheadRef = useRef<HTMLDivElement | null>(null);
   const zoomFrameRef = useRef<number | null>(null);
   const pendingZoomRef = useRef<{
     pixelsPerSecond: number;
@@ -136,12 +139,27 @@ export function TimelineViewport() {
     TIMELINE_TRACK_HEADER_WIDTH +
     TIMELINE_CONTENT_PADDING_X +
     timeToX(currentTime, pixelsPerSecond);
+  const playheadLayerStyle = {
+    '--oc-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
+    height: viewportHeight,
+    width: viewportWidth,
+  } as CSSProperties;
+  const syncPlayheadHorizontalPosition = useCallback(() => {
+    const viewport = viewportRef.current;
+    const playhead = playheadRef.current;
+    if (!viewport || !playhead) return;
+
+    playhead.style.left = `${playheadLeft - viewport.scrollLeft}px`;
+  }, [playheadLeft]);
 
   useLayoutEffect(() => {
     const element = viewportRef.current;
     if (!element) return undefined;
 
-    const update = () => setViewportWidth(element.clientWidth || 900);
+    const update = () => {
+      setViewportHeight(element.clientHeight);
+      setViewportWidth(element.clientWidth || 900);
+    };
     update();
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', update);
@@ -152,6 +170,10 @@ export function TimelineViewport() {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  useLayoutEffect(() => {
+    syncPlayheadHorizontalPosition();
+  }, [syncPlayheadHorizontalPosition]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -248,14 +270,16 @@ export function TimelineViewport() {
   }, [controller.isInteracting, isPlaying, playheadLeft]);
 
   return (
-    <div
-      aria-label='时间线轨道区域'
-      className='oc-timeline-viewport oc-scrollbar'
-      data-interacting={controller.isInteracting}
-      data-scrubbing={controller.isScrubbing}
-      ref={viewportRef}
-    >
-      <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
+    <div className='oc-timeline-shell'>
+      <div
+        aria-label='时间线轨道区域'
+        className='oc-timeline-viewport oc-scrollbar'
+        data-interacting={controller.isInteracting}
+        data-scrubbing={controller.isScrubbing}
+        onScroll={syncPlayheadHorizontalPosition}
+        ref={viewportRef}
+      >
+        <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
         <div className='oc-timeline-corner' />
         <TimelineRuler
           currentTime={currentTime}
@@ -264,28 +288,6 @@ export function TimelineViewport() {
           pixelsPerSecond={pixelsPerSecond}
           width={laneWidth}
         />
-        <div
-          aria-hidden='true'
-          className='oc-timeline-playhead'
-          onPointerDown={controller.beginScrub}
-          style={{ left: playheadLeft }}
-        >
-          <svg
-            aria-hidden='true'
-            className='oc-timeline-playhead__handle'
-            viewBox='0 0 12 18'
-          >
-            <path
-              d='M0 3C0 1.34314 1.34315 0 3 0h6c1.6569 0 3 1.34315 3 3v8.8287c0 .9207-.4228 1.7904-1.1469 2.3592L6 18l-4.8531-3.8121C.4228 13.6191 0 12.7494 0 11.8287V3Z'
-              fill='none'
-              stroke='currentColor'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-              strokeWidth='2'
-            />
-          </svg>
-          <span className='oc-timeline-playhead__line' />
-        </div>
 
         {visibleTracks.map((track, index) => {
           const pending = isPendingTrack(track);
@@ -417,6 +419,35 @@ export function TimelineViewport() {
               }}
             />
           )}
+        </div>
+      </div>
+      <div
+        aria-hidden='true'
+        className='oc-timeline-playhead-layer'
+        style={playheadLayerStyle}
+      >
+        <div
+          className='oc-timeline-playhead'
+          onPointerDown={controller.beginScrub}
+          ref={playheadRef}
+          style={{ left: playheadLeft }}
+        >
+          <svg
+            aria-hidden='true'
+            className='oc-timeline-playhead__handle'
+            viewBox='0 0 12 18'
+          >
+            <path
+              d='M0 3C0 1.34314 1.34315 0 3 0h6c1.6569 0 3 1.34315 3 3v8.8287c0 .9207-.4228 1.7904-1.1469 2.3592L6 18l-4.8531-3.8121C.4228 13.6191 0 12.7494 0 11.8287V3Z'
+              fill='none'
+              stroke='currentColor'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              strokeWidth='2'
+            />
+          </svg>
+          <span className='oc-timeline-playhead__line' />
+        </div>
       </div>
     </div>
   );

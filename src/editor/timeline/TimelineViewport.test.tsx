@@ -100,6 +100,10 @@ const renderTimeline = () => {
     configurable: true,
     value: 800,
   });
+  Object.defineProperty(viewport, 'clientHeight', {
+    configurable: true,
+    value: 240,
+  });
   vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(
     createRect({ height: 240, width: 800 }),
   );
@@ -228,6 +232,25 @@ describe('TimelineViewport DOM interactions', () => {
       'oc-timeline-playhead__handle',
     );
     expect(playhead?.children[1]).toHaveClass('oc-timeline-playhead__line');
+  });
+
+  it('keeps the playhead in the viewport overlay while syncing only horizontal scroll', () => {
+    const { viewport } = renderTimeline();
+    const playhead = document.querySelector('.oc-timeline-playhead');
+
+    expect(playhead?.parentElement).toHaveClass('oc-timeline-playhead-layer');
+    expect(playhead?.parentElement?.previousElementSibling).toBe(viewport);
+    expect(playhead).toHaveStyle({ left: '108px' });
+
+    viewport.scrollLeft = 48;
+    viewport.scrollTop = 120;
+    fireEvent.scroll(viewport);
+
+    expect(playhead).toHaveStyle({ left: '60px' });
+    expect(playhead?.parentElement).toHaveStyle({
+      height: '240px',
+      width: '800px',
+    });
   });
 
   it('uses Shift+wheel for horizontal scroll and Ctrl+wheel for zoom', () => {
