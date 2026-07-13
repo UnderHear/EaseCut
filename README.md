@@ -1,3 +1,5 @@
+![OpenCut 视频时间线](doc-image/preview.png)
+
 # OpenCut React
 
 OpenCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频轨、拖拽编排、裁剪、分割、吸附、撤销重做、音量调节、画面变换、预览以及可扩展导出接口。
