@@ -373,6 +373,18 @@ function VideoTimelineEditorView({
       state.splitAtPlayhead();
       return;
     }
+    if (commandKey && !event.altKey && !event.shiftKey && key === 'c') {
+      event.preventDefault();
+      event.stopPropagation();
+      state.copySelectedClip();
+      return;
+    }
+    if (commandKey && !event.altKey && !event.shiftKey && key === 'v') {
+      event.preventDefault();
+      event.stopPropagation();
+      state.pasteCopiedClip();
+      return;
+    }
     if (commandKey || event.altKey) return;
 
     if (event.key === 'Backspace') {

@@ -1781,6 +1781,238 @@ describe('timelineStore video track layout', () => {
   });
 });
 
+describe('timelineStore clip copy and paste', () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it('copies the selected clip as a complete independent snapshot without history', () => {
+    timelineStore.setState((state) => ({
+      clips: state.clips.map((clip) =>
+        clip.id === 'clip-video-2'
+          ? {
+              ...clip,
+              thumbnailUrls: ['thumbnail-a', 'thumbnail-b'],
+              transform: { ...clip.transform, width: 900, x: 20 },
+            }
+          : clip,
+      ),
+    }));
+    const selectedClip = timelineStore
+      .getState()
+      .clips.find((clip) => clip.id === 'clip-video-2');
+    if (!selectedClip) throw new Error('测试片段不存在');
+
+    timelineStore.getState().selectClip(selectedClip.id);
+    timelineStore.getState().copySelectedClip();
+
+    const copiedClip = timelineStore.getState().copiedClip;
+    expect(copiedClip).toEqual(selectedClip);
+    expect(copiedClip).not.toBe(selectedClip);
+    expect(copiedClip?.transform).not.toBe(selectedClip.transform);
+    expect(copiedClip?.thumbnailUrls).not.toBe(selectedClip.thumbnailUrls);
+    expect(timelineStore.getState().past).toEqual([]);
+    expect(timelineStore.getState().future).toEqual([]);
+  });
+
+  it('inserts an exact copy after the anchor and ripples later same-track clips', () => {
+    timelineStore.setState((state) => ({
+      clips: [
+        ...state.clips.map((clip) =>
+          clip.id === 'clip-video-2'
+            ? { ...clip, start: 6 }
+            : clip.id === 'clip-video-3'
+              ? { ...clip, start: 13 }
+              : clip,
+        ),
+        { ...createAudioClip('clip-audio', 'audio-track-1'), start: 4 },
+      ],
+      tracks: [
+        ...state.tracks,
+        createAudioTrack('audio-track-1', '音频轨 1', 1),
+      ],
+    }));
+    const originalClip = timelineStore
+      .getState()
+      .clips.find((clip) => clip.id === 'clip-video-1');
+    if (!originalClip) throw new Error('测试片段不存在');
+
+    timelineStore.getState().selectClip(originalClip.id);
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().pasteCopiedClip();
+
+    expect(
+      getMainVideoClips().map((clip) => [clip.id, clip.start, clip.zIndex]),
+    ).toEqual([
+      ['clip-video-1', 0, 0],
+      ['clip-video-1-copy', 4, 1],
+      ['clip-video-2', 10, 2],
+      ['clip-video-3', 17, 3],
+    ]);
+    expect(timelineStore.getState().selectedClipId).toBe('clip-video-1-copy');
+    expect(
+      timelineStore.getState().clips.find((clip) => clip.id === 'clip-audio')
+        ?.start,
+    ).toBe(4);
+    expect(
+      timelineStore.getState().clips.find((clip) => clip.id === 'clip-video-1-copy'),
+    ).toEqual(
+      expect.objectContaining({
+        ...originalClip,
+        id: 'clip-video-1-copy',
+        start: 4,
+        zIndex: 1,
+      }),
+    );
+    expectTrackClipsNotToOverlap();
+  });
+
+  it('selects each pasted copy so repeated pastes append with unique IDs', () => {
+    timelineStore.getState().selectClip('clip-video-1');
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().pasteCopiedClip();
+    timelineStore.getState().pasteCopiedClip();
+
+    expect(
+      getMainVideoClips().map((clip) => [clip.id, clip.start]),
+    ).toEqual([
+      ['clip-video-1', 0],
+      ['clip-video-1-copy', 4],
+      ['clip-video-1-copy-2', 8],
+      ['clip-video-2', 12],
+      ['clip-video-3', 17],
+    ]);
+    expect(timelineStore.getState().selectedClipId).toBe('clip-video-1-copy-2');
+  });
+
+  it('pastes a video copy into another video track after the selected anchor', () => {
+    timelineStore.getState().selectClip('clip-video-1');
+    timelineStore.getState().pasteCopiedClip();
+    expect(timelineStore.getState().past).toEqual([]);
+
+    timelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        {
+          ...state.clips[0]!,
+          id: 'clip-overlay',
+          start: 0,
+          trackId: 'video-overlay-1',
+        },
+        {
+          ...state.clips[1]!,
+          id: 'clip-overlay-next',
+          start: 6,
+          trackId: 'video-overlay-1',
+          zIndex: 1,
+        },
+      ],
+      tracks: [
+        ...state.tracks,
+        createVideoTrack('video-overlay-1', '视频轨 2', 1),
+      ],
+    }));
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().selectClip('clip-overlay');
+    timelineStore.getState().pasteCopiedClip();
+
+    expect(timelineStore.getState().clips).toHaveLength(6);
+    expect(
+      getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
+        (clip) => [clip.id, clip.start],
+      ),
+    ).toEqual([
+      ['clip-overlay', 0],
+      ['clip-video-1-copy', 4],
+      ['clip-overlay-next', 10],
+    ]);
+    expect(timelineStore.getState().clips.find((clip) => clip.id === 'clip-video-1-copy'))
+      .toEqual(expect.objectContaining({ trackId: 'video-overlay-1' }));
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+      ['clip-video-1', 0],
+      ['clip-video-2', 4],
+      ['clip-video-3', 9],
+    ]);
+  });
+
+  it('pastes an audio copy into another audio track after the selected anchor', () => {
+    resetToTwoVisualAudioTracks();
+
+    timelineStore.getState().selectClip('clip-audio-a');
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().selectClip('clip-audio-b');
+    timelineStore.getState().pasteCopiedClip();
+
+    expect(
+      getTrackClips(timelineStore.getState().clips, 'audio-track-1').map(
+        (clip) => [clip.id, clip.start],
+      ),
+    ).toEqual([['clip-audio-a', 0]]);
+    expect(
+      getTrackClips(timelineStore.getState().clips, 'audio-track-2').map(
+        (clip) => [clip.id, clip.start],
+      ),
+    ).toEqual([
+      ['clip-audio-b', 0],
+      ['clip-audio-a-copy', 4],
+    ]);
+    expect(timelineStore.getState().selectedClipId).toBe('clip-audio-a-copy');
+  });
+
+  it('does not paste between audio and video tracks and clears the buffer on reset', () => {
+    timelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        { ...createAudioClip('clip-audio-target', 'audio-track-1'), start: 4 },
+      ],
+      tracks: [
+        ...state.tracks,
+        createAudioTrack('audio-track-1', '音频轨 1', 1),
+      ],
+    }));
+    timelineStore.getState().selectClip('clip-video-1');
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().selectClip('clip-audio-target');
+    timelineStore.getState().pasteCopiedClip();
+
+    expect(timelineStore.getState().clips).toHaveLength(4);
+    expect(timelineStore.getState().past).toEqual([]);
+
+    resetToTwoVisualAudioTracks();
+    timelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        { ...createFixtureClips()[0], id: 'clip-video-target', start: 0 },
+      ],
+    }));
+    timelineStore.getState().selectClip('clip-audio-a');
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().selectClip('clip-video-target');
+    timelineStore.getState().pasteCopiedClip();
+
+    expect(timelineStore.getState().clips).toHaveLength(3);
+    expect(timelineStore.getState().past).toEqual([]);
+
+    timelineStore.getState().resetTimeline();
+    expect(timelineStore.getState().copiedClip).toBeNull();
+  });
+
+  it('restores the anchor selection on undo and reapplies the paste on redo', () => {
+    timelineStore.getState().selectClip('clip-video-1');
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().pasteCopiedClip();
+
+    timelineStore.getState().undo();
+    expect(timelineStore.getState().clips).toHaveLength(3);
+    expect(timelineStore.getState().selectedClipId).toBe('clip-video-1');
+    expect(timelineStore.getState().copiedClip?.id).toBe('clip-video-1');
+
+    timelineStore.getState().redo();
+    expect(timelineStore.getState().clips).toHaveLength(4);
+    expect(timelineStore.getState().selectedClipId).toBe('clip-video-1-copy');
+  });
+});
+
 describe('createTimelineStore source syncing', () => {
   const source: VideoTimelineSource = {
     durationSeconds: 4,

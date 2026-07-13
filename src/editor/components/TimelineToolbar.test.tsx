@@ -99,13 +99,17 @@ describe('TimelineToolbar', () => {
     expect(screen.getByText('快捷键')).toBeInTheDocument();
     expect(screen.getByText('回退')).toBeInTheDocument();
     expect(screen.getByText('前进')).toBeInTheDocument();
+    expect(screen.getByText('复制选中片段')).toBeInTheDocument();
+    expect(screen.getByText('粘贴到选中片段右侧')).toBeInTheDocument();
     expect(screen.getByText('分割选中片段')).toBeInTheDocument();
     expect(screen.getByText('删除选中片段')).toBeInTheDocument();
     expect(screen.getByText('缩放时间线')).toBeInTheDocument();
     expect(screen.getByText('播放 / 暂停')).toBeInTheDocument();
-    expect(screen.getAllByText('Ctrl')).toHaveLength(4);
+    expect(screen.getAllByText('Ctrl')).toHaveLength(6);
     expect(screen.getByText('Z')).toBeInTheDocument();
     expect(screen.getByText('Y')).toBeInTheDocument();
+    expect(screen.getByText('C')).toBeInTheDocument();
+    expect(screen.getByText('V')).toBeInTheDocument();
     expect(screen.getByText('B')).toBeInTheDocument();
     expect(screen.getByText('Backspace')).toBeInTheDocument();
     expect(screen.getByText('滚轮')).toBeInTheDocument();

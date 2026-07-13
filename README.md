@@ -139,6 +139,8 @@ type VideoTimelineSource = {
 | --- | --- |
 | 撤销 | `Ctrl/Cmd + Z` |
 | 重做 | `Ctrl + Y` 或 `Cmd + Shift + Z` |
+| 复制片段 | `Ctrl/Cmd + C` |
+| 粘贴片段 | `Ctrl/Cmd + V` |
 | 分割片段 | `Ctrl/Cmd + B` |
 | 删除片段 | `Backspace` |
 | 播放/暂停 | `Space` |

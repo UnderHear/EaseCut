@@ -88,6 +88,7 @@ export type PendingTimelineTrack = {
 export type TimelineState = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
+  copiedClip: TimelineClip | null;
   currentTime: number;
   future: TimelineSnapshot[];
   isPlaying: boolean;
@@ -109,8 +110,10 @@ export type TimelineActions = {
   commitClipDrop: (params: CommitClipDropParams) => void;
   commitClipTrim: (params: CommitClipTrimParams) => void;
   commitClipTransform: (params: CommitClipTransformParams) => void;
+  copySelectedClip: () => void;
   createExportPayload: () => CompositionExportPayload;
   deleteSelectedClip: () => void;
+  pasteCopiedClip: () => void;
   redo: () => void;
   resetTimeline: (params?: ResetTimelineParams) => void;
   syncSources: (sources: VideoTimelineSource[]) => void;
@@ -293,13 +296,71 @@ const createTimelineTracksFromSources = (sources: VideoTimelineSource[]) =>
       })),
   ]);
 
-const cloneClips = (clips: TimelineClip[]) =>
-  clips.map((clip) => ({
-    ...clip,
-    transform: { ...clip.transform },
-  }));
+const cloneClip = (clip: TimelineClip): TimelineClip => ({
+  ...clip,
+  thumbnailUrls: [...clip.thumbnailUrls],
+  transform: { ...clip.transform },
+});
+
+const cloneClips = (clips: TimelineClip[]) => clips.map(cloneClip);
 const cloneTracks = (tracks: TimelineTrack[]) =>
   tracks.map((track) => ({ ...track }));
+
+const createCopiedClipId = (clips: TimelineClip[], sourceId: string) => {
+  const clipIds = new Set(clips.map((clip) => clip.id));
+  const baseId = `${sourceId}-copy`;
+  let copyId = baseId;
+  let copyNumber = 2;
+
+  while (clipIds.has(copyId)) {
+    copyId = `${baseId}-${copyNumber}`;
+    copyNumber += 1;
+  }
+
+  return copyId;
+};
+
+const createPastedClipLayout = (
+  clips: TimelineClip[],
+  copiedClip: TimelineClip,
+  anchorClip: TimelineClip,
+) => {
+  const trackClips = getTrackClips(clips, anchorClip.trackId);
+  const anchorIndex = trackClips.findIndex(
+    (clip) => clip.id === anchorClip.id,
+  );
+  const pastedClip: TimelineClip = {
+    ...cloneClip(copiedClip),
+    id: createCopiedClipId(clips, copiedClip.id),
+    start: roundTimelineTime(anchorClip.start + anchorClip.duration),
+    trackId: anchorClip.trackId,
+  };
+  const precedingClips = trackClips.slice(0, anchorIndex + 1);
+  let nextAvailableStart = roundTimelineTime(
+    pastedClip.start + pastedClip.duration,
+  );
+  const followingClips = trackClips.slice(anchorIndex + 1).map((clip) => {
+    const start = roundTimelineTime(
+      Math.max(clip.start + pastedClip.duration, nextAvailableStart),
+    );
+    nextAvailableStart = roundTimelineTime(start + clip.duration);
+    return { ...clip, start };
+  });
+  const nextTrackClips = [...precedingClips, pastedClip, ...followingClips].map(
+    (clip, zIndex) => ({ ...clip, zIndex }),
+  );
+  const nextTrackClipsById = new Map(
+    nextTrackClips.map((clip) => [clip.id, clip]),
+  );
+
+  return {
+    clips: [
+      ...clips.map((clip) => nextTrackClipsById.get(clip.id) ?? clip),
+      nextTrackClipsById.get(pastedClip.id) ?? pastedClip,
+    ],
+    pastedClipId: pastedClip.id,
+  };
+};
 const dynamicVideoTrackIdPattern = new RegExp(
   `^${DYNAMIC_VIDEO_TRACK_ID_PREFIX}(\\d+)$`,
 );
@@ -767,6 +828,7 @@ const createStateFromDraft = (
     {
       canvasSize: { ...draft.canvasSize },
       clips,
+      copiedClip: null,
       currentTime: 0,
       future: [],
       isPlaying: false,
@@ -798,6 +860,7 @@ const createInitialState = (params?: ResetTimelineParams): TimelineState => {
         ? createTimelineClipsFromSources(sources, canvasSize)
         : createDefaultTimelineClips(),
     ),
+    copiedClip: null,
     currentTime: 0,
     future: [],
     isPlaying: false,
@@ -1207,6 +1270,16 @@ export const createTimelineStore = (
       set(recordClipsChange(state, nextClips, clipId));
     },
 
+    copySelectedClip: () => {
+      const state = get();
+      const selectedClip = state.clips.find(
+        (clip) => clip.id === state.selectedClipId,
+      );
+      if (!selectedClip) return;
+
+      set({ copiedClip: cloneClip(selectedClip) });
+    },
+
     createExportPayload: () => {
       const state = get();
       return createCompositionExportPayload(
@@ -1233,6 +1306,24 @@ export const createTimelineStore = (
         currentTime: Math.min(state.currentTime, duration),
         isPlaying: state.currentTime <= duration ? state.isPlaying : false,
       });
+    },
+
+    pasteCopiedClip: () => {
+      const state = get();
+      const anchorClip = state.clips.find(
+        (clip) => clip.id === state.selectedClipId,
+      );
+      const copiedClip = state.copiedClip;
+      if (!anchorClip || !copiedClip || anchorClip.type !== copiedClip.type) {
+        return;
+      }
+
+      const { clips, pastedClipId } = createPastedClipLayout(
+        state.clips,
+        copiedClip,
+        anchorClip,
+      );
+      set(recordClipsChange(state, clips, pastedClipId));
     },
 
     redo: () => {

@@ -32,6 +32,8 @@ type TimelineToolbarProps = {
 const timelineShortcutItems = [
   { action: '回退', keys: ['Ctrl', 'Z'] },
   { action: '前进', keys: ['Ctrl', 'Y'] },
+  { action: '复制选中片段', keys: ['Ctrl', 'C'] },
+  { action: '粘贴到选中片段右侧', keys: ['Ctrl', 'V'] },
   { action: '分割选中片段', keys: ['Ctrl', 'B'] },
   { action: '删除选中片段', keys: ['Backspace'] },
   { action: '缩放时间线', keys: ['Ctrl', '滚轮'] },

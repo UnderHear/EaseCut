@@ -36,6 +36,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
     }) => {
       const clips = useTimelineStore((state) => state.clips);
       const isPlaying = useTimelineStore((state) => state.isPlaying);
+      const selectedClipId = useTimelineStore((state) => state.selectedClipId);
       const selectClip = useTimelineStore((state) => state.selectClip);
       const setIsPlaying = useTimelineStore((state) => state.setIsPlaying);
       const toggleTrackMute = useTimelineStore(
@@ -59,6 +60,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
             data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
             data-first-track-volume={firstClipTrack?.volume ?? ''}
             data-playing={String(isPlaying)}
+            data-selected-clip-id={selectedClipId ?? ''}
             data-testid='timeline-state'
           >
             <button
@@ -569,9 +571,49 @@ describe('VideoTimelineEditor', () => {
 
     await user.keyboard(' ');
     await user.keyboard('{Backspace}');
+    fireEvent.keyDown(screen.getByRole('textbox', { name: '测试：编辑器内输入框' }), {
+      ctrlKey: true,
+      key: 'c',
+    });
+    fireEvent.keyDown(screen.getByRole('textbox', { name: '测试：编辑器内输入框' }), {
+      ctrlKey: true,
+      key: 'v',
+    });
 
     expect(state).toHaveAttribute('data-playing', 'false');
     expect(state).toHaveAttribute('data-clip-count', '1');
+  });
+
+  it('routes copy and paste shortcuts only to the focused editor instance', async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <>
+        <VideoTimelineEditor sources={[videoSource]} title='编辑器 A' />
+        <VideoTimelineEditor sources={[videoSource]} title='编辑器 B' />
+      </>,
+    );
+    const editors = Array.from(
+      container.querySelectorAll<HTMLElement>('.oc-editor'),
+    );
+    const states = screen.getAllByTestId('timeline-state');
+
+    await user.click(
+      within(editors[0]).getByRole('button', { name: '测试：选择首个片段' }),
+    );
+    editors[0].focus();
+    fireEvent.keyDown(editors[0], { ctrlKey: true, key: 'c' });
+    fireEvent.keyDown(editors[0], { ctrlKey: true, key: 'v' });
+
+    expect(states[0]).toHaveAttribute('data-clip-count', '2');
+    expect(states[1]).toHaveAttribute('data-clip-count', '1');
+    expect(states[0]).toHaveAttribute(
+      'data-selected-clip-id',
+      'clip-video-1-copy',
+    );
+
+    editors[1].focus();
+    fireEvent.keyDown(editors[1], { metaKey: true, key: 'v' });
+    expect(states[1]).toHaveAttribute('data-clip-count', '1');
   });
 
   it('routes Ctrl+Z and Ctrl+Y to the focused editor undo history', async () => {
