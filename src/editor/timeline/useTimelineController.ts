@@ -128,7 +128,12 @@ export function useTimelineController({
       moveActivatedRef.current = true;
       const point = getContentPoint(gridRef.current, clientX, clientY);
       if (!point) return;
-      const next = planClipDrop(gesture, point, visibleTracks);
+      const next = planClipDrop(
+        gesture,
+        point,
+        visibleTracks,
+        dropPreviewRef.current,
+      );
       if (!next) return;
 
       dropPreviewRef.current = next;

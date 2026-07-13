@@ -15,14 +15,47 @@ export const getTimelineTrackHeight = (track: Pick<TimelineTrack, 'type'>) =>
 export const getTimelineClipHeight = (type: TimelineClipType) =>
   type === 'audio' ? TIMELINE_AUDIO_CLIP_HEIGHT : TIMELINE_CLIP_HEIGHT;
 
+export type TimelineTrackLayout<
+  T extends Pick<TimelineTrack, 'type'> = Pick<TimelineTrack, 'type'>,
+> = {
+  bottom: number;
+  height: number;
+  hitTop: number;
+  index: number;
+  top: number;
+  track: T;
+};
+
+export const getTimelineTrackLayouts = <
+  T extends Pick<TimelineTrack, 'type'>,
+>(
+  tracks: readonly T[],
+): TimelineTrackLayout<T>[] => {
+  let top = TIMELINE_RULER_HEIGHT;
+
+  return tracks.map((track, index) => {
+    const height = getTimelineTrackHeight(track);
+    const bottom = top + height;
+    const layout = {
+      bottom,
+      height,
+      hitTop: index === 0 ? top : top - TIMELINE_TRACK_GAP,
+      index,
+      top,
+      track,
+    };
+
+    top = bottom + TIMELINE_TRACK_GAP;
+    return layout;
+  });
+};
+
 export const getTimelineTracksHeight = (
   tracks: Pick<TimelineTrack, 'type'>[],
-) =>
-  tracks.reduce(
-    (height, track, index) =>
-      height + getTimelineTrackHeight(track) + (index > 0 ? TIMELINE_TRACK_GAP : 0),
-    0,
-  );
+) => {
+  const lastTrack = getTimelineTrackLayouts(tracks).at(-1);
+  return lastTrack ? lastTrack.bottom - TIMELINE_RULER_HEIGHT : 0;
+};
 
 export const getTimelineTrackY = (
   tracks: Pick<TimelineTrack, 'type'>[],

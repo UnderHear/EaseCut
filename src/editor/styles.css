@@ -487,6 +487,10 @@
 .oc-timeline-grid {
   position: relative;
   display: grid;
+  grid-template-columns:
+    var(--oc-timeline-header-width)
+    var(--oc-timeline-lane-width);
+  grid-template-rows: var(--oc-timeline-ruler-height) auto;
   min-height: 100%;
   align-content: stretch;
   color: var(--oc-text-muted);
@@ -509,7 +513,6 @@
 }
 
 .oc-timeline-ruler {
-  position: sticky;
   grid-column: 2;
   grid-row: 1;
   overflow: hidden;
@@ -590,8 +593,29 @@
   transform: translateX(-50%);
 }
 
-.oc-timeline-track {
-  display: contents;
+.oc-timeline-track-stack {
+  display: flex;
+  min-width: 0;
+  min-height: 72px;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  gap: var(--oc-timeline-track-gap);
+}
+
+.oc-timeline-track,
+.oc-timeline-tail-row {
+  display: grid;
+  min-width: 0;
+  flex: none;
+  grid-template-columns:
+    var(--oc-timeline-header-width)
+    var(--oc-timeline-lane-width);
+}
+
+.oc-timeline-tail-row {
+  min-height: 72px;
+  flex: 1 0 72px;
 }
 
 .oc-timeline-track__control {
@@ -601,6 +625,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  grid-column: 1;
   gap: 12px;
   padding: 0 7px 0 8px;
   background: #1c1c1c;

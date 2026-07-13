@@ -9,9 +9,8 @@ import {
 import {
   TIMELINE_CONTENT_PADDING_X,
   TIMELINE_RULER_HEIGHT,
-  TIMELINE_TRACK_GAP,
   TIMELINE_TRACK_HEADER_WIDTH,
-  getTimelineTrackHeight,
+  getTimelineTrackLayouts,
   getTimelineTracksHeight,
 } from '../core/timeline-layout';
 import {
@@ -137,15 +136,10 @@ export const getContentPoint = (
 };
 
 const getTrackAtY = (tracks: TimelineTrack[], y: number) => {
-  let cursor = TIMELINE_RULER_HEIGHT;
-
-  for (const track of tracks) {
-    const bottom = cursor + getTimelineTrackHeight(track);
-    if (y >= cursor && y < bottom) return track;
-    cursor = bottom + TIMELINE_TRACK_GAP;
-  }
-
-  return null;
+  const layout = getTimelineTrackLayouts(tracks).find(
+    ({ bottom, hitTop }) => y >= hitTop && y < bottom,
+  );
+  return layout?.track ?? null;
 };
 
 const getDropTarget = (
@@ -153,6 +147,7 @@ const getDropTarget = (
   visibleTracks: TimelineTrack[],
   clip: TimelineClip,
   pointerY: number,
+  previousPreview: ClipDropPreview | null,
 ) => {
   const hoveredTrack = getTrackAtY(visibleTracks, pointerY);
   const videoTrackCount = tracks.filter(({ type }) => type === 'video').length;
@@ -210,16 +205,25 @@ const getDropTarget = (
     return createPendingTarget({ index: tracks.length, type: 'audio' });
   }
 
-  return {
-    pendingTrack: null,
-    targetTrack: tracks.find((track) => track.id === clip.trackId) ?? null,
-  };
+  const previousTarget = previousPreview
+    ? visibleTracks.find(
+        (track) => track.id === previousPreview.targetTrackId,
+      ) ?? null
+    : null;
+
+  return previousTarget?.type === clip.type
+    ? {
+        pendingTrack: previousPreview?.pendingTrack ?? null,
+        targetTrack: previousTarget,
+      }
+    : { pendingTrack: null, targetTrack: null };
 };
 
 export const planClipDrop = (
   gesture: MoveGesture,
   point: ContentPoint,
   visibleTracks: TimelineTrack[],
+  previousPreview: ClipDropPreview | null = null,
 ): ClipDropPreview | null => {
   const { clip, clips, currentTime, pixelsPerSecond, snappingEnabled, tracks } =
     gesture;
@@ -228,6 +232,7 @@ export const planClipDrop = (
     visibleTracks,
     clip,
     point.y,
+    previousPreview,
   );
   if (!targetTrack) return null;
 

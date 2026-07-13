@@ -14,7 +14,7 @@ import {
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_GAP,
   TIMELINE_TRACK_HEADER_WIDTH,
-  getTimelineTrackHeight,
+  getTimelineTrackLayouts,
 } from '../core/timeline-layout';
 import {
   MAX_PIXELS_PER_SECOND,
@@ -70,6 +70,10 @@ export function TimelineViewport() {
     () => getVisibleTimelineTracks(tracks, pendingTrack),
     [pendingTrack, tracks],
   );
+  const visibleTrackLayouts = useMemo(
+    () => getTimelineTrackLayouts(visibleTracks),
+    [visibleTracks],
+  );
   const controller = useTimelineController({
     gridRef,
     setPendingTrack,
@@ -102,14 +106,6 @@ export function TimelineViewport() {
     contentDuration,
     (laneWidth - TIMELINE_CONTENT_PADDING_X * 2) / pixelsPerSecond,
   );
-  const rowTemplate = [
-    `${TIMELINE_RULER_HEIGHT}px`,
-    ...visibleTracks.flatMap((track, index) => [
-      `${getTimelineTrackHeight(track)}px`,
-      ...(index < visibleTracks.length - 1 ? [`${TIMELINE_TRACK_GAP}px`] : []),
-    ]),
-    'minmax(72px, 1fr)',
-  ].join(' ');
   const { majorInterval } = calcTickScale(pixelsPerSecond);
   const clipsByTrack = useMemo(() => {
     const grouped = new Map<string, typeof displayClips>();
@@ -122,10 +118,10 @@ export function TimelineViewport() {
   }, [displayClips]);
   const gridStyle = {
     '--oc-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
+    '--oc-timeline-lane-width': `${laneWidth}px`,
     '--oc-timeline-ruler-height': `${TIMELINE_RULER_HEIGHT}px`,
+    '--oc-timeline-track-gap': `${TIMELINE_TRACK_GAP}px`,
     '--oc-timeline-grid-step': `${majorInterval * pixelsPerSecond}px`,
-    gridTemplateColumns: `${TIMELINE_TRACK_HEADER_WIDTH}px ${laneWidth}px`,
-    gridTemplateRows: rowTemplate,
     width: TIMELINE_TRACK_HEADER_WIDTH + laneWidth,
   } as CSSProperties;
   const playheadLeft =
@@ -273,141 +269,152 @@ export function TimelineViewport() {
         ref={viewportRef}
       >
         <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
-        <div className='oc-timeline-corner' />
-        <TimelineRuler
-          currentTime={currentTime}
-          duration={rulerDuration}
-          onPointerDown={controller.beginScrub}
-          pixelsPerSecond={pixelsPerSecond}
-          width={laneWidth}
-        />
+          <div className='oc-timeline-corner' />
+          <TimelineRuler
+            currentTime={currentTime}
+            duration={rulerDuration}
+            onPointerDown={controller.beginScrub}
+            pixelsPerSecond={pixelsPerSecond}
+            width={laneWidth}
+          />
 
-        {visibleTracks.map((track, index) => {
-          const pending = isPendingTrack(track);
-          const muted = track.volume === 0;
-          const isDropSource = dropPreview?.originTrackId === track.id;
-          const isDropTarget = dropPreview?.targetTrackId === track.id;
-          const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
-          const trackLabel = track.type === 'video' ? '视频轨道' : track.name;
+          <div className='oc-timeline-track-stack'>
+            {visibleTrackLayouts.map(({ height, track }) => {
+              const pending = isPendingTrack(track);
+              const muted = track.volume === 0;
+              const isDropSource = dropPreview?.originTrackId === track.id;
+              const isDropTarget = dropPreview?.targetTrackId === track.id;
+              const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
+              const trackLabel =
+                track.type === 'video' ? '视频轨道' : track.name;
 
-          return (
-            <div className='oc-timeline-track' key={track.id}>
-              <div
-                className='oc-timeline-track__control'
-                data-pending={pending}
-                style={{ gridRow: index * 2 + 2 }}
-              >
-                <span className='oc-timeline-track__icon' title={trackLabel}>
-                  <TrackIcon aria-hidden='true' />
-                </span>
-                <button
-                  aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
-                  aria-pressed={muted}
-                  className='oc-timeline-track__mute'
-                  disabled={pending}
-                  onClick={() => toggleTrackMute(track.id)}
-                  title={muted ? '取消静音' : '静音'}
-                  type='button'
+              return (
+                <div
+                  className='oc-timeline-track'
+                  data-type={track.type}
+                  key={track.id}
+                  style={{ height }}
                 >
-                  {muted ? (
-                    <VolumeX aria-hidden='true' />
-                  ) : (
-                    <Volume2 aria-hidden='true' />
-                  )}
-                </button>
-              </div>
-              <div
-                className='oc-timeline-track__lane'
-                data-drop-source={isDropSource}
-                data-drop-target={isDropTarget}
-                data-pending={pending}
-                data-track-id={track.id}
-                data-type={track.type}
-                onPointerDown={controller.beginScrub}
-                style={{ gridRow: index * 2 + 2 }}
-              >
-                {isDropSource && dropPreview && (
                   <div
-                    aria-hidden='true'
-                    className='oc-timeline-clip-placeholder'
-                    style={{
-                      left:
-                        TIMELINE_CONTENT_PADDING_X +
-                        timeToX(
-                          dropPreview.originStart,
+                    className='oc-timeline-track__control'
+                    data-pending={pending}
+                  >
+                    <span
+                      className='oc-timeline-track__icon'
+                      title={trackLabel}
+                    >
+                      <TrackIcon aria-hidden='true' />
+                    </span>
+                    <button
+                      aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
+                      aria-pressed={muted}
+                      className='oc-timeline-track__mute'
+                      disabled={pending}
+                      onClick={() => toggleTrackMute(track.id)}
+                      title={muted ? '取消静音' : '静音'}
+                      type='button'
+                    >
+                      {muted ? (
+                        <VolumeX aria-hidden='true' />
+                      ) : (
+                        <Volume2 aria-hidden='true' />
+                      )}
+                    </button>
+                  </div>
+                  <div
+                    className='oc-timeline-track__lane'
+                    data-drop-source={isDropSource}
+                    data-drop-target={isDropTarget}
+                    data-pending={pending}
+                    data-track-id={track.id}
+                    data-type={track.type}
+                    onPointerDown={controller.beginScrub}
+                  >
+                    {isDropSource && dropPreview && (
+                      <div
+                        aria-hidden='true'
+                        className='oc-timeline-clip-placeholder'
+                        style={{
+                          left:
+                            TIMELINE_CONTENT_PADDING_X +
+                            timeToX(
+                              dropPreview.originStart,
+                              pixelsPerSecond,
+                            ),
+                          width: dragWidth,
+                        }}
+                      />
+                    )}
+                    {isDropTarget && dropPreview && (
+                      <TimelineDragGhost
+                        left={
+                          TIMELINE_CONTENT_PADDING_X +
+                          timeToX(dropPreview.start, pixelsPerSecond)
+                        }
+                        snapped={dropPreview.snapTime !== null}
+                        trackChanged={
+                          dropPreview.originTrackId !==
+                          dropPreview.targetTrackId
+                        }
+                        width={dragWidth}
+                      />
+                    )}
+                    {(clipsByTrack.get(track.id) ?? []).map((clip) => (
+                      <TimelineClipView
+                        clip={clip}
+                        isDragging={dropPreview?.clipId === clip.id}
+                        isSelected={selectedClipId === clip.id}
+                        key={clip.id}
+                        left={
+                          TIMELINE_CONTENT_PADDING_X +
+                          timeToX(
+                            dropPreview?.clipId === clip.id
+                              ? dropPreview.rawStart
+                              : clip.start,
+                            pixelsPerSecond,
+                          )
+                        }
+                        onMoveStart={controller.beginMove}
+                        onSelect={selectClip}
+                        onTrimStart={controller.beginTrim}
+                        onVolumeStart={controller.beginVolume}
+                        trackVolume={track.volume}
+                        width={durationToWidth(
+                          clip.duration,
                           pixelsPerSecond,
-                        ),
-                      width: dragWidth,
-                    }}
-                  />
-                )}
-                {isDropTarget && dropPreview && (
-                  <TimelineDragGhost
-                    left={
-                      TIMELINE_CONTENT_PADDING_X +
-                      timeToX(dropPreview.start, pixelsPerSecond)
-                    }
-                    snapped={dropPreview.snapTime !== null}
-                    trackChanged={
-                      dropPreview.originTrackId !== dropPreview.targetTrackId
-                    }
-                    width={dragWidth}
-                  />
-                )}
-                {(clipsByTrack.get(track.id) ?? []).map((clip) => (
-                  <TimelineClipView
-                    clip={clip}
-                    isDragging={dropPreview?.clipId === clip.id}
-                    isSelected={selectedClipId === clip.id}
-                    key={clip.id}
-                    left={
-                      TIMELINE_CONTENT_PADDING_X +
-                      timeToX(
-                        dropPreview?.clipId === clip.id
-                          ? dropPreview.rawStart
-                          : clip.start,
-                        pixelsPerSecond,
-                      )
-                    }
-                    onMoveStart={controller.beginMove}
-                    onSelect={selectClip}
-                    onTrimStart={controller.beginTrim}
-                    onVolumeStart={controller.beginVolume}
-                    trackVolume={track.volume}
-                    width={durationToWidth(clip.duration, pixelsPerSecond)}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
 
-        <div
-          aria-hidden='true'
-          className='oc-timeline-track__control oc-timeline-track__control--tail'
-          style={{ gridRow: Math.max(2, visibleTracks.length * 2 + 1) }}
-        />
-        <div
-          className='oc-timeline-tail'
-          onPointerDown={controller.beginScrub}
-          style={{ gridRow: Math.max(2, visibleTracks.length * 2 + 1) }}
-        />
-        {dropPreview?.snapTime !== null &&
-          dropPreview?.snapTime !== undefined && (
-            <div
-              aria-hidden='true'
-              className='oc-timeline-snap-line'
-              style={{
-                left:
-                  TIMELINE_TRACK_HEADER_WIDTH +
-                  TIMELINE_CONTENT_PADDING_X +
-                  timeToX(
-                    dropPreview.snapTime,
-                    pixelsPerSecond,
-                  ),
-              }}
-            />
-          )}
+            <div className='oc-timeline-tail-row'>
+              <div
+                aria-hidden='true'
+                className='oc-timeline-track__control oc-timeline-track__control--tail'
+              />
+              <div
+                className='oc-timeline-tail'
+                onPointerDown={controller.beginScrub}
+              />
+            </div>
+          </div>
+
+          {dropPreview?.snapTime !== null &&
+            dropPreview?.snapTime !== undefined && (
+              <div
+                aria-hidden='true'
+                className='oc-timeline-snap-line'
+                style={{
+                  left:
+                    TIMELINE_TRACK_HEADER_WIDTH +
+                    TIMELINE_CONTENT_PADDING_X +
+                    timeToX(dropPreview.snapTime, pixelsPerSecond),
+                }}
+              />
+            )}
         </div>
       </div>
       <div

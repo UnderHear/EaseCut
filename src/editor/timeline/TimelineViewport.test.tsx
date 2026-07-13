@@ -5,7 +5,10 @@ import {
   DEFAULT_PIXELS_PER_SECOND,
   TIMELINE_ZOOM_STEP,
 } from '../core/timeline-math';
-import { MAIN_VIDEO_TRACK_ID } from '../store/timeline-store';
+import {
+  MAIN_VIDEO_TRACK_ID,
+  NEW_AUDIO_TRACK_DROP_ID,
+} from '../store/timeline-store';
 import type { TimelineClip, TimelineTrack } from '../types';
 import {
   renderWithEditorProviders,
@@ -159,6 +162,14 @@ describe('TimelineViewport DOM interactions', () => {
     expect(audioHeader).not.toBeNull();
     expect(videoHeader).toHaveClass('oc-timeline-track__control');
     expect(audioHeader).toHaveClass('oc-timeline-track__control');
+    expect(videoHeader?.parentElement).toHaveClass('oc-timeline-track');
+    expect(videoHeader?.parentElement).toHaveStyle({ height: '56px' });
+    expect(audioHeader?.parentElement).toHaveClass('oc-timeline-track');
+    expect(audioHeader?.parentElement).toHaveStyle({ height: '40px' });
+    expect(videoHeader).not.toHaveStyle({ gridRow: '2' });
+    expect(document.querySelector('.oc-timeline-track-stack')).toContainElement(
+      document.querySelector('.oc-timeline-tail-row'),
+    );
     expect(screen.getByTitle('视频轨道')).toHaveClass(
       'oc-timeline-track__icon',
     );
@@ -486,6 +497,54 @@ describe('TimelineViewport DOM interactions', () => {
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
     ).toEqual(expect.objectContaining({ start: 1, trackId: audioTrack.id }));
     expect(testTimelineStore.getState().past).toHaveLength(0);
+  });
+
+  it('keeps a new track targeted when its insertion creates a gap under the pointer', () => {
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'audio clip: background.mp3',
+    });
+
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 208,
+      clientY: 100,
+      pointerId: 17,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 132,
+      pointerId: 17,
+    });
+
+    const pendingLane = document.querySelector(
+      `[data-track-id="${NEW_AUDIO_TRACK_DROP_ID}"]`,
+    );
+    expect(pendingLane).toHaveAttribute('data-drop-target', 'true');
+
+    fireEvent.pointerMove(window, {
+      clientX: 340,
+      clientY: 132,
+      pointerId: 17,
+    });
+
+    expect(pendingLane).toHaveAttribute('data-drop-target', 'true');
+    expect(
+      document.querySelector(`[data-track-id="${audioTrack.id}"]`),
+    ).toHaveAttribute('data-drop-target', 'false');
+
+    fireEvent.pointerUp(window, {
+      clientX: 340,
+      clientY: 132,
+      pointerId: 17,
+    });
+
+    expect(testTimelineStore.getState().tracks).toHaveLength(3);
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
+    ).toEqual(
+      expect.objectContaining({ start: 2.65, trackId: 'audio-track-2' }),
+    );
   });
 
   it('previews and commits an end trim from the selected clip handle', () => {
