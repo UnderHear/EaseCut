@@ -7,13 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import {
-  Layers3,
-  Music2,
-  SquarePlay,
-  Volume2,
-  VolumeX,
-} from 'lucide-react';
+import { Music2, SquarePlay, Volume2, VolumeX } from 'lucide-react';
 
 import {
   TIMELINE_CONTENT_PADDING_X,
@@ -31,7 +25,6 @@ import {
   timeToX,
 } from '../core/timeline-math';
 import {
-  MAIN_VIDEO_TRACK_ID,
   NEW_AUDIO_TRACK_DROP_ID,
   NEW_VIDEO_TRACK_DROP_ID,
   getVisibleTimelineTracks,
@@ -294,12 +287,8 @@ export function TimelineViewport() {
           const muted = track.volume === 0;
           const isDropSource = dropPreview?.originTrackId === track.id;
           const isDropTarget = dropPreview?.targetTrackId === track.id;
-          const TrackIcon =
-            track.type === 'audio'
-              ? Music2
-              : track.id === MAIN_VIDEO_TRACK_ID
-                ? SquarePlay
-                : Layers3;
+          const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
+          const trackLabel = track.type === 'video' ? '视频轨道' : track.name;
 
           return (
             <div className='oc-timeline-track' key={track.id}>
@@ -308,11 +297,11 @@ export function TimelineViewport() {
                 data-pending={pending}
                 style={{ gridRow: index * 2 + 2 }}
               >
-                <span className='oc-timeline-track__icon' title={track.name}>
+                <span className='oc-timeline-track__icon' title={trackLabel}>
                   <TrackIcon aria-hidden='true' />
                 </span>
                 <button
-                  aria-label={`${track.name}${muted ? '取消静音' : '静音'}`}
+                  aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
                   aria-pressed={muted}
                   className='oc-timeline-track__mute'
                   disabled={pending}

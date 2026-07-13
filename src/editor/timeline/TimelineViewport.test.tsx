@@ -147,7 +147,9 @@ describe('TimelineViewport DOM interactions', () => {
   it('renders sticky track controls without names and semantic video/audio clips', () => {
     renderTimeline();
 
-    const videoMuteButton = screen.getByRole('button', { name: '视频轨静音' });
+    const videoMuteButton = screen.getByRole('button', {
+      name: '视频轨道静音',
+    });
     const audioMuteButton = screen.getByRole('button', {
       name: '音频轨 1静音',
     });
@@ -157,7 +159,7 @@ describe('TimelineViewport DOM interactions', () => {
     expect(audioHeader).not.toBeNull();
     expect(videoHeader).toHaveClass('oc-timeline-track__control');
     expect(audioHeader).toHaveClass('oc-timeline-track__control');
-    expect(screen.getByTitle(videoTrack.name)).toHaveClass(
+    expect(screen.getByTitle('视频轨道')).toHaveClass(
       'oc-timeline-track__icon',
     );
     expect(screen.getByTitle(audioTrack.name)).toHaveClass(
@@ -171,7 +173,7 @@ describe('TimelineViewport DOM interactions', () => {
     fireEvent.click(videoMuteButton);
 
     expect(
-      screen.getByRole('button', { name: '视频轨取消静音' }),
+      screen.getByRole('button', { name: '视频轨道取消静音' }),
     ).toHaveAttribute('title', '取消静音');
 
     expect(

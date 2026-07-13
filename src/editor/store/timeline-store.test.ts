@@ -359,7 +359,7 @@ describe('timelineStore video track layout', () => {
       expect.objectContaining({ id: MAIN_VIDEO_TRACK_ID, name: '视频轨' }),
       expect.objectContaining({
         id: 'video-overlay-1',
-        name: '视频轨 2',
+        name: '视频轨',
         type: 'video',
       }),
     ]);

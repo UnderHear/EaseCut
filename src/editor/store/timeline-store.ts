@@ -396,9 +396,6 @@ const getNextDynamicAudioTrackNumber = (tracks: TimelineTrack[]) =>
 const getNextTrackZIndex = (tracks: TimelineTrack[]) =>
   tracks.reduce((max, track) => Math.max(max, track.zIndex), 0) + 1;
 
-const getNextVideoTrackName = (tracks: TimelineTrack[]) =>
-  `视频轨 ${tracks.filter((track) => track.type === 'video').length + 1}`;
-
 const getNextAudioTrackName = (tracks: TimelineTrack[]) =>
   `音频轨 ${tracks.filter((track) => track.type === 'audio').length + 1}`;
 
@@ -409,7 +406,7 @@ export const createPendingTrack = (
   id: type === 'video' ? NEW_VIDEO_TRACK_DROP_ID : NEW_AUDIO_TRACK_DROP_ID,
   name:
     type === 'video'
-      ? getNextVideoTrackName(tracks)
+      ? '视频轨'
       : getNextAudioTrackName(tracks),
   type,
   volume: 1,
