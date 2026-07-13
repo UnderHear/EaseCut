@@ -140,21 +140,35 @@ describe('TimelineViewport DOM interactions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders sticky track headers and semantic video/audio clips', () => {
+  it('renders sticky track controls without names and semantic video/audio clips', () => {
     renderTimeline();
 
-    const videoHeader = screen.getByTitle(videoTrack.name).parentElement;
-    const audioHeader = screen.getByTitle(audioTrack.name).parentElement;
+    const videoMuteButton = screen.getByRole('button', { name: '视频轨静音' });
+    const audioMuteButton = screen.getByRole('button', {
+      name: '音频轨 1静音',
+    });
+    const videoHeader = videoMuteButton.parentElement;
+    const audioHeader = audioMuteButton.parentElement;
     expect(videoHeader).not.toBeNull();
     expect(audioHeader).not.toBeNull();
     expect(videoHeader).toHaveClass('oc-timeline-track__control');
     expect(audioHeader).toHaveClass('oc-timeline-track__control');
+    expect(screen.getByTitle(videoTrack.name)).toHaveClass(
+      'oc-timeline-track__icon',
+    );
+    expect(screen.getByTitle(audioTrack.name)).toHaveClass(
+      'oc-timeline-track__icon',
+    );
+    expect(videoMuteButton).toHaveAttribute('aria-pressed', 'false');
+    expect(audioMuteButton).toHaveAttribute('aria-pressed', 'false');
+    expect(videoMuteButton).toHaveAttribute('title', '静音');
+    expect(audioMuteButton).toHaveAttribute('title', '静音');
+
+    fireEvent.click(videoMuteButton);
+
     expect(
-      screen.getByRole('button', { name: '视频轨静音' }),
-    ).toHaveAttribute('aria-pressed', 'false');
-    expect(
-      screen.getByRole('button', { name: '音频轨 1静音' }),
-    ).toHaveAttribute('aria-pressed', 'false');
+      screen.getByRole('button', { name: '视频轨取消静音' }),
+    ).toHaveAttribute('title', '取消静音');
 
     expect(
       screen.getByRole('article', { name: 'video clip: opening.mp4' }),

@@ -7,9 +7,9 @@ import {
   type CSSProperties,
 } from 'react';
 import {
-  Film,
   Layers3,
   Music2,
+  SquarePlay,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -17,6 +17,7 @@ import {
 import {
   TIMELINE_CONTENT_PADDING_X,
   TIMELINE_RULER_HEIGHT,
+  TIMELINE_TRACK_GAP,
   TIMELINE_TRACK_HEADER_WIDTH,
   getTimelineTrackHeight,
 } from '../core/timeline-layout';
@@ -105,9 +106,14 @@ export function TimelineViewport() {
     contentDuration,
     (laneWidth - TIMELINE_CONTENT_PADDING_X * 2) / pixelsPerSecond,
   );
-  const rowTemplate = `${TIMELINE_RULER_HEIGHT}px ${visibleTracks
-    .map((track) => `${getTimelineTrackHeight(track)}px`)
-    .join(' ')} minmax(72px, 1fr)`;
+  const rowTemplate = [
+    `${TIMELINE_RULER_HEIGHT}px`,
+    ...visibleTracks.flatMap((track, index) => [
+      `${getTimelineTrackHeight(track)}px`,
+      ...(index < visibleTracks.length - 1 ? [`${TIMELINE_TRACK_GAP}px`] : []),
+    ]),
+    'minmax(72px, 1fr)',
+  ].join(' ');
   const { majorInterval } = calcTickScale(pixelsPerSecond);
   const clipsByTrack = useMemo(() => {
     const grouped = new Map<string, typeof displayClips>();
@@ -250,10 +256,7 @@ export function TimelineViewport() {
       ref={viewportRef}
     >
       <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
-        <div className='oc-timeline-corner'>
-          <span>轨道</span>
-          <span>{tracks.length}</span>
-        </div>
+        <div className='oc-timeline-corner' />
         <TimelineRuler
           currentTime={currentTime}
           duration={rulerDuration}
@@ -293,7 +296,7 @@ export function TimelineViewport() {
             track.type === 'audio'
               ? Music2
               : track.id === MAIN_VIDEO_TRACK_ID
-                ? Film
+                ? SquarePlay
                 : Layers3;
 
           return (
@@ -301,13 +304,10 @@ export function TimelineViewport() {
               <div
                 className='oc-timeline-track__control'
                 data-pending={pending}
-                style={{ gridRow: index + 2 }}
+                style={{ gridRow: index * 2 + 2 }}
               >
-                <span className='oc-timeline-track__icon'>
+                <span className='oc-timeline-track__icon' title={track.name}>
                   <TrackIcon aria-hidden='true' />
-                </span>
-                <span className='oc-timeline-track__name' title={track.name}>
-                  {track.name}
                 </span>
                 <button
                   aria-label={`${track.name}${muted ? '取消静音' : '静音'}`}
@@ -315,6 +315,7 @@ export function TimelineViewport() {
                   className='oc-timeline-track__mute'
                   disabled={pending}
                   onClick={() => toggleTrackMute(track.id)}
+                  title={muted ? '取消静音' : '静音'}
                   type='button'
                 >
                   {muted ? (
@@ -332,7 +333,7 @@ export function TimelineViewport() {
                 data-track-id={track.id}
                 data-type={track.type}
                 onPointerDown={controller.beginScrub}
-                style={{ gridRow: index + 2 }}
+                style={{ gridRow: index * 2 + 2 }}
               >
                 {isDropSource && dropPreview && (
                   <div
@@ -393,12 +394,12 @@ export function TimelineViewport() {
         <div
           aria-hidden='true'
           className='oc-timeline-track__control oc-timeline-track__control--tail'
-          style={{ gridRow: visibleTracks.length + 2 }}
+          style={{ gridRow: Math.max(2, visibleTracks.length * 2 + 1) }}
         />
         <div
           className='oc-timeline-tail'
           onPointerDown={controller.beginScrub}
-          style={{ gridRow: visibleTracks.length + 2 }}
+          style={{ gridRow: Math.max(2, visibleTracks.length * 2 + 1) }}
         />
         {dropPreview?.snapTime !== null &&
           dropPreview?.snapTime !== undefined && (

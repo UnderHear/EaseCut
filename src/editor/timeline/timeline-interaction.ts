@@ -9,6 +9,7 @@ import {
 import {
   TIMELINE_CONTENT_PADDING_X,
   TIMELINE_RULER_HEIGHT,
+  TIMELINE_TRACK_GAP,
   TIMELINE_TRACK_HEADER_WIDTH,
   getTimelineTrackHeight,
   getTimelineTracksHeight,
@@ -141,7 +142,7 @@ const getTrackAtY = (tracks: TimelineTrack[], y: number) => {
   for (const track of tracks) {
     const bottom = cursor + getTimelineTrackHeight(track);
     if (y >= cursor && y < bottom) return track;
-    cursor = bottom;
+    cursor = bottom + TIMELINE_TRACK_GAP;
   }
 
   return null;
