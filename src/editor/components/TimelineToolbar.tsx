@@ -1,3 +1,4 @@
+import * as Popover from '@radix-ui/react-popover';
 import {
   FilePlus2,
   Keyboard,
@@ -129,34 +130,45 @@ export function TimelineToolbar({
       </div>
 
       <div className='oc-timeline-toolbar__group oc-timeline-toolbar__group--end'>
-        <details className='oc-shortcuts'>
-          <summary
-            aria-label='查看快捷键'
-            className='oc-icon-button'
-            role='button'
-            title='查看快捷键'
-          >
-            <Keyboard aria-hidden='true' />
-          </summary>
-          <div className='oc-shortcuts__panel'>
-            <strong className='oc-shortcuts__title'>快捷键</strong>
-            <dl className='oc-shortcuts__list'>
-              {timelineShortcutItems.map((item) => (
-                <div className='oc-shortcuts__item' key={item.action}>
-                  <dt>{item.action}</dt>
-                  <dd>
-                    {item.keys.map((key, index) => (
-                      <span className='oc-shortcuts__key-group' key={`${item.action}-${key}`}>
-                        {index > 0 && <span aria-hidden='true'>+</span>}
-                        <kbd>{key}</kbd>
-                      </span>
-                    ))}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </details>
+        <Popover.Root>
+          <Popover.Trigger asChild>
+            <button
+              aria-label='查看快捷键'
+              className='oc-icon-button'
+              title='查看快捷键'
+              type='button'
+            >
+              <Keyboard aria-hidden='true' />
+            </button>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              align='center'
+              aria-label='快捷键'
+              className='oc-shortcuts__panel'
+              collisionPadding={12}
+              side='top'
+              sideOffset={8}
+            >
+              <strong className='oc-shortcuts__title'>快捷键</strong>
+              <dl className='oc-shortcuts__list'>
+                {timelineShortcutItems.map((item) => (
+                  <div className='oc-shortcuts__item' key={item.action}>
+                    <dt>{item.action}</dt>
+                    <dd>
+                      {item.keys.map((key, index) => (
+                        <span className='oc-shortcuts__key-group' key={`${item.action}-${key}`}>
+                          {index > 0 && <span aria-hidden='true'>+</span>}
+                          <kbd>{key}</kbd>
+                        </span>
+                      ))}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
         <ToolbarButton
           active={snappingEnabled}
           label='吸附开关'

@@ -46,13 +46,11 @@
 }
 
 .oc-editor button,
-.oc-editor input,
-.oc-editor summary {
+.oc-editor input {
   font: inherit;
 }
 
-.oc-editor button,
-.oc-editor summary {
+.oc-editor button {
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -119,8 +117,7 @@
 }
 
 .oc-button:hover:not(:disabled),
-.oc-icon-button:hover:not(:disabled),
-.oc-shortcuts > summary:hover {
+.oc-icon-button:hover:not(:disabled) {
   background: var(--oc-panel-hover);
 }
 
@@ -146,7 +143,8 @@
   pointer-events: none;
 }
 
-.oc-icon-button.oc-is-active {
+.oc-icon-button.oc-is-active,
+.oc-icon-button[data-state="open"] {
   color: #fff;
   background: #3a3a3a;
 }
@@ -377,42 +375,53 @@
   padding-top: 2px;
 }
 
-.oc-shortcuts {
-  position: relative;
-  flex: 0 0 auto;
-}
-
-.oc-shortcuts > summary {
-  list-style: none;
-}
-
-.oc-shortcuts > summary::-webkit-details-marker {
-  display: none;
-}
-
 .oc-shortcuts__panel {
-  position: absolute;
-  right: 50%;
-  bottom: calc(100% + 6px);
-  z-index: 20;
-  width: 260px;
-  padding: 12px;
-  border: 1px solid var(--oc-border-strong);
-  border-radius: var(--oc-radius);
-  background: #222;
-  box-shadow: 0 18px 50px rgb(0 0 0 / 48%);
-  transform: translateX(50%);
+  --oc-border-strong: rgb(255 255 255 / 22%);
+  --oc-radius: 6px;
+  --oc-text: #f5f5f5;
+  --oc-text-muted: #a3a3a3;
+
+  z-index: 50;
+  width: 280px;
+  max-height: min(300px, var(--radix-popover-content-available-height));
+  padding: 10px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 8px;
+  color: var(--oc-text);
+  background: #242424;
+  box-shadow:
+    0 16px 42px rgb(0 0 0 / 52%),
+    0 1px rgb(255 255 255 / 7%) inset;
+  font-family:
+    Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+
+.oc-shortcuts__panel,
+.oc-shortcuts__panel *,
+.oc-shortcuts__panel *::before,
+.oc-shortcuts__panel *::after {
+  box-sizing: border-box;
 }
 
 .oc-shortcuts__title {
   display: block;
-  margin-bottom: 9px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  color: #fafafa;
+  font-size: 14px;
+  font-weight: 650;
 }
 
 .oc-shortcuts__list {
   display: grid;
-  gap: 7px;
-  margin: 0;
+  gap: 2px;
+  margin: 7px 0 0;
 }
 
 .oc-shortcuts__item {
@@ -420,8 +429,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  color: var(--oc-text-muted);
-  font-size: 12px;
+  min-height: 27px;
+  border-radius: 4px;
+  color: #b0b0b0;
+  font-size: 14px;
 }
 
 .oc-shortcuts__item dd {
@@ -429,6 +440,7 @@
   align-items: center;
   gap: 4px;
   margin: 0;
+  color: var(--oc-text);
 }
 
 .oc-shortcuts__key-group {
@@ -437,15 +449,15 @@
   gap: 3px;
 }
 
-.oc-shortcuts kbd {
-  min-width: 22px;
-  padding: 2px 5px;
-  border: 1px solid var(--oc-border-strong);
+.oc-shortcuts__panel kbd {
+  min-width: 24px;
+  padding: 2px 6px;
   border-radius: 4px;
-  color: var(--oc-text);
-  background: #303030;
+  color: #f5f5f5;
+  background: linear-gradient(#3a3a3a, #303030);
   font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 16px;
   text-align: center;
 }
 

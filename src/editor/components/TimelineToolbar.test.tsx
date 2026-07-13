@@ -83,13 +83,18 @@ describe('TimelineToolbar', () => {
     expect(onRequestImport).toHaveBeenCalledOnce();
   });
 
-  it('shows timeline keyboard shortcuts from native details', async () => {
+  it('shows timeline keyboard shortcuts in a dismissible popover', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
       <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
     );
 
-    await user.click(screen.getByRole('button', { name: '查看快捷键' }));
+    expect(screen.queryByText('快捷键')).not.toBeInTheDocument();
+
+    const shortcutsTrigger = screen.getByRole('button', { name: '查看快捷键' });
+    await user.click(shortcutsTrigger);
+
+    expect(shortcutsTrigger).toHaveAttribute('data-state', 'open');
 
     expect(screen.getByText('快捷键')).toBeInTheDocument();
     expect(screen.getByText('回退')).toBeInTheDocument();
@@ -105,5 +110,10 @@ describe('TimelineToolbar', () => {
     expect(screen.getByText('Backspace')).toBeInTheDocument();
     expect(screen.getByText('滚轮')).toBeInTheDocument();
     expect(screen.getByText('Space')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByText('快捷键')).not.toBeInTheDocument();
+    expect(shortcutsTrigger).toHaveAttribute('data-state', 'closed');
   });
 });
