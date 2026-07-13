@@ -386,6 +386,32 @@ describe('timelineStore video track layout', () => {
     );
   });
 
+  it('trims an empty dynamic video track above the main video track', () => {
+    const state = timelineStore.getState();
+
+    state.commitClipDrop({
+      clipId: 'clip-video-1',
+      freeStart: 2,
+      insertionIndex: 0,
+      targetTrackId: NEW_VIDEO_TRACK_DROP_ID,
+      targetTrackInsertIndex: 0,
+    });
+    state.commitClipDrop({
+      clipId: 'clip-video-1',
+      insertionIndex: 2,
+      targetTrackId: MAIN_VIDEO_TRACK_ID,
+    });
+
+    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
+      [MAIN_VIDEO_TRACK_ID],
+    );
+    expect(
+      timelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-video-1'),
+    ).toEqual(expect.objectContaining({ trackId: MAIN_VIDEO_TRACK_ID }));
+  });
+
   it('trims a trailing empty dynamic video track after its last clip moves away', () => {
     const state = timelineStore.getState();
 
@@ -1147,7 +1173,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual(expect.objectContaining({ trackId: 'audio-track-3' }));
   });
 
-  it('keeps leading empty audio tracks after moving both clips to the third track', () => {
+  it('trims leading empty audio tracks after moving both clips to the third track', () => {
     resetToTwoVisualAudioTracks();
 
     const state = timelineStore.getState();
@@ -1166,7 +1192,7 @@ describe('timelineStore video track layout', () => {
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-1', 'audio-track-2', 'audio-track-3'],
+      [MAIN_VIDEO_TRACK_ID, 'audio-track-3'],
     );
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-3').map(
@@ -1178,13 +1204,35 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().resetTimeline({ draft });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-1', 'audio-track-2', 'audio-track-3'],
+      [MAIN_VIDEO_TRACK_ID, 'audio-track-3'],
     );
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-3').map(
         (clip) => clip.id,
       ),
     ).toEqual(['clip-audio-a', 'clip-audio-b']);
+  });
+
+  it('trims a leading empty audio track after deletion and normalizes history', () => {
+    resetToTwoVisualAudioTracks();
+
+    const state = timelineStore.getState();
+    state.selectClip('clip-audio-a');
+    state.deleteSelectedClip();
+
+    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
+      [MAIN_VIDEO_TRACK_ID, 'audio-track-2'],
+    );
+
+    state.undo();
+    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
+      [MAIN_VIDEO_TRACK_ID, 'audio-track-1', 'audio-track-2'],
+    );
+
+    state.redo();
+    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
+      [MAIN_VIDEO_TRACK_ID, 'audio-track-2'],
+    );
   });
 
   it('trims trailing empty audio tracks after the last clip moves back', () => {

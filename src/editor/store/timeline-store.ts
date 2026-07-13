@@ -447,17 +447,22 @@ export const getVisibleTimelineTracks = (
 const isTrackAnchor = (track: TimelineTrack, clipTrackIds: Set<string>) =>
   track.id === MAIN_VIDEO_TRACK_ID || clipTrackIds.has(track.id);
 
-const pruneTrailingEmptyTracks = (
+const pruneBoundaryEmptyTracks = (
   tracks: TimelineTrack[],
   clipTrackIds: Set<string>,
 ) => {
+  const firstAnchorIndex = tracks.findIndex((track) =>
+    isTrackAnchor(track, clipTrackIds),
+  );
   const lastAnchorIndex = tracks.findLastIndex((track) =>
     isTrackAnchor(track, clipTrackIds),
   );
-  return lastAnchorIndex === -1 ? [] : tracks.slice(0, lastAnchorIndex + 1);
+  return firstAnchorIndex === -1
+    ? []
+    : tracks.slice(firstAnchorIndex, lastAnchorIndex + 1);
 };
 
-const pruneTrailingEmptyTimelineTracks = (
+const pruneBoundaryEmptyTimelineTracks = (
   tracks: TimelineTrack[],
   clips: TimelineClip[],
 ) => {
@@ -465,11 +470,11 @@ const pruneTrailingEmptyTimelineTracks = (
   const normalizedTracks = normalizeTimelineTracks(tracks);
 
   return normalizeTimelineTracks([
-    ...pruneTrailingEmptyTracks(
+    ...pruneBoundaryEmptyTracks(
       normalizedTracks.filter((track) => track.type === 'video'),
       clipTrackIds,
     ),
-    ...pruneTrailingEmptyTracks(
+    ...pruneBoundaryEmptyTracks(
       normalizedTracks.filter((track) => track.type === 'audio'),
       clipTrackIds,
     ),
@@ -497,7 +502,7 @@ export const shouldCompactMainVideoTrackAfterDrop = (
   );
 
   return hasSingleMainVideoTrack(
-    pruneTrailingEmptyTimelineTracks(tracks, movedClips),
+    pruneBoundaryEmptyTimelineTracks(tracks, movedClips),
   );
 };
 
@@ -816,7 +821,7 @@ const createStateFromDraft = (
       normalizeDraftClip(clip, draft.canvasSize, sources),
     ),
   );
-  const tracks = pruneTrailingEmptyTimelineTracks(
+  const tracks = pruneBoundaryEmptyTimelineTracks(
     draft.tracks.map(normalizeDraftTrack),
     clips,
   );
@@ -901,7 +906,7 @@ const recordClipsChange = (
     layoutRevision: state.layoutRevision + 1,
     past: [...state.past, createSnapshot(state)],
     selectedClipId,
-    tracks: pruneTrailingEmptyTimelineTracks(tracks, nextClips),
+    tracks: pruneBoundaryEmptyTimelineTracks(tracks, nextClips),
   };
 };
 
@@ -1088,7 +1093,7 @@ export const getTrimmedTimelineClips = (
   const shouldCompactMainTrack =
     targetClip?.type === 'video' &&
     targetClip.trackId === MAIN_VIDEO_TRACK_ID &&
-    hasSingleMainVideoTrack(pruneTrailingEmptyTimelineTracks(tracks, clips));
+    hasSingleMainVideoTrack(pruneBoundaryEmptyTimelineTracks(tracks, clips));
   const trimmedClips = getRippleTrimmedClips(
     clips,
     clipId,
@@ -1335,7 +1340,7 @@ export const createTimelineStore = (
         layoutRevision: state.layoutRevision + 1,
         past: [...state.past, createSnapshot(state)],
         selectedClipId: next.selectedClipId,
-        tracks: pruneTrailingEmptyTimelineTracks(
+        tracks: pruneBoundaryEmptyTimelineTracks(
           cloneTracks(next.tracks),
           nextClips,
         ),
@@ -1549,7 +1554,7 @@ export const createTimelineStore = (
         layoutRevision: state.layoutRevision + 1,
         past: state.past.slice(0, -1),
         selectedClipId: previous.selectedClipId,
-        tracks: pruneTrailingEmptyTimelineTracks(
+        tracks: pruneBoundaryEmptyTimelineTracks(
           cloneTracks(previous.tracks),
           previousClips,
         ),

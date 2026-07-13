@@ -539,7 +539,10 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 17,
     });
 
-    expect(testTimelineStore.getState().tracks).toHaveLength(3);
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      'audio-track-2',
+    ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
     ).toEqual(
