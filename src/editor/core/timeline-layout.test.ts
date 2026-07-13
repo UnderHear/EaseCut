@@ -4,6 +4,7 @@ import type { TimelineTrack } from '../types';
 import {
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_GAP,
+  getTimelineTrackGapAtY,
   getTimelineTrackLayouts,
   getTimelineTracksHeight,
 } from './timeline-layout';
@@ -40,5 +41,20 @@ describe('timeline track layout', () => {
       },
     ]);
     expect(getTimelineTracksHeight([videoTrack, audioTrack])).toBe(100);
+  });
+
+  it('only recognizes the rendered gap between track rows', () => {
+    const tracks = [videoTrack, videoTrack];
+
+    expect(getTimelineTrackGapAtY(tracks, 88)).toEqual({
+      afterTrack: videoTrack,
+      beforeTrack: videoTrack,
+      bottom: 92,
+      index: 1,
+      top: 88,
+    });
+    expect(getTimelineTrackGapAtY(tracks, 91.999)).not.toBeNull();
+    expect(getTimelineTrackGapAtY(tracks, 87.999)).toBeNull();
+    expect(getTimelineTrackGapAtY(tracks, 92)).toBeNull();
   });
 });

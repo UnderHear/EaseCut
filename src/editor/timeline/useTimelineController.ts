@@ -134,7 +134,12 @@ export function useTimelineController({
         visibleTracks,
         dropPreviewRef.current,
       );
-      if (!next) return;
+      if (!next) {
+        dropPreviewRef.current = null;
+        setDropPreview(null);
+        publishPendingTrack(null);
+        return;
+      }
 
       dropPreviewRef.current = next;
       setDropPreview(next);

@@ -26,6 +26,16 @@ export type TimelineTrackLayout<
   track: T;
 };
 
+export type TimelineTrackGap<
+  T extends Pick<TimelineTrack, 'type'> = Pick<TimelineTrack, 'type'>,
+> = {
+  afterTrack: T;
+  beforeTrack: T;
+  bottom: number;
+  index: number;
+  top: number;
+};
+
 export const getTimelineTrackLayouts = <
   T extends Pick<TimelineTrack, 'type'>,
 >(
@@ -55,6 +65,29 @@ export const getTimelineTracksHeight = (
 ) => {
   const lastTrack = getTimelineTrackLayouts(tracks).at(-1);
   return lastTrack ? lastTrack.bottom - TIMELINE_RULER_HEIGHT : 0;
+};
+
+export const getTimelineTrackGapAtY = <
+  T extends Pick<TimelineTrack, 'type'>,
+>(
+  tracks: readonly T[],
+  y: number,
+): TimelineTrackGap<T> | null => {
+  const layout = getTimelineTrackLayouts(tracks).find(
+    ({ index, top }) =>
+      index > 0 && y >= top - TIMELINE_TRACK_GAP && y < top,
+  );
+  const beforeTrack = layout ? tracks[layout.index - 1] : undefined;
+
+  if (!layout || !beforeTrack) return null;
+
+  return {
+    afterTrack: layout.track,
+    beforeTrack,
+    bottom: layout.top,
+    index: layout.index,
+    top: layout.top - TIMELINE_TRACK_GAP,
+  };
 };
 
 export const getTimelineTrackY = (

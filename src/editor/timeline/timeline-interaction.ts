@@ -10,6 +10,7 @@ import {
   TIMELINE_CONTENT_PADDING_X,
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_HEADER_WIDTH,
+  getTimelineTrackGapAtY,
   getTimelineTrackLayouts,
   getTimelineTracksHeight,
 } from '../core/timeline-layout';
@@ -142,6 +143,9 @@ const getTrackAtY = (tracks: TimelineTrack[], y: number) => {
   return layout?.track ?? null;
 };
 
+const isPendingTrack = ({ id }: TimelineTrack) =>
+  id === NEW_VIDEO_TRACK_DROP_ID || id === NEW_AUDIO_TRACK_DROP_ID;
+
 const getDropTarget = (
   tracks: TimelineTrack[],
   visibleTracks: TimelineTrack[],
@@ -164,10 +168,7 @@ const getDropTarget = (
     };
   };
 
-  if (
-    hoveredTrack?.id === NEW_VIDEO_TRACK_DROP_ID ||
-    hoveredTrack?.id === NEW_AUDIO_TRACK_DROP_ID
-  ) {
+  if (hoveredTrack && isPendingTrack(hoveredTrack)) {
     return {
       pendingTrack: {
         index: Math.max(
@@ -178,6 +179,48 @@ const getDropTarget = (
       },
       targetTrack: hoveredTrack,
     };
+  }
+
+  const hoveredGap = getTimelineTrackGapAtY(visibleTracks, pointerY);
+  if (
+    hoveredGap &&
+    isPendingTrack(hoveredGap.beforeTrack) &&
+    previousPreview?.targetTrackId === hoveredGap.beforeTrack.id &&
+    previousPreview.pendingTrack
+  ) {
+    return {
+      pendingTrack: previousPreview.pendingTrack,
+      targetTrack: hoveredGap.beforeTrack,
+    };
+  }
+
+  if (
+    hoveredGap?.beforeTrack.type === clip.type &&
+    hoveredGap.afterTrack.type === clip.type
+  ) {
+    const beforeTrackIndex = tracks.findIndex(
+      ({ id }) => id === hoveredGap.beforeTrack.id,
+    );
+    const afterTrackIndex = tracks.findIndex(
+      ({ id }) => id === hoveredGap.afterTrack.id,
+    );
+
+    if (
+      beforeTrackIndex >= 0 &&
+      afterTrackIndex === beforeTrackIndex + 1
+    ) {
+      return createPendingTarget({
+        index: afterTrackIndex,
+        type: clip.type,
+      });
+    }
+  }
+  if (
+    hoveredGap &&
+    hoveredGap.beforeTrack.type === hoveredGap.afterTrack.type &&
+    hoveredGap.beforeTrack.type !== clip.type
+  ) {
+    return { pendingTrack: null, targetTrack: null };
   }
 
   if (hoveredTrack?.type === clip.type) {

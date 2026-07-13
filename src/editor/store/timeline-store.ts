@@ -9,6 +9,30 @@ import {
 } from '../core/collision';
 import { createCompositionExportPayload } from '../core/export-schema';
 import {
+  AUDIO_SOURCE_TRACK_ID_PREFIX,
+  MAIN_VIDEO_TRACK_ID,
+  NEW_AUDIO_TRACK_DROP_ID,
+  NEW_VIDEO_TRACK_DROP_ID,
+  insertTimelineTrack,
+  normalizeTimelineTracks,
+  normalizeTrackVolume,
+} from '../core/timeline-tracks';
+export {
+  AUDIO_SOURCE_TRACK_ID_PREFIX,
+  AUDIO_TRACK_ID_PREFIX,
+  DYNAMIC_VIDEO_TRACK_ID_PREFIX,
+  MAIN_VIDEO_TRACK_ID,
+  NEW_AUDIO_TRACK_DROP_ID,
+  NEW_VIDEO_TRACK_DROP_ID,
+  createPendingTrack,
+  getVisibleTimelineTracks,
+  isDynamicVideoTrack,
+  normalizeTimelineTracks,
+  normalizeTrackVolume,
+  type PendingTimelineTrack,
+  type TrackInsertTarget,
+} from '../core/timeline-tracks';
+import {
   DEFAULT_PIXELS_PER_SECOND,
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -23,14 +47,13 @@ import type {
   TimelineSnapshot,
   TimelineTrack,
   TimelineTrackDraft,
-  TimelineTrackVolume,
   VideoTimelineDraft,
   VideoTimelineSource,
 } from '../types';
 
 const defaultTimelineTracks: TimelineTrack[] = [
   {
-    id: 'video-main',
+    id: MAIN_VIDEO_TRACK_ID,
     name: '视频轨',
     type: 'video',
     volume: 1,
@@ -40,12 +63,6 @@ const defaultTimelineTracks: TimelineTrack[] = [
 
 const createDefaultTimelineClips = (): TimelineClip[] => [];
 
-export const MAIN_VIDEO_TRACK_ID = 'video-main';
-export const DYNAMIC_VIDEO_TRACK_ID_PREFIX = 'video-overlay-';
-export const AUDIO_TRACK_ID_PREFIX = 'audio-track-';
-export const AUDIO_SOURCE_TRACK_ID_PREFIX = 'audio-source-track-';
-export const NEW_VIDEO_TRACK_DROP_ID = '__new-video-track-drop__';
-export const NEW_AUDIO_TRACK_DROP_ID = '__new-audio-track-drop__';
 export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 4;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
@@ -78,11 +95,6 @@ export type CommitClipTransformParams = {
 export type ResetTimelineParams = {
   draft?: VideoTimelineDraft;
   sources?: VideoTimelineSource[];
-};
-
-export type PendingTimelineTrack = {
-  index: number;
-  type: TimelineClip['type'];
 };
 
 export type TimelineState = {
@@ -232,19 +244,6 @@ export const normalizeClipTransform = (
   y: Math.round(transform.y),
 });
 
-export const normalizeTrackVolume = (volume: number): TimelineTrackVolume =>
-  Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
-
-export const normalizeTimelineTracks = (tracks: TimelineTrack[]) =>
-  [
-    ...tracks.filter((track) => track.type === 'video'),
-    ...tracks.filter((track) => track.type === 'audio'),
-  ].map((track, zIndex) => ({
-    ...track,
-    volume: normalizeTrackVolume(track.volume),
-    zIndex,
-  }));
-
 const getAudioSourceTrackId = (sourceId: string) =>
   `${AUDIO_SOURCE_TRACK_ID_PREFIX}${sourceId}`;
 
@@ -361,89 +360,6 @@ const createPastedClipLayout = (
     pastedClipId: pastedClip.id,
   };
 };
-const dynamicVideoTrackIdPattern = new RegExp(
-  `^${DYNAMIC_VIDEO_TRACK_ID_PREFIX}(\\d+)$`,
-);
-const dynamicAudioTrackIdPattern = new RegExp(
-  `^${AUDIO_TRACK_ID_PREFIX}(\\d+)$`,
-);
-
-export const isDynamicVideoTrack = (track: TimelineTrack) =>
-  track.type === 'video' && dynamicVideoTrackIdPattern.test(track.id);
-
-const getDynamicVideoTrackNumber = (track: TimelineTrack) => {
-  const match = dynamicVideoTrackIdPattern.exec(track.id);
-  return match ? Number(match[1]) : 0;
-};
-
-const getDynamicAudioTrackNumber = (track: TimelineTrack) => {
-  const match = dynamicAudioTrackIdPattern.exec(track.id);
-  return match ? Number(match[1]) : 0;
-};
-
-const getNextDynamicVideoTrackNumber = (tracks: TimelineTrack[]) =>
-  tracks.reduce(
-    (max, track) => Math.max(max, getDynamicVideoTrackNumber(track)),
-    0,
-  ) + 1;
-
-const getNextDynamicAudioTrackNumber = (tracks: TimelineTrack[]) =>
-  tracks.reduce(
-    (max, track) => Math.max(max, getDynamicAudioTrackNumber(track)),
-    0,
-  ) + 1;
-
-const getNextTrackZIndex = (tracks: TimelineTrack[]) =>
-  tracks.reduce((max, track) => Math.max(max, track.zIndex), 0) + 1;
-
-const getNextAudioTrackName = (tracks: TimelineTrack[]) =>
-  `音频轨 ${tracks.filter((track) => track.type === 'audio').length + 1}`;
-
-export const createPendingTrack = (
-  tracks: TimelineTrack[],
-  type: TimelineClip['type'],
-): TimelineTrack => ({
-  id: type === 'video' ? NEW_VIDEO_TRACK_DROP_ID : NEW_AUDIO_TRACK_DROP_ID,
-  name:
-    type === 'video'
-      ? '视频轨'
-      : getNextAudioTrackName(tracks),
-  type,
-  volume: 1,
-  zIndex: getNextTrackZIndex(tracks),
-});
-
-const createDynamicVideoTrack = (tracks: TimelineTrack[]): TimelineTrack => ({
-  ...createPendingTrack(tracks, 'video'),
-  id: `${DYNAMIC_VIDEO_TRACK_ID_PREFIX}${getNextDynamicVideoTrackNumber(tracks)}`,
-});
-
-const createDynamicAudioTrack = (tracks: TimelineTrack[]): TimelineTrack => ({
-  ...createPendingTrack(tracks, 'audio'),
-  id: `${AUDIO_TRACK_ID_PREFIX}${getNextDynamicAudioTrackNumber(tracks)}`,
-});
-
-const getSafeTrackInsertIndex = (
-  tracks: TimelineTrack[],
-  index: number | undefined,
-) => Math.min(Math.max(0, index ?? tracks.length), tracks.length);
-
-export const getVisibleTimelineTracks = (
-  tracks: TimelineTrack[],
-  pendingTrack: PendingTimelineTrack | null,
-) => {
-  if (pendingTrack === null) {
-    return tracks;
-  }
-
-  const insertIndex = getSafeTrackInsertIndex(tracks, pendingTrack.index);
-  return normalizeTimelineTracks([
-    ...tracks.slice(0, insertIndex),
-    createPendingTrack(tracks, pendingTrack.type),
-    ...tracks.slice(insertIndex),
-  ]);
-};
-
 const isTrackAnchor = (track: TimelineTrack, clipTrackIds: Set<string>) =>
   track.id === MAIN_VIDEO_TRACK_ID || clipTrackIds.has(track.id);
 
@@ -1153,21 +1069,13 @@ export const createTimelineStore = (
           return;
         }
 
-        const newTrack =
-          pendingType === 'video'
-            ? createDynamicVideoTrack(state.tracks)
-            : createDynamicAudioTrack(state.tracks);
-        const insertIndex = getSafeTrackInsertIndex(
-          state.tracks,
-          targetTrackInsertIndex,
-        );
-        nextTracks = normalizeTimelineTracks([
-          ...state.tracks.slice(0, insertIndex),
-          newTrack,
-          ...state.tracks.slice(insertIndex),
-        ]);
-        nextTargetTrackId = newTrack.id;
-        targetTrack = newTrack;
+        const inserted = insertTimelineTrack(state.tracks, {
+          index: targetTrackInsertIndex ?? state.tracks.length,
+          type: pendingType,
+        });
+        nextTracks = inserted.tracks;
+        nextTargetTrackId = inserted.track.id;
+        targetTrack = inserted.track;
       }
 
       if (!canMoveClipToTrack(draggedClip, targetTrack)) {

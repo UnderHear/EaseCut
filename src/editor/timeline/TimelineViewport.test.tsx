@@ -8,6 +8,7 @@ import {
 import {
   MAIN_VIDEO_TRACK_ID,
   NEW_AUDIO_TRACK_DROP_ID,
+  NEW_VIDEO_TRACK_DROP_ID,
 } from '../store/timeline-store';
 import type { TimelineClip, TimelineTrack } from '../types';
 import {
@@ -548,6 +549,351 @@ describe('TimelineViewport DOM interactions', () => {
     ).toEqual(
       expect.objectContaining({ start: 2.65, trackId: 'audio-track-2' }),
     );
+  });
+
+  it('creates a video track from the gap between two video tracks', () => {
+    const overlayTrack: TimelineTrack = {
+      ...videoTrack,
+      id: 'video-overlay-1',
+      name: '视频轨 2',
+      zIndex: 1,
+    };
+    const overlayClip = createClip({
+      id: 'overlay-clip',
+      name: 'overlay.mp4',
+      sourceId: 'overlay-source',
+      trackId: overlayTrack.id,
+    });
+    testTimelineStore.setState({
+      clips: [videoClip, overlayClip, { ...audioClip, zIndex: 0 }],
+      tracks: [videoTrack, overlayTrack, { ...audioTrack, zIndex: 2 }],
+    });
+    renderTimeline();
+
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 108,
+      clientY: 50,
+      pointerId: 18,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 18,
+    });
+
+    expect(
+      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
+    ).toHaveAttribute('data-drop-target', 'true');
+
+    fireEvent.pointerUp(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 18,
+    });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      'video-overlay-2',
+      'video-overlay-1',
+      audioTrack.id,
+    ]);
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
+    ).toEqual(expect.objectContaining({ trackId: 'video-overlay-2' }));
+  });
+
+  it('creates an audio track from the gap between two audio tracks', () => {
+    const secondAudioTrack: TimelineTrack = {
+      ...audioTrack,
+      id: 'audio-track-2',
+      name: '音频轨 2',
+      zIndex: 2,
+    };
+    const remainingAudioClip = createClip({
+      ...audioClip,
+      id: 'remaining-audio-clip',
+      name: 'remaining.mp3',
+      sourceId: 'remaining-audio-source',
+      start: 5,
+    });
+    const secondTrackClip = createClip({
+      ...audioClip,
+      id: 'second-track-audio-clip',
+      name: 'second-track.mp3',
+      sourceId: 'second-track-audio-source',
+      trackId: secondAudioTrack.id,
+    });
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        audioClip,
+        remainingAudioClip,
+        secondTrackClip,
+      ],
+      tracks: [videoTrack, audioTrack, secondAudioTrack],
+    });
+    renderTimeline();
+
+    const clip = screen.getByRole('article', {
+      name: 'audio clip: background.mp3',
+    });
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 208,
+      clientY: 110,
+      pointerId: 19,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 134,
+      pointerId: 19,
+    });
+
+    expect(
+      document.querySelector(`[data-track-id="${NEW_AUDIO_TRACK_DROP_ID}"]`),
+    ).toHaveAttribute('data-drop-target', 'true');
+
+    fireEvent.pointerUp(window, {
+      clientX: 300,
+      clientY: 134,
+      pointerId: 19,
+    });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      audioTrack.id,
+      'audio-track-3',
+      secondAudioTrack.id,
+    ]);
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
+    ).toEqual(expect.objectContaining({ trackId: 'audio-track-3' }));
+  });
+
+  it('keeps a pending track stable after switching to another video gap', () => {
+    const firstOverlayTrack: TimelineTrack = {
+      ...videoTrack,
+      id: 'video-overlay-1',
+      name: '视频轨 2',
+      zIndex: 1,
+    };
+    const secondOverlayTrack: TimelineTrack = {
+      ...videoTrack,
+      id: 'video-overlay-2',
+      name: '视频轨 3',
+      zIndex: 2,
+    };
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        createClip({
+          id: 'first-overlay-clip',
+          name: 'first-overlay.mp4',
+          sourceId: 'first-overlay-source',
+          trackId: firstOverlayTrack.id,
+        }),
+        createClip({
+          id: 'second-overlay-clip',
+          name: 'second-overlay.mp4',
+          sourceId: 'second-overlay-source',
+          trackId: secondOverlayTrack.id,
+        }),
+        audioClip,
+      ],
+      tracks: [
+        videoTrack,
+        firstOverlayTrack,
+        secondOverlayTrack,
+        { ...audioTrack, zIndex: 3 },
+      ],
+    });
+    renderTimeline();
+
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 108,
+      clientY: 50,
+      pointerId: 20,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 20,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 210,
+      pointerId: 20,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 340,
+      clientY: 210,
+      pointerId: 20,
+    });
+
+    expect(
+      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
+    ).toHaveAttribute('data-drop-target', 'true');
+    expect(
+      document.querySelector(`[data-track-id="${secondOverlayTrack.id}"]`),
+    ).toHaveAttribute('data-drop-target', 'false');
+
+    fireEvent.pointerUp(window, {
+      clientX: 340,
+      clientY: 210,
+      pointerId: 20,
+    });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      firstOverlayTrack.id,
+      'video-overlay-3',
+      secondOverlayTrack.id,
+      audioTrack.id,
+    ]);
+  });
+
+  it('does not create a track from a same-type gap that mismatches the clip', () => {
+    const overlayTrack: TimelineTrack = {
+      ...videoTrack,
+      id: 'video-overlay-1',
+      name: '视频轨 2',
+      zIndex: 1,
+    };
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        createClip({
+          id: 'overlay-clip',
+          name: 'overlay.mp4',
+          sourceId: 'overlay-source',
+          trackId: overlayTrack.id,
+        }),
+        audioClip,
+      ],
+      tracks: [videoTrack, overlayTrack, { ...audioTrack, zIndex: 2 }],
+    });
+    renderTimeline();
+
+    const clip = screen.getByRole('article', {
+      name: 'audio clip: background.mp3',
+    });
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 208,
+      clientY: 170,
+      pointerId: 21,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 208,
+      clientY: 90,
+      pointerId: 21,
+    });
+    fireEvent.pointerUp(window, {
+      clientX: 208,
+      clientY: 90,
+      pointerId: 21,
+    });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      overlayTrack.id,
+      audioTrack.id,
+    ]);
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
+    ).toEqual(expect.objectContaining({ trackId: audioTrack.id, start: 1 }));
+  });
+
+  it('does not create a track when a gap drag is canceled', () => {
+    const overlayTrack: TimelineTrack = {
+      ...videoTrack,
+      id: 'video-overlay-1',
+      name: '视频轨 2',
+      zIndex: 1,
+    };
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        createClip({
+          id: 'overlay-clip',
+          name: 'overlay.mp4',
+          sourceId: 'overlay-source',
+          trackId: overlayTrack.id,
+        }),
+      ],
+      tracks: [videoTrack, overlayTrack],
+    });
+    renderTimeline();
+
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 108,
+      clientY: 50,
+      pointerId: 22,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 22,
+    });
+    expect(
+      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
+    ).toBeInTheDocument();
+
+    fireEvent.pointerCancel(window, { pointerId: 22 });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      overlayTrack.id,
+    ]);
+    expect(
+      document.querySelector(`[data-track-id="${NEW_VIDEO_TRACK_DROP_ID}"]`),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not create an empty track by clicking a track gap', () => {
+    const overlayTrack: TimelineTrack = {
+      ...videoTrack,
+      id: 'video-overlay-1',
+      name: '视频轨 2',
+      zIndex: 1,
+    };
+    testTimelineStore.setState({
+      clips: [videoClip],
+      tracks: [videoTrack, overlayTrack],
+    });
+    renderTimeline();
+
+    const trackStack = document.querySelector('.oc-timeline-track-stack');
+    expect(trackStack).not.toBeNull();
+    fireEvent.pointerDown(trackStack as Element, {
+      button: 0,
+      clientX: 300,
+      clientY: 90,
+      pointerId: 23,
+    });
+    fireEvent.pointerUp(window, {
+      clientX: 300,
+      clientY: 90,
+      pointerId: 23,
+    });
+
+    expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      MAIN_VIDEO_TRACK_ID,
+      overlayTrack.id,
+    ]);
+    expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
   it('previews and commits an end trim from the selected clip handle', () => {
