@@ -373,6 +373,18 @@ function VideoTimelineEditorView({
       state.splitAtPlayhead();
       return;
     }
+    if (commandKey && !event.altKey && !event.shiftKey && key === 'arrowleft') {
+      event.preventDefault();
+      event.stopPropagation();
+      state.setCurrentTime(state.currentTime - 0.1);
+      return;
+    }
+    if (commandKey && !event.altKey && !event.shiftKey && key === 'arrowright') {
+      event.preventDefault();
+      event.stopPropagation();
+      state.setCurrentTime(state.currentTime + 0.1);
+      return;
+    }
     if (commandKey && !event.altKey && !event.shiftKey && key === 'c') {
       event.preventDefault();
       event.stopPropagation();

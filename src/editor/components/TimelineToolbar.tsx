@@ -47,6 +47,8 @@ const timelineShortcutGroups = [
     items: [
       { action: '分割选中片段', key: 'Ctrl + B / ⌘ + B' },
       { action: '删除选中片段', key: 'Backspace' },
+      { action: '后退 0.1 秒', key: 'Ctrl + ← / ⌘ + ←' },
+      { action: '前进 0.1 秒', key: 'Ctrl + → / ⌘ + →' },
       { action: '缩放时间线', key: 'Ctrl + 滚轮 / ⌘ + 滚轮' },
       { action: '双击片段还原裁剪', key: '双击片段' },
       { action: '横向移动轨道', key: 'Shift + 滚轮' },

@@ -107,6 +107,8 @@ describe('TimelineToolbar', () => {
     expect(screen.getByText('粘贴到选中片段右侧')).toBeInTheDocument();
     expect(screen.getByText('分割选中片段')).toBeInTheDocument();
     expect(screen.getByText('删除选中片段')).toBeInTheDocument();
+    expect(screen.getByText('后退 0.1 秒')).toBeInTheDocument();
+    expect(screen.getByText('前进 0.1 秒')).toBeInTheDocument();
     expect(screen.getByText('缩放时间线')).toBeInTheDocument();
     expect(screen.getByText('双击片段还原裁剪')).toBeInTheDocument();
     expect(screen.getByText('播放 / 暂停')).toBeInTheDocument();
@@ -116,8 +118,10 @@ describe('TimelineToolbar', () => {
     expect(screen.getByText('Ctrl + V / ⌘ + V')).toBeInTheDocument();
     expect(screen.getByText('Ctrl + B / ⌘ + B')).toBeInTheDocument();
     expect(screen.getByText('Backspace')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + ← / ⌘ + ←')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + → / ⌘ + →')).toBeInTheDocument();
     expect(screen.getByText('Ctrl + 滚轮 / ⌘ + 滚轮')).toBeInTheDocument();
-    expect(screen.getByText('双击')).toBeInTheDocument();
+    expect(screen.getByText('双击片段')).toBeInTheDocument();
     expect(screen.getByText('Space')).toBeInTheDocument();
 
     await user.keyboard('{Escape}');

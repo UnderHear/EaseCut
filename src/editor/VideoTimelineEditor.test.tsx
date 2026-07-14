@@ -35,6 +35,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
       onRequestPreviewFullscreen: () => void;
     }) => {
       const clips = useTimelineStore((state) => state.clips);
+      const currentTime = useTimelineStore((state) => state.currentTime);
       const isPlaying = useTimelineStore((state) => state.isPlaying);
       const selectedClipId = useTimelineStore((state) => state.selectedClipId);
       const selectClip = useTimelineStore((state) => state.selectClip);
@@ -56,6 +57,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
           />
           <div
             data-clip-count={clips.length}
+            data-current-time={currentTime}
             data-first-duration={firstClip?.duration ?? ''}
             data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
             data-first-track-volume={firstClipTrack?.volume ?? ''}
@@ -556,6 +558,22 @@ describe('VideoTimelineEditor', () => {
     editor.focus();
     await user.keyboard(' ');
     expect(state).toHaveAttribute('data-playing', 'false');
+  });
+
+  it('moves the playhead by 0.1 seconds with Ctrl+Arrow keys', () => {
+    const { container } = render(<VideoTimelineEditor sources={[videoSource]} />);
+    const editor = container.querySelector<HTMLElement>('.oc-editor');
+    const state = screen.getByTestId('timeline-state');
+    if (!editor) throw new Error('编辑器根节点未渲染');
+
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'ArrowRight' });
+    expect(state).toHaveAttribute('data-current-time', '0.1');
+
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'ArrowLeft' });
+    expect(state).toHaveAttribute('data-current-time', '0');
+
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'ArrowLeft' });
+    expect(state).toHaveAttribute('data-current-time', '0');
   });
 
   it('ignores playback and delete shortcuts from an input inside the editor', async () => {
