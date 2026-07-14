@@ -403,7 +403,7 @@ describe('timelineStore video track layout', () => {
     );
   });
 
-  it('trims an empty dynamic video track above the main video track', () => {
+  it('removes an empty dynamic video track above the main video track', () => {
     const state = timelineStore.getState();
 
     state.commitClipDrop({
@@ -428,7 +428,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual(expect.objectContaining({ trackId: MAIN_VIDEO_TRACK_ID }));
   });
 
-  it('trims a trailing empty dynamic video track after its last clip moves away', () => {
+  it('removes an empty dynamic video track after its last clip moves away', () => {
     const state = timelineStore.getState();
 
     state.commitClipDrop({
@@ -461,7 +461,7 @@ describe('timelineStore video track layout', () => {
     ]);
   });
 
-  it('keeps an empty middle video track when moving a clip down and restoring the draft', () => {
+  it('removes an empty middle video track when moving a clip and restoring a legacy draft', () => {
     resetToTwoVisualVideoTracks();
 
     timelineStore.getState().commitClipDrop({
@@ -471,9 +471,14 @@ describe('timelineStore video track layout', () => {
       target: insertTarget('video', 2),
     });
 
-    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'video-overlay-1', 'video-overlay-2'],
-    );
+    expect(
+      timelineStore
+        .getState()
+        .tracks.map((track) => [track.id, track.zIndex]),
+    ).toEqual([
+      [MAIN_VIDEO_TRACK_ID, 0],
+      ['video-overlay-2', 1],
+    ]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-1'),
     ).toEqual([]);
@@ -484,11 +489,24 @@ describe('timelineStore video track layout', () => {
     ).toEqual(expect.objectContaining({ trackId: 'video-overlay-2' }));
 
     const draft = createVideoTimelineDraft(timelineStore.getState());
+    draft.tracks.splice(
+      1,
+      0,
+      createVideoTrack('video-overlay-1', '视频轨', 1),
+    );
+    draft.tracks.forEach((track, index) => {
+      track.zIndex = index;
+    });
     timelineStore.getState().resetTimeline({ draft });
 
-    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'video-overlay-1', 'video-overlay-2'],
-    );
+    expect(
+      timelineStore
+        .getState()
+        .tracks.map((track) => [track.id, track.zIndex]),
+    ).toEqual([
+      [MAIN_VIDEO_TRACK_ID, 0],
+      ['video-overlay-2', 1],
+    ]);
     expect(
       timelineStore
         .getState()
@@ -514,7 +532,7 @@ describe('timelineStore video track layout', () => {
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'video-overlay-1', 'video-overlay-2'],
+      [MAIN_VIDEO_TRACK_ID, 'video-overlay-2'],
     );
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-2').map(
@@ -526,7 +544,7 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().resetTimeline({ draft });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'video-overlay-1', 'video-overlay-2'],
+      [MAIN_VIDEO_TRACK_ID, 'video-overlay-2'],
     );
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-2').map(
@@ -1146,7 +1164,7 @@ describe('timelineStore video track layout', () => {
     ).toBe('http://localhost/music.mp3?download=1');
   });
 
-  it('keeps an empty middle audio track when moving a clip down and restoring the draft', () => {
+  it('removes an empty middle audio track while preserving the empty main track', () => {
     resetToTwoVisualAudioTracks();
 
     timelineStore.getState().commitClipDrop({
@@ -1156,9 +1174,15 @@ describe('timelineStore video track layout', () => {
       target: insertTarget('audio', 3),
     });
 
-    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-1', 'audio-track-2', 'audio-track-3'],
-    );
+    expect(
+      timelineStore
+        .getState()
+        .tracks.map((track) => [track.id, track.zIndex]),
+    ).toEqual([
+      [MAIN_VIDEO_TRACK_ID, 0],
+      ['audio-track-1', 1],
+      ['audio-track-3', 2],
+    ]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-2'),
     ).toEqual([]);
@@ -1169,11 +1193,25 @@ describe('timelineStore video track layout', () => {
     ).toEqual(expect.objectContaining({ trackId: 'audio-track-3' }));
 
     const draft = createVideoTimelineDraft(timelineStore.getState());
+    draft.tracks.splice(
+      2,
+      0,
+      createAudioTrack('audio-track-2', '音频轨 2', 2),
+    );
+    draft.tracks.forEach((track, index) => {
+      track.zIndex = index;
+    });
     timelineStore.getState().resetTimeline({ draft });
 
-    expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-1', 'audio-track-2', 'audio-track-3'],
-    );
+    expect(
+      timelineStore
+        .getState()
+        .tracks.map((track) => [track.id, track.zIndex]),
+    ).toEqual([
+      [MAIN_VIDEO_TRACK_ID, 0],
+      ['audio-track-1', 1],
+      ['audio-track-3', 2],
+    ]);
     expect(
       timelineStore
         .getState()
@@ -1181,7 +1219,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual(expect.objectContaining({ trackId: 'audio-track-3' }));
   });
 
-  it('trims leading empty audio tracks after moving both clips to the third track', () => {
+  it('removes every emptied audio track after moving both clips', () => {
     resetToTwoVisualAudioTracks();
 
     const state = timelineStore.getState();
@@ -1220,7 +1258,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual(['clip-audio-a', 'clip-audio-b']);
   });
 
-  it('trims a leading empty audio track after deletion and normalizes history', () => {
+  it('removes an empty audio track after deletion and normalizes history', () => {
     resetToTwoVisualAudioTracks();
 
     const state = timelineStore.getState();
@@ -1242,7 +1280,7 @@ describe('timelineStore video track layout', () => {
     );
   });
 
-  it('trims trailing empty audio tracks after the last clip moves back', () => {
+  it('removes empty audio tracks after the last clip moves back', () => {
     resetToTwoVisualAudioTracks();
 
     const state = timelineStore.getState();
