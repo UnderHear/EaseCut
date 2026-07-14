@@ -245,37 +245,28 @@ const getAspectRatioTransform = (
   deltaX: number,
   deltaY: number,
 ): TimelineClipTransform => {
+  const directionX = handle.endsWith('w') ? -1 : 1;
+  const directionY = handle.startsWith('n') ? -1 : 1;
   const fixedX = handle.endsWith('w')
     ? initialTransform.x + initialTransform.width
     : initialTransform.x;
   const fixedY = handle.startsWith('n')
     ? initialTransform.y + initialTransform.height
     : initialTransform.y;
-  const pointerX = handle.endsWith('w')
-    ? initialTransform.x + deltaX
-    : initialTransform.x + initialTransform.width + deltaX;
-  const pointerY = handle.startsWith('n')
-    ? initialTransform.y + deltaY
-    : initialTransform.y + initialTransform.height + deltaY;
-  const aspectRatio = initialTransform.width / initialTransform.height;
-  const pointerWidth = Math.abs(pointerX - fixedX);
-  const pointerHeight = Math.abs(pointerY - fixedY);
-  const widthChange =
-    Math.abs(pointerWidth - initialTransform.width) / initialTransform.width;
-  const heightChange =
-    Math.abs(pointerHeight - initialTransform.height) / initialTransform.height;
-  let width =
-    widthChange >= heightChange ? pointerWidth : pointerHeight * aspectRatio;
-  let height = width / aspectRatio;
-
-  if (width < MIN_CLIP_TRANSFORM_SIZE || height < MIN_CLIP_TRANSFORM_SIZE) {
-    const scale = Math.max(
-      MIN_CLIP_TRANSFORM_SIZE / Math.max(width, 1),
-      MIN_CLIP_TRANSFORM_SIZE / Math.max(height, 1),
-    );
-    width *= scale;
-    height *= scale;
-  }
+  const initialVectorX = directionX * initialTransform.width;
+  const initialVectorY = directionY * initialTransform.height;
+  const pointerVectorX = initialVectorX + deltaX;
+  const pointerVectorY = initialVectorY + deltaY;
+  const minimumScale = Math.max(
+    MIN_CLIP_TRANSFORM_SIZE / initialTransform.width,
+    MIN_CLIP_TRANSFORM_SIZE / initialTransform.height,
+  );
+  const projectedScale =
+    (pointerVectorX * initialVectorX + pointerVectorY * initialVectorY) /
+    (initialVectorX ** 2 + initialVectorY ** 2);
+  const scale = Math.max(minimumScale, projectedScale);
+  const width = initialTransform.width * scale;
+  const height = initialTransform.height * scale;
 
   return normalizeClipTransform({
     height,
@@ -867,4 +858,3 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
     </section>
   );
 }
-

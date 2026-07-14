@@ -563,7 +563,55 @@ describe('PreviewPanel', () => {
       testTimelineStore
         .getState()
         .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 220, width: 391, x: 100, y: 80 });
+    ).toEqual({ height: 211, width: 375, x: 100, y: 80 });
+  });
+
+  it('resizes continuously when opposing pointer axes cross the control threshold', () => {
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 590, clientY: 280, pointerId: 1 });
+    fireEvent.pointerMove(canvas, {
+      clientX: 670,
+      clientY: 235,
+      pointerId: 1,
+      shiftKey: true,
+    });
+    expect(strokeRectMock).toHaveBeenLastCalledWith(260, 80, 362, 203);
+
+    fireEvent.pointerMove(canvas, {
+      clientX: 670,
+      clientY: 234,
+      pointerId: 1,
+      shiftKey: true,
+    });
+    expect(strokeRectMock).toHaveBeenLastCalledWith(260, 80, 361, 203);
+  });
+
+  it('stays at the minimum aspect-ratio size after crossing the fixed corner', () => {
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 590, clientY: 280, pointerId: 1 });
+    fireEvent.pointerMove(canvas, {
+      clientX: 270,
+      clientY: 100,
+      pointerId: 1,
+      shiftKey: true,
+    });
+    expect(strokeRectMock).toHaveBeenLastCalledWith(260, 80, 71, 40);
+
+    fireEvent.pointerMove(canvas, {
+      clientX: 170,
+      clientY: 50,
+      pointerId: 1,
+      shiftKey: true,
+    });
+    expect(strokeRectMock).toHaveBeenLastCalledWith(260, 80, 71, 40);
   });
 
   it('updates the preview cursor when hovering selected clip handles and content', () => {
@@ -630,4 +678,3 @@ describe('PreviewPanel', () => {
     });
   });
 });
-
