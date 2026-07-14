@@ -83,7 +83,7 @@ describe('TimelineToolbar', () => {
     expect(onRequestImport).toHaveBeenCalledOnce();
   });
 
-  it('shows timeline keyboard shortcuts in a dismissible popover', async () => {
+  it('shows timeline keyboard shortcuts in a dismissible dialog', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
       <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
@@ -96,23 +96,28 @@ describe('TimelineToolbar', () => {
 
     expect(shortcutsTrigger).toHaveAttribute('data-state', 'open');
 
+    expect(screen.getByRole('dialog', { name: '快捷键' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Globe' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Timeline' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Canva' })).toBeInTheDocument();
     expect(screen.getByText('快捷键')).toBeInTheDocument();
-    expect(screen.getByText('回退')).toBeInTheDocument();
-    expect(screen.getByText('前进')).toBeInTheDocument();
+    expect(screen.getByText('撤销')).toBeInTheDocument();
+    expect(screen.getByText('重做')).toBeInTheDocument();
     expect(screen.getByText('复制选中片段')).toBeInTheDocument();
     expect(screen.getByText('粘贴到选中片段右侧')).toBeInTheDocument();
     expect(screen.getByText('分割选中片段')).toBeInTheDocument();
     expect(screen.getByText('删除选中片段')).toBeInTheDocument();
     expect(screen.getByText('缩放时间线')).toBeInTheDocument();
+    expect(screen.getByText('双击片段还原裁剪')).toBeInTheDocument();
     expect(screen.getByText('播放 / 暂停')).toBeInTheDocument();
-    expect(screen.getAllByText('Ctrl')).toHaveLength(6);
-    expect(screen.getByText('Z')).toBeInTheDocument();
-    expect(screen.getByText('Y')).toBeInTheDocument();
-    expect(screen.getByText('C')).toBeInTheDocument();
-    expect(screen.getByText('V')).toBeInTheDocument();
-    expect(screen.getByText('B')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + Z / ⌘ + Z')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + Y / ⌘ + ⇧ + Z')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + C / ⌘ + C')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + V / ⌘ + V')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + B / ⌘ + B')).toBeInTheDocument();
     expect(screen.getByText('Backspace')).toBeInTheDocument();
-    expect(screen.getByText('滚轮')).toBeInTheDocument();
+    expect(screen.getByText('Ctrl + 滚轮 / ⌘ + 滚轮')).toBeInTheDocument();
+    expect(screen.getByText('双击')).toBeInTheDocument();
     expect(screen.getByText('Space')).toBeInTheDocument();
 
     await user.keyboard('{Escape}');

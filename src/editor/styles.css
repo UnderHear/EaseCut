@@ -27,9 +27,6 @@
   color: var(--oc-text);
   color-scheme: dark;
   background: var(--oc-background);
-  font-family:
-    Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
   font-size: 14px;
   line-height: 1.4;
   outline: none;
@@ -375,90 +372,146 @@
   padding-top: 2px;
 }
 
-.oc-shortcuts__panel {
-  --oc-border-strong: rgb(255 255 255 / 22%);
-  --oc-radius: 6px;
-  --oc-text: #f5f5f5;
-  --oc-text-muted: #a3a3a3;
-
+.oc-shortcuts-dialog__overlay {
+  position: fixed;
   z-index: 50;
-  width: 280px;
-  max-height: min(300px, var(--radix-popover-content-available-height));
-  padding: 10px;
-  border: 1px solid rgb(255 255 255 / 24%);
-  border-radius: 8px;
-  color: var(--oc-text);
-  background: #242424;
-  box-shadow:
-    0 16px 42px rgb(0 0 0 / 52%),
-    0 1px rgb(255 255 255 / 7%) inset;
-  font-family:
-    Inter, "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  inset: 0;
+  background: rgb(0 0 0 / 60%);
+}
+
+.oc-shortcuts-dialog {
+  position: fixed;
+  z-index: 51;
+  top: 50%;
+  left: 50%;
+  width: min(1000px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 32px;
+  border-radius: 12px;
+  color: #f5f5f5;
+  background: #1d1d1d;
   font-size: 14px;
   line-height: 1.4;
   overflow-y: auto;
   overscroll-behavior: contain;
-  transform-origin: var(--radix-popover-content-transform-origin);
+  transform: translate(-50%, -50%);
 }
 
-.oc-shortcuts__panel,
-.oc-shortcuts__panel *,
-.oc-shortcuts__panel *::before,
-.oc-shortcuts__panel *::after {
+.oc-shortcuts-dialog,
+.oc-shortcuts-dialog *,
+.oc-shortcuts-dialog *::before,
+.oc-shortcuts-dialog *::after {
   box-sizing: border-box;
 }
 
-.oc-shortcuts__title {
-  display: block;
-  padding-bottom: 9px;
-  border-bottom: 1px solid rgb(255 255 255 / 10%);
-  color: #fafafa;
-  font-size: 14px;
+.oc-shortcuts-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.oc-shortcuts-dialog__header .oc-icon-button {
+  border-radius: 6px;
+  background: #2a2a2a;
+}
+
+.oc-shortcuts-dialog__header .oc-icon-button:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+
+.oc-shortcuts-dialog__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.oc-shortcuts-dialog__groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 20px;
+}
+
+.oc-shortcuts-dialog__group {
+  min-width: 0;
+  padding: 0 20px;
+}
+
+.oc-shortcuts-dialog__group:first-child {
+  padding-left: 0;
+}
+
+.oc-shortcuts-dialog__group:last-child {
+  padding-right: 0;
+}
+
+.oc-shortcuts-dialog__group + .oc-shortcuts-dialog__group {
+  border-left: 1px solid #363636;
+}
+
+.oc-shortcuts-dialog__group h3 {
+  margin: 0;
+  font-size: 16px;
   font-weight: 650;
 }
 
 .oc-shortcuts__list {
   display: grid;
-  gap: 2px;
-  margin: 7px 0 0;
+  margin: 16px 0 0;
+  gap: 8px;
 }
 
 .oc-shortcuts__item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  min-height: 27px;
-  border-radius: 4px;
-  color: #b0b0b0;
+  min-height: 36px;
+  color: #b7b7b7;
   font-size: 14px;
+  line-height: 1.4;
 }
 
 .oc-shortcuts__item dd {
   display: flex;
   align-items: center;
-  gap: 4px;
   margin: 0;
-  color: var(--oc-text);
+  color: #a3a3a3;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
-.oc-shortcuts__key-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.oc-shortcuts__panel kbd {
-  min-width: 24px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  color: #f5f5f5;
-  background: linear-gradient(#3a3a3a, #303030);
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
-  line-height: 16px;
+.oc-shortcuts-dialog kbd {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
   text-align: center;
+}
+
+@media (max-width: 680px) {
+  .oc-shortcuts-dialog {
+    padding: 20px;
+  }
+
+  .oc-shortcuts-dialog__groups {
+    grid-template-columns: 1fr;
+  }
+
+  .oc-shortcuts-dialog__group,
+  .oc-shortcuts-dialog__group:first-child,
+  .oc-shortcuts-dialog__group:last-child {
+    padding: 18px 0 0;
+  }
+
+  .oc-shortcuts-dialog__group + .oc-shortcuts-dialog__group {
+    padding-top: 18px;
+    border-left: 0;
+    border-top: 1px solid #363636;
+  }
+
+  .oc-shortcuts-dialog__group:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
 }
 
 .oc-timeline-shell {

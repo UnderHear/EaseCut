@@ -1,4 +1,4 @@
-import * as Popover from '@radix-ui/react-popover';
+import * as Dialog from '@radix-ui/react-dialog';
 import {
   FilePlus2,
   Keyboard,
@@ -10,6 +10,7 @@ import {
   SquareSplitHorizontal,
   Trash2,
   Undo2,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -29,15 +30,36 @@ type TimelineToolbarProps = {
   onRequestPreviewFullscreen: () => void;
 };
 
-const timelineShortcutItems = [
-  { action: '回退', keys: ['Ctrl', 'Z'] },
-  { action: '前进', keys: ['Ctrl', 'Y'] },
-  { action: '复制选中片段', keys: ['Ctrl', 'C'] },
-  { action: '粘贴到选中片段右侧', keys: ['Ctrl', 'V'] },
-  { action: '分割选中片段', keys: ['Ctrl', 'B'] },
-  { action: '删除选中片段', keys: ['Backspace'] },
-  { action: '缩放时间线', keys: ['Ctrl', '滚轮'] },
-  { action: '播放 / 暂停', keys: ['Space'] },
+const timelineShortcutGroups = [
+  {
+    id: 'globe',
+    title: 'Globe',
+    items: [
+      { action: '撤销', key: 'Ctrl + Z / ⌘ + Z' },
+      { action: '重做', key: 'Ctrl + Y / ⌘ + ⇧ + Z' },
+      { action: '复制选中片段', key: 'Ctrl + C / ⌘ + C' },
+      { action: '粘贴到选中片段右侧', key: 'Ctrl + V / ⌘ + V' },
+    ],
+  },
+  {
+    id: 'timeline',
+    title: 'Timeline',
+    items: [
+      { action: '分割选中片段', key: 'Ctrl + B / ⌘ + B' },
+      { action: '删除选中片段', key: 'Backspace' },
+      { action: '缩放时间线', key: 'Ctrl + 滚轮 / ⌘ + 滚轮' },
+      { action: '双击片段还原裁剪', key: '双击片段' },
+      { action: '横向移动轨道', key: 'Shift + 滚轮' },
+    ],
+  },
+  {
+    id: 'canva',
+    title: 'Canva',
+    items: [
+      { action: '播放 / 暂停', key: 'Space' },
+      { action: '等比例缩放视频宽高', key: 'Shift + 左键拖拽' },
+    ],
+  },
 ] as const;
 
 export function TimelineToolbar({
@@ -132,8 +154,8 @@ export function TimelineToolbar({
       </div>
 
       <div className='oc-timeline-toolbar__group oc-timeline-toolbar__group--end'>
-        <Popover.Root>
-          <Popover.Trigger asChild>
+        <Dialog.Root>
+          <Dialog.Trigger asChild>
             <button
               aria-label='查看快捷键'
               className='oc-icon-button'
@@ -142,35 +164,51 @@ export function TimelineToolbar({
             >
               <Keyboard aria-hidden='true' />
             </button>
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content
-              align='center'
-              aria-label='快捷键'
-              className='oc-shortcuts__panel'
-              collisionPadding={12}
-              side='top'
-              sideOffset={8}
-            >
-              <strong className='oc-shortcuts__title'>快捷键</strong>
-              <dl className='oc-shortcuts__list'>
-                {timelineShortcutItems.map((item) => (
-                  <div className='oc-shortcuts__item' key={item.action}>
-                    <dt>{item.action}</dt>
-                    <dd>
-                      {item.keys.map((key, index) => (
-                        <span className='oc-shortcuts__key-group' key={`${item.action}-${key}`}>
-                          {index > 0 && <span aria-hidden='true'>+</span>}
-                          <kbd>{key}</kbd>
-                        </span>
+          </Dialog.Trigger>
+          <Dialog.Portal>
+            <Dialog.Overlay className='oc-shortcuts-dialog__overlay' />
+            <Dialog.Content className='oc-shortcuts-dialog'>
+              <div className='oc-shortcuts-dialog__header'>
+                <Dialog.Title className='oc-shortcuts-dialog__title'>
+                  快捷键
+                </Dialog.Title>
+                <Dialog.Close asChild>
+                  <button
+                    aria-label='关闭快捷键弹窗'
+                    className='oc-icon-button'
+                    title='关闭'
+                    type='button'
+                  >
+                    <X aria-hidden='true' size={17} />
+                  </button>
+                </Dialog.Close>
+              </div>
+              <div className='oc-shortcuts-dialog__groups'>
+                {timelineShortcutGroups.map((group) => (
+                  <section
+                    aria-labelledby={`oc-shortcuts-group-${group.id}`}
+                    className='oc-shortcuts-dialog__group'
+                    key={group.id}
+                  >
+                    <h3 id={`oc-shortcuts-group-${group.id}`}>
+                      {group.title}
+                    </h3>
+                    <dl className='oc-shortcuts__list'>
+                      {group.items.map((item) => (
+                        <div className='oc-shortcuts__item' key={item.action}>
+                          <dt>{item.action}</dt>
+                          <dd>
+                            <kbd>{item.key}</kbd>
+                          </dd>
+                        </div>
                       ))}
-                    </dd>
-                  </div>
+                    </dl>
+                  </section>
                 ))}
-              </dl>
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
         <ToolbarButton
           active={snappingEnabled}
           label='吸附开关'
