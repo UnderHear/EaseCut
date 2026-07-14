@@ -135,14 +135,12 @@ function TimelineClipVisual({
         <span className='oc-timeline-clip__name' title={clip.name}>
           {clip.name}
         </span>
-        {clip.type === 'video' && (
-          <time
-            className='oc-timeline-clip__duration'
-            dateTime={`PT${Math.max(0, clip.duration)}S`}
-          >
-            {formatTimelineTime(clip.duration)}
-          </time>
-        )}
+        <time
+          className='oc-timeline-clip__duration'
+          dateTime={`PT${Math.max(0, clip.duration)}S`}
+        >
+          {formatTimelineTime(clip.duration)}
+        </time>
       </header>
     </>
   );

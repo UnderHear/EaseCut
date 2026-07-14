@@ -208,6 +208,11 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       screen.getByRole('article', { name: 'audio clip: background.mp3' }),
     ).toHaveAttribute('data-type', 'audio');
+    expect(
+      screen
+        .getByRole('article', { name: 'audio clip: background.mp3' })
+        .querySelector('.oc-timeline-clip__duration'),
+    ).toHaveTextContent('00:03:00');
   });
 
   it('updates the playhead from ruler and empty-lane pointer presses', () => {
