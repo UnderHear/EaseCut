@@ -571,8 +571,8 @@
   position: absolute;
   top: 3px;
   left: 50%;
-  width: 12px;
-  height: 18px;
+  width: 10px;
+  height: 15px;
   overflow: visible;
   color: #f8fafc;
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 65%));
@@ -585,7 +585,7 @@
 
 .oc-timeline-playhead__line {
   position: absolute;
-  top: 21px;
+  top: 18px;
   bottom: 0;
   left: 50%;
   width: 2px;
