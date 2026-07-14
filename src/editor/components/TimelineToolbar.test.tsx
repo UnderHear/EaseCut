@@ -83,6 +83,33 @@ describe('TimelineToolbar', () => {
     expect(onRequestImport).toHaveBeenCalledOnce();
   });
 
+  it('controls timeline and canvas snapping independently', async () => {
+    const user = userEvent.setup();
+    renderWithEditorProviders(
+      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+    );
+
+    const timelineSnappingButton = screen.getByRole('button', {
+      name: '时间轴吸附',
+    });
+    const canvasSnappingButton = screen.getByRole('button', {
+      name: '画布辅助线',
+    });
+    expect(timelineSnappingButton).toHaveAttribute('aria-pressed', 'true');
+    expect(canvasSnappingButton).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(canvasSnappingButton);
+    expect(testTimelineStore.getState().canvasSnappingEnabled).toBe(false);
+    expect(testTimelineStore.getState().snappingEnabled).toBe(true);
+    expect(canvasSnappingButton).toHaveAttribute('aria-pressed', 'false');
+    expect(timelineSnappingButton).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(timelineSnappingButton);
+    expect(testTimelineStore.getState().canvasSnappingEnabled).toBe(false);
+    expect(testTimelineStore.getState().snappingEnabled).toBe(false);
+    expect(timelineSnappingButton).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('shows timeline keyboard shortcuts in a dismissible dialog', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(

@@ -9,7 +9,7 @@
   --oc-text-muted: #a3a3a3;
   --oc-primary: #f5f5f5;
   --oc-primary-text: #171717;
-  --oc-accent: #2dd4bf;
+  --oc-accent: #00cae0;
   --oc-drag-accent: #67e8f9;
   --oc-drag-accent: #67e8f9;
   --oc-danger: #fb7185;
@@ -771,7 +771,6 @@
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 20%);
   color: #fff;
-  background: #244c55;
   cursor: grab;
   touch-action: none;
 }

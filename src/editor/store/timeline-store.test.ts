@@ -201,6 +201,25 @@ describe('timelineStore video track layout', () => {
     ]);
   });
 
+  it('controls canvas and timeline snapping independently and resets both', () => {
+    expect(timelineStore.getState().canvasSnappingEnabled).toBe(true);
+    expect(timelineStore.getState().snappingEnabled).toBe(true);
+
+    timelineStore.getState().toggleCanvasSnapping();
+    expect(timelineStore.getState().canvasSnappingEnabled).toBe(false);
+    expect(timelineStore.getState().snappingEnabled).toBe(true);
+
+    timelineStore.getState().toggleSnapping();
+    expect(timelineStore.getState().canvasSnappingEnabled).toBe(false);
+    expect(timelineStore.getState().snappingEnabled).toBe(false);
+    expect(timelineStore.getState().past).toEqual([]);
+
+    const draft = createVideoTimelineDraft(timelineStore.getState());
+    timelineStore.getState().resetTimeline({ draft });
+    expect(timelineStore.getState().canvasSnappingEnabled).toBe(true);
+    expect(timelineStore.getState().snappingEnabled).toBe(true);
+  });
+
   it('keeps fixture video clips on the main video track', () => {
     const clips = getMainVideoClips();
 

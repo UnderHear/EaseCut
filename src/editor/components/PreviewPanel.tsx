@@ -10,9 +10,12 @@ import {
 
 import { getTrackClips } from '../core/collision';
 import {
-  MIN_CLIP_TRANSFORM_SIZE,
-  normalizeClipTransform,
-} from '../store/timeline-store';
+  getPreviewInteractionUpdate,
+  type PreviewInteractionMode,
+  type PreviewResizeHandle,
+  type PreviewSnapGuide,
+} from '../core/preview-snapping';
+import { MIN_CLIP_TRANSFORM_SIZE } from '../store/timeline-store';
 import { useTimelineStore } from '../store/timeline-store-context';
 import type {
   TimelineCanvasSize,
@@ -24,10 +27,10 @@ import { useMediaRuntime } from '../media';
 
 const PREVIEW_HANDLE_SIZE = 12;
 const PREVIEW_HANDLE_HIT_PADDING = 8;
+const PREVIEW_GUIDE_COLOR = '#00cae0';
 const HAVE_METADATA_READY_STATE = 1;
 const HAVE_CURRENT_DATA_READY_STATE = 2;
 
-type PreviewResizeHandle = 'nw' | 'ne' | 'sw' | 'se';
 type PreviewPoint = {
   x: number;
   y: number;
@@ -39,9 +42,9 @@ type PreviewFrame = {
   scale: number;
   width: number;
 };
-type PreviewInteractionMode = 'move' | PreviewResizeHandle;
 type PreviewInteractionState = {
   clipId: string;
+  guides: PreviewSnapGuide[];
   initialPointer: PreviewPoint;
   initialTransform: TimelineClipTransform;
   mode: PreviewInteractionMode;
@@ -239,85 +242,6 @@ const getPreviewCursor = (
   return isPointInTransform(point, transform) ? 'move' : 'default';
 };
 
-const getAspectRatioTransform = (
-  initialTransform: TimelineClipTransform,
-  handle: PreviewResizeHandle,
-  deltaX: number,
-  deltaY: number,
-): TimelineClipTransform => {
-  const directionX = handle.endsWith('w') ? -1 : 1;
-  const directionY = handle.startsWith('n') ? -1 : 1;
-  const fixedX = handle.endsWith('w')
-    ? initialTransform.x + initialTransform.width
-    : initialTransform.x;
-  const fixedY = handle.startsWith('n')
-    ? initialTransform.y + initialTransform.height
-    : initialTransform.y;
-  const initialVectorX = directionX * initialTransform.width;
-  const initialVectorY = directionY * initialTransform.height;
-  const pointerVectorX = initialVectorX + deltaX;
-  const pointerVectorY = initialVectorY + deltaY;
-  const minimumScale = Math.max(
-    MIN_CLIP_TRANSFORM_SIZE / initialTransform.width,
-    MIN_CLIP_TRANSFORM_SIZE / initialTransform.height,
-  );
-  const projectedScale =
-    (pointerVectorX * initialVectorX + pointerVectorY * initialVectorY) /
-    (initialVectorX ** 2 + initialVectorY ** 2);
-  const scale = Math.max(minimumScale, projectedScale);
-  const width = initialTransform.width * scale;
-  const height = initialTransform.height * scale;
-
-  return normalizeClipTransform({
-    height,
-    width,
-    x: handle.endsWith('w') ? fixedX - width : fixedX,
-    y: handle.startsWith('n') ? fixedY - height : fixedY,
-  });
-};
-
-const getResizedTransform = (
-  initialTransform: TimelineClipTransform,
-  handle: PreviewResizeHandle,
-  deltaX: number,
-  deltaY: number,
-  keepAspectRatio = false,
-): TimelineClipTransform => {
-  if (keepAspectRatio) {
-    return getAspectRatioTransform(initialTransform, handle, deltaX, deltaY);
-  }
-
-  let x = initialTransform.x;
-  let y = initialTransform.y;
-  let width = initialTransform.width;
-  let height = initialTransform.height;
-
-  if (handle.endsWith('w')) {
-    x = initialTransform.x + deltaX;
-    width = initialTransform.width - deltaX;
-    if (width < MIN_CLIP_TRANSFORM_SIZE) {
-      x = initialTransform.x + initialTransform.width - MIN_CLIP_TRANSFORM_SIZE;
-      width = MIN_CLIP_TRANSFORM_SIZE;
-    }
-  } else {
-    width = initialTransform.width + deltaX;
-  }
-
-  if (handle.startsWith('n')) {
-    y = initialTransform.y + deltaY;
-    height = initialTransform.height - deltaY;
-    if (height < MIN_CLIP_TRANSFORM_SIZE) {
-      y =
-        initialTransform.y + initialTransform.height - MIN_CLIP_TRANSFORM_SIZE;
-      height = MIN_CLIP_TRANSFORM_SIZE;
-    }
-  } else {
-    height = initialTransform.height + deltaY;
-  }
-
-  return normalizeClipTransform({ height, width, x, y });
-};
-
 const drawSelectedClipFrame = (
   context: CanvasRenderingContext2D,
   transform: TimelineClipTransform,
@@ -372,7 +296,58 @@ const drawSelectedClipFrame = (
   context.restore();
 };
 
+const drawPreviewGuides = (
+  context: CanvasRenderingContext2D,
+  guides: PreviewSnapGuide[],
+  previewFrame: PreviewFrame,
+) => {
+  if (guides.length === 0) return;
+
+  context.save();
+  context.strokeStyle = PREVIEW_GUIDE_COLOR;
+  context.lineWidth = 1;
+  context.setLineDash([]);
+  context.beginPath();
+
+  const getStrokeCoordinate = (
+    position: number,
+    start: number,
+    end: number,
+  ) => {
+    if (position <= start) return Math.round(start) + 0.5;
+    if (position >= end) return Math.round(end) - 0.5;
+    return Math.round(position) + 0.5;
+  };
+
+  for (const guide of guides) {
+    if (guide.axis === 'x') {
+      const x = getStrokeCoordinate(
+        previewFrame.offsetX + guide.position * previewFrame.scale,
+        previewFrame.offsetX,
+        previewFrame.offsetX + previewFrame.width,
+      );
+      context.moveTo(x, previewFrame.offsetY);
+      context.lineTo(x, previewFrame.offsetY + previewFrame.height);
+      continue;
+    }
+
+    const y = getStrokeCoordinate(
+      previewFrame.offsetY + guide.position * previewFrame.scale,
+      previewFrame.offsetY,
+      previewFrame.offsetY + previewFrame.height,
+    );
+    context.moveTo(previewFrame.offsetX, y);
+    context.lineTo(previewFrame.offsetX + previewFrame.width, y);
+  }
+
+  context.stroke();
+  context.restore();
+};
+
 export function PreviewPanel({ previewRef }: PreviewPanelProps) {
+  const canvasSnappingEnabled = useTimelineStore(
+    (state) => state.canvasSnappingEnabled,
+  );
   const canvasSize = useTimelineStore((state) => state.canvasSize);
   const clips = useTimelineStore((state) => state.clips);
   const commitClipTransform = useTimelineStore(
@@ -509,6 +484,12 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
 
       context.restore();
 
+      drawPreviewGuides(
+        context,
+        interaction?.guides ?? [],
+        previewFrame,
+      );
+
       if (selectedTransform) {
         drawSelectedClipFrame(context, selectedTransform, previewFrame);
       }
@@ -516,6 +497,20 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
     },
     [activeVideoClips, previewFrame, previewObjectUrls, selectedClipId],
   );
+
+  useEffect(() => {
+    const interaction = interactionRef.current;
+    if (
+      canvasSnappingEnabled ||
+      !interaction ||
+      interaction.guides.length === 0
+    ) {
+      return;
+    }
+
+    interactionRef.current = { ...interaction, guides: [] };
+    drawPreview(interactionRef.current);
+  }, [canvasSnappingEnabled, drawPreview]);
 
   useEffect(() => {
     const element = previewContainerRef.current;
@@ -701,6 +696,7 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
     event.currentTarget.setPointerCapture(event.pointerId);
     interactionRef.current = {
       clipId: targetClip.id,
+      guides: [],
       initialPointer: point,
       initialTransform: targetClip.transform,
       mode,
@@ -743,23 +739,24 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
     const point = getCanvasPoint(canvas, event, previewFrame);
     const deltaX = point.x - interaction.initialPointer.x;
     const deltaY = point.y - interaction.initialPointer.y;
-    const transform =
-      interaction.mode === 'move'
-        ? normalizeClipTransform({
-            ...interaction.initialTransform,
-            x: interaction.initialTransform.x + deltaX,
-            y: interaction.initialTransform.y + deltaY,
-          })
-        : getResizedTransform(
-            interaction.initialTransform,
-            interaction.mode,
-            deltaX,
-            deltaY,
-            event.shiftKey,
-          );
+    const { guides, transform } = getPreviewInteractionUpdate({
+      canvasSize,
+      deltaX,
+      deltaY,
+      initialTransform: interaction.initialTransform,
+      keepAspectRatio: event.shiftKey,
+      minimumSize: MIN_CLIP_TRANSFORM_SIZE,
+      mode: interaction.mode,
+      previewScale: previewFrame.scale,
+      snappingEnabled: canvasSnappingEnabled,
+      targetTransforms: activeVideoClips
+        .filter((clip) => clip.id !== interaction.clipId)
+        .map((clip) => clip.transform),
+    });
 
     interactionRef.current = {
       ...interaction,
+      guides,
       transform,
     };
     drawPreview(interactionRef.current);
@@ -779,6 +776,7 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
       interaction.transform,
       previewFrame.scale,
     );
+    drawPreview({ ...interaction, guides: [] });
     commitClipTransform({
       clipId: interaction.clipId,
       transform: interaction.transform,

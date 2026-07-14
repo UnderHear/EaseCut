@@ -92,6 +92,7 @@ export type ResetTimelineParams = {
 };
 
 export type TimelineState = {
+  canvasSnappingEnabled: boolean;
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
   copiedClip: TimelineClip | null;
@@ -135,6 +136,7 @@ export type TimelineActions = {
     volume: number,
   ) => void;
   splitAtPlayhead: () => void;
+  toggleCanvasSnapping: () => void;
   toggleSnapping: () => void;
   toggleTrackMute: (trackId: string) => void;
   undo: () => void;
@@ -716,6 +718,7 @@ const createStateFromDraft = (
 
   return mergeSourcesIntoDraftState(
     {
+      canvasSnappingEnabled: true,
       canvasSize: { ...draft.canvasSize },
       clips,
       copiedClip: null,
@@ -744,6 +747,7 @@ const createInitialState = (params?: ResetTimelineParams): TimelineState => {
     : DEFAULT_COMPOSITION_CANVAS_SIZE;
 
   return {
+    canvasSnappingEnabled: true,
     canvasSize,
     clips: normalizeTimelineClips(
       params?.sources
@@ -1448,6 +1452,12 @@ export const createTimelineStore = (
       );
 
       set(recordClipsChange(state, nextClips, rightClip.id));
+    },
+
+    toggleCanvasSnapping: () => {
+      set((state) => ({
+        canvasSnappingEnabled: !state.canvasSnappingEnabled,
+      }));
     },
 
     toggleSnapping: () => {

@@ -7,6 +7,7 @@ import {
   Pause,
   Play,
   Redo2,
+  ScanLine,
   SquareSplitHorizontal,
   Trash2,
   Undo2,
@@ -70,6 +71,9 @@ export function TimelineToolbar({
 }: TimelineToolbarProps) {
   const canRedo = useTimelineStore((state) => state.future.length > 0);
   const canUndo = useTimelineStore((state) => state.past.length > 0);
+  const canvasSnappingEnabled = useTimelineStore(
+    (state) => state.canvasSnappingEnabled,
+  );
   const clips = useTimelineStore((state) => state.clips);
   const currentTime = useTimelineStore((state) => state.currentTime);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
@@ -85,6 +89,9 @@ export function TimelineToolbar({
     (state) => state.setPixelsPerSecond,
   );
   const splitAtPlayhead = useTimelineStore((state) => state.splitAtPlayhead);
+  const toggleCanvasSnapping = useTimelineStore(
+    (state) => state.toggleCanvasSnapping,
+  );
   const toggleSnapping = useTimelineStore((state) => state.toggleSnapping);
   const undo = useTimelineStore((state) => state.undo);
   const canSplitAtPlayhead = canSplitClipAtTime(
@@ -213,11 +220,19 @@ export function TimelineToolbar({
         </Dialog.Root>
         <ToolbarButton
           active={snappingEnabled}
-          label='吸附开关'
+          label='时间轴吸附'
           onClick={toggleSnapping}
           pressed={snappingEnabled}
         >
           <Magnet aria-hidden='true' />
+        </ToolbarButton>
+        <ToolbarButton
+          active={canvasSnappingEnabled}
+          label='画布辅助线'
+          onClick={toggleCanvasSnapping}
+          pressed={canvasSnappingEnabled}
+        >
+          <ScanLine aria-hidden='true' />
         </ToolbarButton>
         <ToolbarButton
           disabled={pixelsPerSecond <= MIN_PIXELS_PER_SECOND}

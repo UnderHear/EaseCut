@@ -40,6 +40,8 @@ type CanvasDrawCall = {
     | 'drawImage'
     | 'fill'
     | 'fillRect'
+    | 'lineTo'
+    | 'moveTo'
     | 'rect'
     | 'restore'
     | 'roundRect'
@@ -61,6 +63,13 @@ const overlayTrack: TimelineTrack = {
   type: 'video',
   volume: 1,
   zIndex: 1,
+};
+const targetTrack: TimelineTrack = {
+  id: 'video-overlay-2',
+  name: '视频轨 3',
+  type: 'video',
+  volume: 1,
+  zIndex: 2,
 };
 const audioTrack: TimelineTrack = {
   id: 'audio-track-1',
@@ -170,6 +179,8 @@ describe('PreviewPanel', () => {
             fillRect: fillRectMock,
             fillStyle: '',
             lineWidth: 0,
+            lineTo: createCanvasCallMock('lineTo'),
+            moveTo: createCanvasCallMock('moveTo'),
             rect: createCanvasCallMock('rect'),
             restore: createCanvasCallMock('restore'),
             roundRect: createCanvasCallMock('roundRect'),
@@ -525,6 +536,158 @@ describe('PreviewPanel', () => {
         .getState()
         .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
     ).toEqual({ height: 180, width: 320, x: 160, y: 110 });
+  });
+
+  it('snaps a moved clip to the canvas center and draws a full-height guide', () => {
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 310, clientY: 140, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
+
+    expect(drawCalls).toContainEqual({ args: [800.5, 0], kind: 'moveTo' });
+    expect(drawCalls).toContainEqual({ args: [800.5, 720], kind: 'lineTo' });
+    expect(strokeRectMock).toHaveBeenLastCalledWith(640, 80, 320, 180);
+
+    drawCalls = [];
+    fireEvent.pointerMove(canvas, { clientX: 700, clientY: 140, pointerId: 1 });
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
+
+    fireEvent.pointerMove(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(true);
+
+    drawCalls = [];
+    fireEvent.pointerUp(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
+
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
+    ).toEqual({ height: 180, width: 320, x: 480, y: 80 });
+
+    fireEvent.pointerDown(canvas, { clientX: 650, clientY: 140, pointerId: 2 });
+    fireEvent.pointerMove(canvas, { clientX: 650, clientY: 140, pointerId: 2 });
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(true);
+
+    drawCalls = [];
+    fireEvent.pointerCancel(canvas, {
+      clientX: 650,
+      clientY: 140,
+      pointerId: 2,
+    });
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
+  });
+
+  it('clears an active guide immediately when canvas snapping is disabled', () => {
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 310, clientY: 140, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(true);
+
+    drawCalls = [];
+    act(() => testTimelineStore.getState().toggleCanvasSnapping());
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
+
+    fireEvent.pointerCancel(canvas, {
+      clientX: 688,
+      clientY: 140,
+      pointerId: 1,
+    });
+  });
+
+  it('snaps a moved clip to another active video clip', () => {
+    testTimelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        createClip({
+          id: 'clip-target',
+          src: '/target.mp4',
+          trackId: targetTrack.id,
+          transform: { height: 100, width: 100, x: 500, y: 350 },
+        }),
+      ],
+      tracks: [...state.tracks, targetTrack],
+    }));
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 310, clientY: 140, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 388, clientY: 140, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 388, clientY: 140, pointerId: 1 });
+
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
+    ).toEqual({ height: 180, width: 320, x: 180, y: 80 });
+  });
+
+  it('ignores the selected clip, inactive video clips and audio clips as targets', () => {
+    testTimelineStore.setState((state) => ({
+      clips: [
+        state.clips.find((clip) => clip.id === 'clip-overlay')!,
+        createClip({
+          id: 'clip-inactive',
+          src: '/inactive.mp4',
+          start: 2,
+          trackId: targetTrack.id,
+          transform: { height: 100, width: 100, x: 100, y: 400 },
+        }),
+        createClip({
+          id: 'clip-audio',
+          src: '/audio.mp3',
+          trackId: audioTrack.id,
+          transform: { height: 100, width: 100, x: 100, y: 400 },
+          type: 'audio',
+        }),
+      ],
+      tracks: [overlayTrack, targetTrack, audioTrack],
+    }));
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 310, clientY: 140, pointerId: 1 });
+    drawCalls = [];
+    fireEvent.pointerMove(canvas, { clientX: 314, clientY: 140, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 314, clientY: 140, pointerId: 1 });
+
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
+    ).toEqual({ height: 180, width: 320, x: 104, y: 80 });
+  });
+
+  it('moves freely and does not draw guides when canvas snapping is disabled', () => {
+    testTimelineStore.setState({ canvasSnappingEnabled: false });
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 310, clientY: 140, pointerId: 1 });
+    drawCalls = [];
+    fireEvent.pointerMove(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
+
+    expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
+    ).toEqual({ height: 180, width: 320, x: 478, y: 80 });
   });
 
   it('commits a resized selected clip transform from a corner handle', () => {
