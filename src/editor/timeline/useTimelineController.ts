@@ -47,6 +47,13 @@ type TimelineControllerOptions = {
   gridRef: RefObject<HTMLDivElement | null>;
 };
 
+const DOUBLE_CLICK_INTERVAL_MS = 500;
+
+type CompletedClipClick = {
+  clipId: string;
+  timeStamp: number;
+};
+
 export function useTimelineController({
   gridRef,
 }: TimelineControllerOptions) {
@@ -60,6 +67,7 @@ export function useTimelineController({
   const [dropPreview, setDropPreview] = useState<ClipDropPreview | null>(null);
   const [trimPreview, setTrimPreview] = useState<TrimPreview | null>(null);
   const dropPreviewRef = useRef<ClipDropPreview | null>(null);
+  const lastCompletedClipClickRef = useRef<CompletedClipClick | null>(null);
   const moveActivatedRef = useRef(false);
   const trimPreviewRef = useRef<TrimPreview | null>(null);
 
@@ -155,6 +163,7 @@ export function useTimelineController({
     const finishGesture = (event: PointerEvent | null, commit: boolean) => {
       if (event && event.pointerId !== gesture.pointerId) return;
 
+      let completedClipClick = false;
       if (commit && event && gesture.kind === 'move') {
         updateMove(event.clientX, event.clientY);
         const preview = dropPreviewRef.current;
@@ -166,6 +175,7 @@ export function useTimelineController({
             target: preview.target,
           });
         }
+        completedClipClick = !moveActivatedRef.current;
       }
       if (commit && event && gesture.kind === 'trim') {
         updateTrim(event.clientX, event.clientY);
@@ -184,6 +194,12 @@ export function useTimelineController({
         } else {
           state.setTrackVolume(gesture.trackId, gesture.previousVolume);
         }
+      }
+      if (gesture.kind === 'move') {
+        lastCompletedClipClickRef.current =
+          completedClipClick && event
+            ? { clipId: gesture.clip.id, timeStamp: event.timeStamp }
+            : null;
       }
 
       dropPreviewRef.current = null;
@@ -236,8 +252,26 @@ export function useTimelineController({
 
     event.preventDefault();
     event.stopPropagation();
-    store.getState().setIsPlaying(false);
-    store.getState().selectClip(clip.id);
+    const state = store.getState();
+    const previousClick = lastCompletedClipClickRef.current;
+    const elapsed = previousClick
+      ? event.timeStamp - previousClick.timeStamp
+      : Number.POSITIVE_INFINITY;
+    if (
+      previousClick?.clipId === clip.id &&
+      elapsed >= 0 &&
+      elapsed <= DOUBLE_CLICK_INTERVAL_MS
+    ) {
+      lastCompletedClipClickRef.current = null;
+      state.setIsPlaying(false);
+      state.selectClip(clip.id);
+      state.restoreClipTrim(clip.id);
+      return;
+    }
+
+    lastCompletedClipClickRef.current = null;
+    state.setIsPlaying(false);
+    state.selectClip(clip.id);
     moveActivatedRef.current = false;
     const originTrackIndex = tracks.findIndex(({ id }) => id === clip.trackId);
     const clipTop = getTimelineClipY(tracks, originTrackIndex);
@@ -271,6 +305,7 @@ export function useTimelineController({
     edge: TimelineClipTrimEdge,
   ) => {
     if (event.button !== 0) return;
+    lastCompletedClipClickRef.current = null;
     const point = getContentPoint(
       gridRef.current,
       event.clientX,
@@ -294,6 +329,7 @@ export function useTimelineController({
 
   const beginScrub = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
+    lastCompletedClipClickRef.current = null;
     const point = getContentPoint(
       gridRef.current,
       event.clientX,
@@ -330,6 +366,7 @@ export function useTimelineController({
     trackId: string,
   ) => {
     if (event.button !== 0) return;
+    lastCompletedClipClickRef.current = null;
     const track = tracks.find(({ id }) => id === trackId);
     const rect = event.currentTarget.parentElement?.getBoundingClientRect();
     if (!track || !rect) return;

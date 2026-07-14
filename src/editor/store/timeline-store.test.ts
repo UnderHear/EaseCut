@@ -1848,6 +1848,169 @@ describe('timelineStore video track layout', () => {
     expectTrackClipsNotToOverlap();
   });
 
+  it('restores a video clip with the same layout as manually restoring both trim edges', () => {
+    timelineStore.setState((state) => ({
+      clips: state.clips.map((clip) => {
+        if (clip.id === 'clip-video-2') {
+          return {
+            ...clip,
+            duration: 3,
+            trimEnd: 4,
+            trimStart: 1,
+          };
+        }
+        if (clip.id === 'clip-video-3') return { ...clip, start: 7 };
+        return clip;
+      }),
+    }));
+    const manualStore = createTimelineStore();
+    const initialState = timelineStore.getState();
+    manualStore.setState({
+      clips: initialState.clips.map((clip) => ({ ...clip })),
+      currentTime: initialState.currentTime,
+      future: [],
+      isPlaying: initialState.isPlaying,
+      past: [],
+      selectedClipId: initialState.selectedClipId,
+      tracks: initialState.tracks.map((track) => ({ ...track })),
+    });
+
+    manualStore.getState().commitClipTrim({
+      clipId: 'clip-video-2',
+      edge: 'start',
+      trimEnd: 4,
+      trimStart: 0,
+    });
+    const manuallyRestoredStart = manualStore
+      .getState()
+      .clips.find((clip) => clip.id === 'clip-video-2');
+    manualStore.getState().commitClipTrim({
+      clipId: 'clip-video-2',
+      edge: 'end',
+      trimEnd: manuallyRestoredStart?.sourceDuration ?? 0,
+      trimStart: manuallyRestoredStart?.trimStart ?? 0,
+    });
+
+    timelineStore.getState().restoreClipTrim('clip-video-2');
+
+    expect(timelineStore.getState().clips).toEqual(
+      manualStore.getState().clips,
+    );
+    expect(
+      getMainVideoClips().find((clip) => clip.id === 'clip-video-2'),
+    ).toEqual(
+      expect.objectContaining({ duration: 6, trimEnd: 6, trimStart: 0 }),
+    );
+    expect(getMainVideoClips().find((clip) => clip.id === 'clip-video-3'))
+      .toEqual(expect.objectContaining({ start: 10 }));
+    expect(timelineStore.getState().past).toHaveLength(1);
+    expectTrackClipsNotToOverlap();
+
+    timelineStore.getState().undo();
+    expect(getMainVideoClips().find((clip) => clip.id === 'clip-video-2'))
+      .toEqual(expect.objectContaining({ duration: 3, trimEnd: 4, trimStart: 1 }));
+    timelineStore.getState().redo();
+    expect(getMainVideoClips().find((clip) => clip.id === 'clip-video-2'))
+      .toEqual(expect.objectContaining({ duration: 6, trimEnd: 6, trimStart: 0 }));
+  });
+
+  it('restores an audio clip with the same layout as manually restoring both trim edges', () => {
+    const audioTrackId = 'audio-track-restore';
+    const leadingClip = {
+      ...createAudioClip('clip-audio-leading', audioTrackId),
+      duration: 3,
+      sourceDuration: 3,
+      trimEnd: 3,
+      zIndex: 0,
+    };
+    const restoredClip = {
+      ...createAudioClip('clip-audio-restore', audioTrackId),
+      duration: 3,
+      sourceDuration: 6,
+      start: 3,
+      trimEnd: 4,
+      trimStart: 1,
+      zIndex: 1,
+    };
+    const followingClip = {
+      ...createAudioClip('clip-audio-following', audioTrackId),
+      duration: 2,
+      sourceDuration: 2,
+      start: 6,
+      trimEnd: 2,
+      zIndex: 2,
+    };
+    const tracks = [
+      createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 0),
+      createAudioTrack(audioTrackId, '音频轨 1', 1),
+    ];
+    timelineStore.setState({
+      clips: [leadingClip, restoredClip, followingClip],
+      currentTime: 0,
+      future: [],
+      isPlaying: false,
+      past: [],
+      selectedClipId: null,
+      tracks,
+    });
+    const manualStore = createTimelineStore();
+    manualStore.setState({
+      clips: timelineStore.getState().clips.map((clip) => ({ ...clip })),
+      currentTime: 0,
+      future: [],
+      isPlaying: false,
+      past: [],
+      selectedClipId: null,
+      tracks: tracks.map((track) => ({ ...track })),
+    });
+
+    manualStore.getState().commitClipTrim({
+      clipId: restoredClip.id,
+      edge: 'start',
+      trimEnd: 4,
+      trimStart: 0,
+    });
+    const manuallyRestoredStart = manualStore
+      .getState()
+      .clips.find((clip) => clip.id === restoredClip.id);
+    manualStore.getState().commitClipTrim({
+      clipId: restoredClip.id,
+      edge: 'end',
+      trimEnd: manuallyRestoredStart?.sourceDuration ?? 0,
+      trimStart: manuallyRestoredStart?.trimStart ?? 0,
+    });
+
+    timelineStore.getState().restoreClipTrim(restoredClip.id);
+
+    expect(timelineStore.getState().clips).toEqual(
+      manualStore.getState().clips,
+    );
+    expect(
+      getTrackClips(timelineStore.getState().clips, audioTrackId).map((clip) => [
+        clip.id,
+        clip.start,
+        clip.duration,
+        clip.trimStart,
+        clip.trimEnd,
+      ]),
+    ).toEqual([
+      ['clip-audio-leading', 0, 3, 0, 3],
+      ['clip-audio-restore', 3, 5, 1, 6],
+      ['clip-audio-following', 8, 2, 0, 2],
+    ]);
+    expect(timelineStore.getState().past).toHaveLength(1);
+    expectTrackClipsNotToOverlap(audioTrackId);
+  });
+
+  it('does not add history when restoring an already complete clip', () => {
+    const initialClips = timelineStore.getState().clips;
+
+    timelineStore.getState().restoreClipTrim('clip-video-1');
+
+    expect(timelineStore.getState().clips).toBe(initialClips);
+    expect(timelineStore.getState().past).toEqual([]);
+  });
+
   it('stores trim edits in undo and redo history', () => {
     const state = timelineStore.getState();
 

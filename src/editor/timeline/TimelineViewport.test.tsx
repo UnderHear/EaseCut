@@ -117,6 +117,16 @@ const renderTimeline = () => {
   return { ...result, grid, viewport };
 };
 
+const doubleClickClip = (
+  clip: Element,
+  { clientX, clientY, pointerId }: { clientX: number; clientY: number; pointerId: number },
+) => {
+  fireEvent.pointerDown(clip, { button: 0, clientX, clientY, pointerId });
+  fireEvent.pointerUp(window, { clientX, clientY, pointerId });
+  fireEvent.pointerDown(clip, { button: 0, clientX, clientY, pointerId });
+  fireEvent.pointerUp(window, { clientX, clientY, pointerId });
+};
+
 describe('TimelineViewport DOM interactions', () => {
   beforeEach(() => {
     resetTestTimelineStore();
@@ -1064,6 +1074,55 @@ describe('TimelineViewport DOM interactions', () => {
       expect.objectContaining({ duration: 3, trimEnd: 3, trimStart: 0 }),
     );
     expect(testTimelineStore.getState().past).toHaveLength(1);
+  });
+
+  it('restores video and audio clip trims on double click', () => {
+    testTimelineStore.setState((state) => ({
+      clips: state.clips.map((clip) => {
+        if (clip.id === videoClip.id) {
+          return {
+            ...clip,
+            duration: 3,
+            trimEnd: 4,
+            trimStart: 1,
+          };
+        }
+        if (clip.id === audioClip.id) {
+          return {
+            ...clip,
+            duration: 2,
+            trimEnd: 2.5,
+            trimStart: 0.5,
+          };
+        }
+        return clip;
+      }),
+    }));
+    renderTimeline();
+
+    doubleClickClip(
+      screen.getByRole('article', { name: 'video clip: opening.mp4' }),
+      { clientX: 200, clientY: 50, pointerId: 30 },
+    );
+
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
+    ).toEqual(
+      expect.objectContaining({ duration: 6, trimEnd: 6, trimStart: 0 }),
+    );
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+
+    doubleClickClip(
+      screen.getByRole('article', { name: 'audio clip: background.mp3' }),
+      { clientX: 200, clientY: 100, pointerId: 31 },
+    );
+
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
+    ).toEqual(
+      expect.objectContaining({ duration: 3, trimEnd: 3, trimStart: 0 }),
+    );
+    expect(testTimelineStore.getState().past).toHaveLength(2);
   });
 
   it('adjusts audio volume by pointer position and commits the gesture', () => {

@@ -122,6 +122,7 @@ export type TimelineActions = {
   pasteCopiedClip: () => void;
   redo: () => void;
   resetTimeline: (params?: ResetTimelineParams) => void;
+  restoreClipTrim: (clipId: string) => void;
   syncSources: (sources: VideoTimelineSource[]) => void;
   selectClip: (clipId: string | null) => void;
   setCurrentTime: (time: number) => void;
@@ -1112,6 +1113,60 @@ export const createTimelineStore = (
       ) {
         return;
       }
+
+      const normalizedClips = normalizeTimelineClips(nextClips);
+      const duration = getTimelineDuration(normalizedClips);
+
+      set({
+        ...recordClipsChange(state, normalizedClips, clipId),
+        currentTime: Math.min(state.currentTime, duration),
+        isPlaying: state.currentTime <= duration ? state.isPlaying : false,
+      });
+    },
+
+    restoreClipTrim: (clipId) => {
+      const state = get();
+      const targetClip = state.clips.find((clip) => clip.id === clipId);
+      if (!targetClip) return;
+
+      let nextClips = state.clips;
+      let nextClip = targetClip;
+      let changed = false;
+
+      const restoreEdge = (
+        edge: 'start' | 'end',
+        trimStart: number,
+        trimEnd: number,
+      ) => {
+        const candidateClips = getTrimmedTimelineClips(
+          nextClips,
+          state.tracks,
+          clipId,
+          edge,
+          trimStart,
+          trimEnd,
+        );
+        const candidateClip = candidateClips.find(
+          (clip) => clip.id === clipId,
+        );
+        if (
+          !candidateClip ||
+          (candidateClip.duration === nextClip.duration &&
+            candidateClip.start === nextClip.start &&
+            candidateClip.trimEnd === nextClip.trimEnd &&
+            candidateClip.trimStart === nextClip.trimStart)
+        ) {
+          return;
+        }
+
+        changed = true;
+        nextClips = candidateClips;
+        nextClip = candidateClip;
+      };
+
+      restoreEdge('start', 0, nextClip.trimEnd);
+      restoreEdge('end', nextClip.trimStart, nextClip.sourceDuration);
+      if (!changed) return;
 
       const normalizedClips = normalizeTimelineClips(nextClips);
       const duration = getTimelineDuration(normalizedClips);
