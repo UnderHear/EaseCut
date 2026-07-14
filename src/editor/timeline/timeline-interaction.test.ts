@@ -26,7 +26,7 @@ const tracks = [
 ];
 
 describe('timeline track insertion targeting', () => {
-  it('acquires an insertion target within six pixels of its line', () => {
+  it('acquires an insertion target within four pixels of its line', () => {
     expect(
       getTrackInsertTargetAtY(
         tracks,

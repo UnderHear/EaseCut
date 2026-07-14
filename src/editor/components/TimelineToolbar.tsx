@@ -18,13 +18,13 @@ import {
 
 import { getTimelineDuration } from '../core/collision';
 import {
-  formatTimelineTime,
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
   TIMELINE_ZOOM_STEP,
 } from '../core/timeline-math';
 import { canSplitClipAtTime } from '../store/timeline-store';
 import { useTimelineStore } from '../store/timeline-store-context';
+import { formatTimelineTime } from '../util/format-timeline-time';
 
 type TimelineToolbarProps = {
   onRequestImport?: () => void;

@@ -1061,7 +1061,7 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 50,
       pointerId: 9,
     });
-    expect(screen.getByText('3.0s')).toHaveAttribute('dateTime', 'PT3S');
+    expect(screen.getByText('00:03:00')).toHaveAttribute('dateTime', 'PT3S');
     fireEvent.pointerUp(window, {
       clientX: 348,
       clientY: 50,

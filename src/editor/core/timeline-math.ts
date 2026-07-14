@@ -15,15 +15,6 @@ export const durationToWidth = (duration: number, pixelsPerSecond: number) =>
 
 export const roundTimelineTime = (time: number) =>
   Math.round(time * 1000) / 1000;
-
-export const formatTimelineTime = (time: number) => {
-  const safeTime = Math.max(0, time);
-  const totalSeconds = Math.floor(safeTime);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-};
 /**
  * "Nice" interval candidates for major tick spacing (in seconds).
  * Sorted smallest → largest so we can pick the best-fit.

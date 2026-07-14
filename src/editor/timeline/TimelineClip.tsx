@@ -3,6 +3,7 @@ import { useMemo, type CSSProperties, type PointerEvent } from 'react';
 import { useAudioWaveformSamples, useFramePreviewUrls } from '../media';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
+import { formatTimelineTime } from '../util/format-timeline-time';
 
 const PREVIEW_TILE_WIDTH = 96;
 const WAVEFORM_HEIGHT = 100;
@@ -139,7 +140,7 @@ function TimelineClipVisual({
             className='oc-timeline-clip__duration'
             dateTime={`PT${Math.max(0, clip.duration)}S`}
           >
-            {clip.duration.toFixed(1)}s
+            {formatTimelineTime(clip.duration)}
           </time>
         )}
       </header>

@@ -43,6 +43,19 @@ describe('TimelineToolbar', () => {
     expect(screen.getByRole('button', { name: '分割片段' })).toBeEnabled();
   });
 
+  it('displays the current time and total duration as MM:SS:CC', () => {
+    testTimelineStore.getState().setCurrentTime(3.999);
+    renderWithEditorProviders(
+      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+    );
+
+    expect(screen.getByText('00:03:99')).toHaveAttribute(
+      'dateTime',
+      'PT3.999S',
+    );
+    expect(screen.getByText('00:04:00')).toHaveAttribute('dateTime', 'PT4S');
+  });
+
   it('exposes native titles for enabled and disabled toolbar actions', () => {
     testTimelineStore.getState().setCurrentTime(0.5);
     renderWithEditorProviders(

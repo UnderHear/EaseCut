@@ -102,8 +102,8 @@ export type TrimPreview = {
 };
 
 export const DRAG_ACTIVATION_DISTANCE = 4;
-export const TRACK_INSERT_ACQUIRE_DISTANCE = 6;
-export const TRACK_INSERT_RELEASE_DISTANCE = 10;
+export const TRACK_INSERT_ACQUIRE_DISTANCE = 4;
+export const TRACK_INSERT_RELEASE_DISTANCE = 6;
 
 export const getContentPoint = (
   grid: HTMLDivElement | null,

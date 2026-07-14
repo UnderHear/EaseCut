@@ -834,7 +834,7 @@
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 15px;
   text-overflow: ellipsis;
@@ -845,12 +845,21 @@
 }
 
 .oc-timeline-clip__duration {
+  display: inline-block;
   position: absolute;
   right: 5px;
   bottom: 2px;
-  color: rgb(255 255 255 / 78%);
-  font-size: 9px;
-  font-variant-numeric: tabular-nums;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgb(0 0 0 / 33%);
+  padding: 0 4px;
+  border-radius: 4px;
 }
 
 .oc-timeline-clip__volume {
