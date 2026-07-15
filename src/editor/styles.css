@@ -833,7 +833,7 @@
   z-index: 2;
   overflow: hidden;
   border: 2px solid rgb(255 255 255 / 20%);
-  color: #fff;
+  color: #ffffffcc;
   cursor: grab;
   touch-action: none;
 }
@@ -908,17 +908,16 @@
 }
 
 .oc-timeline-clip__duration {
-  display: inline-block;
+  display: flex;
   position: absolute;
   right: 5px;
   bottom: 2px;
-  display: inline-block;
   max-width: 100%;
   overflow: hidden;
   font-size: 11px;
   font-weight: 600;
   line-height: 15px;
-  text-overflow: ellipsis;
+  justify-content: flex-end;
   white-space: nowrap;
   background: rgb(0 0 0 / 33%);
   padding: 0 4px;
