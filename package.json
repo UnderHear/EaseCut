@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.19",
+    "@radix-ui/react-toast": "^1.2.19",
     "lucide-react": "^1.14.0",
     "zustand": "^5.0.13"
   },

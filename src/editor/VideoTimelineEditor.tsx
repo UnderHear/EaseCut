@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import * as Toast from '@radix-ui/react-toast';
 import { FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
@@ -455,25 +456,26 @@ function VideoTimelineEditorView({
   const rootClassName = `oc-editor${className ? ` ${className}` : ''}`;
 
   return (
-    <div
-      ref={rootRef}
-      aria-labelledby={titleId}
-      className={rootClassName}
-      onKeyDown={handleKeyDown}
-      onPointerDownCapture={(event) => {
-        if (!(event.target instanceof HTMLElement)) return;
-        if (
-          !event.target.closest(
-            'button, input, select, textarea, summary, a[href], [role="dialog"]',
-          )
-        ) {
-          rootRef.current?.focus({ preventScroll: true });
-        }
-      }}
-      style={style}
-      tabIndex={0}
-      role='region'
-    >
+    <Toast.Provider label='编辑器提示'>
+      <div
+        ref={rootRef}
+        aria-labelledby={titleId}
+        className={rootClassName}
+        onKeyDown={handleKeyDown}
+        onPointerDownCapture={(event) => {
+          if (!(event.target instanceof HTMLElement)) return;
+          if (
+            !event.target.closest(
+              'button, input, select, textarea, summary, a[href], [role="dialog"]',
+            )
+          ) {
+            rootRef.current?.focus({ preventScroll: true });
+          }
+        }}
+        style={style}
+        tabIndex={0}
+        role='region'
+      >
       <header className='oc-editor__header'>
         <h1 id={titleId}>{title}</h1>
         <div className='oc-editor__header-actions'>
@@ -511,15 +513,6 @@ function VideoTimelineEditorView({
       </header>
 
       <main className='oc-editor__main'>
-        {(exportError || mediaError) && (
-          <div
-            className={`oc-editor__notice${exportError ? ' oc-is-error' : ''}`}
-            role={exportError ? 'alert' : 'status'}
-          >
-            {exportError ?? mediaError}
-          </div>
-        )}
-
         <PreviewPanel previewRef={previewRef} />
 
         <TimelinePanel
@@ -599,6 +592,42 @@ function VideoTimelineEditorView({
           </div>
         </div>
       )}
-    </div>
+        <Toast.Root
+          className='oc-editor__toast oc-editor__toast--error'
+          duration={Infinity}
+          onOpenChange={(open) => {
+            if (!open) setExportError(null);
+          }}
+          open={Boolean(exportError)}
+          role='alert'
+          type='foreground'
+        >
+          <Toast.Description className='oc-editor__toast-description'>
+            {exportError}
+          </Toast.Description>
+          <Toast.Close aria-label='关闭提示' className='oc-editor__toast-close'>
+            <X aria-hidden='true' size={16} />
+          </Toast.Close>
+        </Toast.Root>
+        <Toast.Root
+          className='oc-editor__toast'
+          duration={5000}
+          onOpenChange={(open) => {
+            if (!open) setMediaError(null);
+          }}
+          open={Boolean(mediaError)}
+          role='status'
+          type='background'
+        >
+          <Toast.Description className='oc-editor__toast-description'>
+            {mediaError}
+          </Toast.Description>
+          <Toast.Close aria-label='关闭提示' className='oc-editor__toast-close'>
+            <X aria-hidden='true' size={16} />
+          </Toast.Close>
+        </Toast.Root>
+        <Toast.Viewport className='oc-editor__toast-viewport' />
+      </div>
+    </Toast.Provider>
   );
 }
