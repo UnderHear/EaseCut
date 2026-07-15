@@ -17,6 +17,7 @@ import {
   getTimelineClipHeight,
   getTimelineTrackLayouts,
 } from '../core/timeline-layout';
+import { MAIN_VIDEO_TRACK_ID } from '../core/timeline-tracks';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -267,6 +268,8 @@ export function TimelineViewport() {
 
           <div className='oc-timeline-track-stack'>
             {trackLayouts.map(({ height, track }) => {
+              const trackClips = clipsByTrack.get(track.id) ?? [];
+              const isMainVideoTrack = track.id === MAIN_VIDEO_TRACK_ID;
               const muted = track.volume === 0;
               const isDropSource = dropPreview?.originTrackId === track.id;
               const isDropTarget =
@@ -274,11 +277,16 @@ export function TimelineViewport() {
                 dropPreview.target.trackId === track.id;
               const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
               const trackLabel =
-                track.type === 'video' ? '视频轨道' : track.name;
+                isMainVideoTrack
+                  ? '主视频轨道'
+                  : track.type === 'video'
+                    ? '视频轨道'
+                    : track.name;
 
               return (
                 <div
                   className='oc-timeline-track'
+                  data-main-track={isMainVideoTrack ? 'true' : undefined}
                   data-type={track.type}
                   key={track.id}
                   style={{ height }}
@@ -313,6 +321,11 @@ export function TimelineViewport() {
                     data-type={track.type}
                     onPointerDown={controller.beginScrub}
                   >
+                    {isMainVideoTrack && trackClips.length === 0 && (
+                      <span className='oc-timeline-track__empty-hint'>
+                        主轨道：可将素材拖放到这里
+                      </span>
+                    )}
                     {isDropSource && dropPreview && (
                       <div
                         aria-hidden='true'
@@ -339,7 +352,7 @@ export function TimelineViewport() {
                         width={dragWidth}
                       />
                     )}
-                    {(clipsByTrack.get(track.id) ?? []).map((clip) => (
+                    {trackClips.map((clip) => (
                       <TimelineClipView
                         clip={clip}
                         isSelected={selectedClipId === clip.id}

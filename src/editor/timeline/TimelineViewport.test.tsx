@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -39,6 +39,14 @@ const audioTrack: TimelineTrack = {
   name: '音频轨 1',
   type: 'audio',
   volume: 0.5,
+  zIndex: 1,
+};
+
+const overlayVideoTrack: TimelineTrack = {
+  id: 'video-overlay-1',
+  name: '视频轨',
+  type: 'video',
+  volume: 1,
   zIndex: 1,
 };
 
@@ -156,11 +164,11 @@ describe('TimelineViewport DOM interactions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders sticky track controls without names and semantic video/audio clips', () => {
+  it('identifies the main video track in sticky controls and semantic clips', () => {
     renderTimeline();
 
     const videoMuteButton = screen.getByRole('button', {
-      name: '视频轨道静音',
+      name: '主视频轨道静音',
     });
     const audioMuteButton = screen.getByRole('button', {
       name: '音频轨 1静音',
@@ -179,7 +187,12 @@ describe('TimelineViewport DOM interactions', () => {
     expect(document.querySelector('.oc-timeline-track-stack')).toContainElement(
       document.querySelector('.oc-timeline-tail-row'),
     );
-    expect(screen.getByTitle('视频轨道')).toHaveClass(
+    expect(videoHeader?.parentElement).toHaveAttribute(
+      'data-main-track',
+      'true',
+    );
+    expect(audioHeader?.parentElement).not.toHaveAttribute('data-main-track');
+    expect(screen.getByTitle('主视频轨道')).toHaveClass(
       'oc-timeline-track__icon',
     );
     expect(screen.getByTitle(audioTrack.name)).toHaveClass(
@@ -193,7 +206,7 @@ describe('TimelineViewport DOM interactions', () => {
     fireEvent.click(videoMuteButton);
 
     expect(
-      screen.getByRole('button', { name: '视频轨道取消静音' }),
+      screen.getByRole('button', { name: '主视频轨道取消静音' }),
     ).toHaveAttribute('title', '取消静音');
 
     expect(
@@ -213,6 +226,52 @@ describe('TimelineViewport DOM interactions', () => {
         .getByRole('article', { name: 'audio clip: background.mp3' })
         .querySelector('.oc-timeline-clip__duration'),
     ).toHaveTextContent('00:03:00');
+  });
+
+  it('uses the standard video label for non-main video tracks', () => {
+    testTimelineStore.setState({
+      tracks: [videoTrack, overlayVideoTrack, audioTrack],
+    });
+    renderTimeline();
+
+    const overlayIcon = screen.getByTitle('视频轨道');
+    expect(overlayIcon.closest('.oc-timeline-track')).not.toHaveAttribute(
+      'data-main-track',
+    );
+    expect(
+      screen.getByRole('button', { name: '视频轨道静音' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows an empty-state hint only for an empty main video track', () => {
+    testTimelineStore.setState({ clips: [audioClip] });
+    renderTimeline();
+
+    const hint = screen.getByText('主轨道：可将素材拖放到这里');
+    expect(hint).toHaveClass('oc-timeline-track__empty-hint');
+    expect(hint.closest('[data-track-id]')).toHaveAttribute(
+      'data-track-id',
+      MAIN_VIDEO_TRACK_ID,
+    );
+
+    act(() => {
+      testTimelineStore.setState({ clips: [videoClip, audioClip] });
+    });
+
+    expect(
+      screen.queryByText('主轨道：可将素材拖放到这里'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not show the empty-state hint for an empty non-main video track', () => {
+    testTimelineStore.setState({
+      tracks: [videoTrack, overlayVideoTrack, audioTrack],
+    });
+    renderTimeline();
+
+    expect(
+      screen.queryByText('主轨道：可将素材拖放到这里'),
+    ).not.toBeInTheDocument();
   });
 
   it('updates the playhead from ruler and empty-lane pointer presses', () => {

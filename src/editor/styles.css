@@ -726,6 +726,19 @@
   background-color: #262626;
 }
 
+.oc-timeline-track__empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-inline: 12px;
+  pointer-events: none;
+  color: var(--oc-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
 .oc-timeline-track__control--tail,
 .oc-timeline-tail {
   background-color: #1c1c1c;
