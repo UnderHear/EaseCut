@@ -48,7 +48,7 @@ export function DemoApp() {
       <VideoTimelineEditor
         onImportMedia={handleImportMedia}
         sources={sources}
-        title='OpenCut 视频时间线'
+        title='OpenCut 视频编辑器'
       />
     </main>
   );
