@@ -250,9 +250,9 @@ const drawSelectedClipFrame = (
   const previewTransform = toPreviewTransform(transform, previewFrame);
 
   context.save();
-  context.strokeStyle = '#38bdf8';
-  context.lineWidth = 3;
-  context.setLineDash([10, 6]);
+  context.strokeStyle = '#00cae0';
+  context.lineWidth = 2;
+  context.setLineDash([]);
   context.strokeRect(
     previewTransform.x,
     previewTransform.y,
@@ -260,8 +260,8 @@ const drawSelectedClipFrame = (
     previewTransform.height,
   );
   context.setLineDash([]);
-  context.fillStyle = '#0ea5e9';
-  context.strokeStyle = '#e0f2fe';
+  context.fillStyle = '#00cae0';
+  context.strokeStyle = '#ffffff';
   context.lineWidth = 2;
 
   for (const handle of previewResizeHandles) {
@@ -287,7 +287,7 @@ const drawSelectedClipFrame = (
       handleY,
       PREVIEW_HANDLE_SIZE,
       PREVIEW_HANDLE_SIZE,
-      4,
+      10,
     );
     context.fill();
     context.stroke();
