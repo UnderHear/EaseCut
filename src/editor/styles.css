@@ -921,20 +921,25 @@
 
 .oc-timeline-clip__trim-handle::after {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--oc-accent);
+  top: 10px;
+  bottom: 10px;
+  width: 7px;
+  border: 2px solid var(--oc-accent);
+  border-radius: 4px;
+  background: #000;
   content: "";
 }
 
+.oc-timeline-clip__trim-handle[data-trimmed="true"]::after {
+  background: var(--oc-danger);
+}
+
 .oc-timeline-clip__trim-handle[data-edge="start"]::after {
-  left: 1px;
+  left: -2px;
 }
 
 .oc-timeline-clip__trim-handle[data-edge="end"]::after {
-  right: 1px;
+  right: -2px;
 }
 
 .oc-timeline-clip-placeholder {

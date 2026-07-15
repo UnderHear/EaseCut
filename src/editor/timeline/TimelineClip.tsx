@@ -176,6 +176,10 @@ export function TimelineClipView({
       event.stopPropagation();
       if (event.button === 0) onTrimStart(event, clip, edge);
     };
+  const isTrimmedAt = (edge: TimelineClipTrimEdge) =>
+    edge === 'start'
+      ? clip.trimStart > 0
+      : clip.trimEnd < clip.sourceDuration;
 
   return (
     <article
@@ -219,6 +223,7 @@ export function TimelineClipView({
             aria-label={`Trim ${edge} of ${clip.name}`}
             className='oc-timeline-clip__trim-handle'
             data-edge={edge}
+            data-trimmed={isTrimmedAt(edge)}
             key={edge}
             onPointerDown={startTrim(edge)}
             type='button'
