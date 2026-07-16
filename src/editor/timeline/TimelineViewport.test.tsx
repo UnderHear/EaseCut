@@ -842,7 +842,7 @@ describe('TimelineViewport DOM interactions', () => {
     ).toEqual(expect.objectContaining({ trackId: 'audio-track-3' }));
   });
 
-  it('switches insertion lines and retains the target within the release range', () => {
+  it('switches from an insertion line after leaving the release range', () => {
     const firstOverlayTrack: TimelineTrack = {
       ...videoTrack,
       id: 'video-overlay-1',
@@ -906,12 +906,10 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 20,
     });
 
-    expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
-      top: '150px',
-    });
+    expect(document.querySelector('.oc-timeline-track-insert-line')).toBeNull();
     expect(
       document.querySelector(`[data-track-id="${secondOverlayTrack.id}"]`),
-    ).toHaveAttribute('data-drop-target', 'false');
+    ).toHaveAttribute('data-drop-target', 'true');
 
     fireEvent.pointerUp(window, {
       clientX: 340,
@@ -922,10 +920,12 @@ describe('TimelineViewport DOM interactions', () => {
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
       MAIN_VIDEO_TRACK_ID,
       firstOverlayTrack.id,
-      'video-overlay-3',
       secondOverlayTrack.id,
       audioTrack.id,
     ]);
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
+    ).toEqual(expect.objectContaining({ trackId: secondOverlayTrack.id }));
   });
 
   it('does not create a track from a same-type gap that mismatches the clip', () => {
@@ -1110,6 +1110,9 @@ describe('TimelineViewport DOM interactions', () => {
 
   it('previews and commits an end trim from the selected clip handle', () => {
     renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
     const trimHandle = screen.getByRole('button', {
       name: 'Trim end of opening.mp4',
     });
@@ -1125,7 +1128,10 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 50,
       pointerId: 9,
     });
-    expect(screen.getByText('00:03:00')).toHaveAttribute('dateTime', 'PT3S');
+    expect(clip.querySelector('.oc-timeline-clip__duration')).toHaveAttribute(
+      'dateTime',
+      'PT3S',
+    );
     fireEvent.pointerUp(window, {
       clientX: 348,
       clientY: 50,
