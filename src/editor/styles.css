@@ -278,9 +278,9 @@
 
 .oc-timeline-panel {
   display: flex;
-  height: 320px;
+  height: 350px;
   min-height: 210px;
-  flex: 0 0 320px;
+  flex: 0 0 350px;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--oc-border);
