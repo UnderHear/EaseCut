@@ -12,7 +12,6 @@
   --oc-accent: #00cae0;
   --oc-drag-accent: #67e8f9;
   --oc-drag-accent: #67e8f9;
-  --oc-danger: #fb7185;
   --oc-radius: 6px;
   --oc-scrollbar: rgb(255 255 255 / 18%);
   --oc-scrollbar-hover: rgb(255 255 255 / 30%);
@@ -413,7 +412,7 @@
 
 .oc-import-dialog__error {
   margin: -2px 0 0;
-  color: var(--oc-danger);
+  color: #fb7185;
   font-size: 12px;
 }
 
@@ -611,8 +610,18 @@
 .oc-timeline-corner {
   left: 0;
   z-index: 16;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   grid-column: 1;
   grid-row: 1;
+}
+
+.oc-timeline-gap-status {
+  color: #f3d149;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
 }
 
 .oc-timeline-ruler {
@@ -647,6 +656,29 @@
   line-height: 12px;
   pointer-events: none;
   white-space: nowrap;
+}
+
+.oc-timeline-ruler__gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-bottom: 2px solid #f3d149;
+  background:
+    linear-gradient(
+      to right,
+      #f3d149 0 1px,
+      transparent 1px
+    ) var(--oc-timeline-gap-grid-offset) 3px / var(--oc-timeline-major-step) 20px repeat-x,
+    linear-gradient(
+      to right,
+      #f3d149 0 1px,
+      transparent 1px
+    ) var(--oc-timeline-gap-grid-offset) 3px / var(--oc-timeline-minor-step) 6px repeat-x;
+  pointer-events: none;
+}
+
+.oc-timeline-ruler__label--gap {
+  color: #fde047;
 }
 
 .oc-timeline-playhead-layer {
@@ -980,7 +1012,7 @@
 }
 
 .oc-timeline-clip__trim-handle[data-trimmed="true"]::after {
-  background: var(--oc-danger);
+  background: #ff0000;
 }
 
 .oc-timeline-clip__trim-handle[data-edge="start"]::after {

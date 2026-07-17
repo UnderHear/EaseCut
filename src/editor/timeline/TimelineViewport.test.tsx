@@ -1,6 +1,7 @@
 import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TIMELINE_CONTENT_PADDING_X } from '../core/timeline-layout';
 import {
   DEFAULT_PIXELS_PER_SECOND,
   TIMELINE_ZOOM_STEP,
@@ -272,6 +273,165 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       screen.queryByText('主轨道：可将素材拖放到这里'),
     ).not.toBeInTheDocument();
+  });
+
+  it('highlights video gaps in the corner and ruler at the current zoom', () => {
+    testTimelineStore.setState({
+      clips: [
+        createClip({ duration: 2, trimEnd: 2 }),
+        createClip({
+          id: 'video-clip-2',
+          name: 'ending.mp4',
+          sourceId: 'video-source-2',
+          start: 4,
+        }),
+      ],
+    });
+    renderTimeline();
+
+    expect(screen.getByText('有视频空隙')).toHaveClass(
+      'oc-timeline-gap-status',
+    );
+    const gap = document.querySelector('.oc-timeline-ruler__gap');
+    expect(gap).toHaveStyle({
+      left: `${TIMELINE_CONTENT_PADDING_X + 2 * DEFAULT_PIXELS_PER_SECOND}px`,
+      width: `${2 * DEFAULT_PIXELS_PER_SECOND}px`,
+    });
+    const ruler = screen.getByRole('slider', { name: '时间标尺' });
+    expect(ruler.querySelector('time[datetime="PT2S"]')).toHaveClass(
+      'oc-timeline-ruler__label--gap',
+    );
+    expect(ruler.querySelector('time[datetime="PT4S"]')).not.toHaveClass(
+      'oc-timeline-ruler__label--gap',
+    );
+
+    act(() => {
+      testTimelineStore.setState({ pixelsPerSecond: 100 });
+    });
+
+    expect(gap).toHaveStyle({
+      left: `${TIMELINE_CONTENT_PADDING_X + 200}px`,
+      width: '200px',
+    });
+  });
+
+  it('does not show a video-gap status without a gap or without video', () => {
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        createClip({
+          id: 'video-clip-2',
+          name: 'ending.mp4',
+          sourceId: 'video-source-2',
+          start: 4,
+        }),
+      ],
+    });
+    renderTimeline();
+
+    expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-ruler__gap')).toBeNull();
+
+    act(() => {
+      testTimelineStore.setState({ clips: [audioClip] });
+    });
+
+    expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-ruler__gap')).toBeNull();
+  });
+
+  it('updates the video-gap status during a trim preview', () => {
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        createClip({
+          id: 'video-clip-2',
+          name: 'middle.mp4',
+          sourceId: 'video-source-2',
+          start: 4,
+        }),
+        createClip({
+          id: 'overlay-clip',
+          name: 'ending.mp4',
+          sourceId: 'overlay-source',
+          start: 8,
+          trackId: overlayVideoTrack.id,
+        }),
+      ],
+      tracks: [videoTrack, overlayVideoTrack],
+    });
+    renderTimeline();
+    const trimHandle = screen.getByRole('button', {
+      name: 'Trim end of opening.mp4',
+    });
+
+    expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
+    fireEvent.pointerDown(trimHandle, {
+      button: 0,
+      clientX: 428,
+      clientY: 50,
+      pointerId: 27,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 348,
+      clientY: 50,
+      pointerId: 27,
+    });
+
+    expect(screen.getByText('有视频空隙')).toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-ruler__gap')).toHaveStyle({
+      left: `${TIMELINE_CONTENT_PADDING_X + 7 * DEFAULT_PIXELS_PER_SECOND}px`,
+      width: `${DEFAULT_PIXELS_PER_SECOND}px`,
+    });
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
+    ).toEqual(expect.objectContaining({ duration: 4 }));
+
+    fireEvent.pointerCancel(window, { pointerId: 27 });
+    expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
+  });
+
+  it('updates the video-gap status during a drag preview', () => {
+    const overlayClip = createClip({
+      id: 'overlay-clip',
+      name: 'ending.mp4',
+      sourceId: 'overlay-source',
+      start: 4,
+      trackId: overlayVideoTrack.id,
+    });
+    testTimelineStore.setState({
+      clips: [videoClip, overlayClip],
+      tracks: [videoTrack, overlayVideoTrack],
+    });
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: ending.mp4',
+    });
+
+    expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
+    fireEvent.pointerDown(clip, {
+      button: 0,
+      clientX: 448,
+      clientY: 110,
+      pointerId: 28,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 528,
+      clientY: 110,
+      pointerId: 28,
+    });
+
+    expect(screen.getByText('有视频空隙')).toBeInTheDocument();
+    expect(document.querySelector('.oc-timeline-ruler__gap')).toHaveStyle({
+      left: `${TIMELINE_CONTENT_PADDING_X + 4 * DEFAULT_PIXELS_PER_SECOND}px`,
+      width: `${DEFAULT_PIXELS_PER_SECOND}px`,
+    });
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === overlayClip.id),
+    ).toEqual(expect.objectContaining({ start: 4 }));
+
+    fireEvent.pointerCancel(window, { pointerId: 28 });
+    expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
   });
 
   it('updates the playhead from ruler and empty-lane pointer presses', () => {

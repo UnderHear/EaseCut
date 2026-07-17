@@ -38,6 +38,7 @@ import { TimelineDragGhost } from './TimelineDragGhost';
 import { TimelineRuler } from './TimelineRuler';
 import { getTimelineContentDuration } from './timeline-interaction';
 import { useTimelineController } from './useTimelineController';
+import { getVideoGaps } from './video-gaps';
 
 export function TimelineViewport() {
   const clips = useTimelineStore((state) => state.clips);
@@ -69,6 +70,14 @@ export function TimelineViewport() {
   const draggedClip = dropPreview
     ? clips.find(({ id }) => id === dropPreview.clipId)
     : undefined;
+  const videoGapClips = useMemo(
+    () =>
+      dropPreview && draggedClip
+        ? [...displayClips, { ...draggedClip, start: dropPreview.start }]
+        : displayClips,
+    [displayClips, draggedClip, dropPreview],
+  );
+  const videoGaps = useMemo(() => getVideoGaps(videoGapClips), [videoGapClips]);
   const dragWidth = draggedClip
     ? durationToWidth(draggedClip.duration, pixelsPerSecond)
     : 0;
@@ -257,10 +266,15 @@ export function TimelineViewport() {
         ref={viewportRef}
       >
         <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
-          <div className='oc-timeline-corner' />
+          <div className='oc-timeline-corner'>
+            {videoGaps.length > 0 && (
+              <span className='oc-timeline-gap-status'>有视频空隙</span>
+            )}
+          </div>
           <TimelineRuler
             currentTime={currentTime}
             duration={rulerDuration}
+            gaps={videoGaps}
             onPointerDown={controller.beginScrub}
             pixelsPerSecond={pixelsPerSecond}
             width={laneWidth}
