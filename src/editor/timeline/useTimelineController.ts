@@ -77,13 +77,12 @@ export function useTimelineController({
 
     return getTrimmedTimelineClips(
       clips,
-      tracks,
       trimPreview.clipId,
       trimPreview.edge,
       trimPreview.trimStart,
       trimPreview.trimEnd,
     );
-  }, [clips, dropPreview, tracks, trimPreview]);
+  }, [clips, dropPreview, trimPreview]);
 
   useEffect(() => {
     if (!gesture) return undefined;

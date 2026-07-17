@@ -371,30 +371,9 @@ const removeEmptyTimelineTracks = (
   );
 };
 
-export const hasSingleMainVideoTrack = (tracks: TimelineTrack[]) => {
-  const videoTracks = tracks.filter((track) => track.type === 'video');
-
-  return videoTracks.length === 1 && videoTracks[0]?.id === MAIN_VIDEO_TRACK_ID;
-};
-
 export const shouldCompactMainVideoTrackAfterDrop = (
-  tracks: TimelineTrack[],
-  clips: TimelineClip[],
-  clipId: string,
   targetTrackId: string,
-) => {
-  if (targetTrackId !== MAIN_VIDEO_TRACK_ID) {
-    return false;
-  }
-
-  const movedClips = clips.map((clip) =>
-    clip.id === clipId ? { ...clip, trackId: targetTrackId } : clip,
-  );
-
-  return hasSingleMainVideoTrack(
-    removeEmptyTimelineTracks(tracks, movedClips),
-  );
-};
+) => targetTrackId === MAIN_VIDEO_TRACK_ID;
 
 const isFinitePositiveNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
@@ -820,7 +799,7 @@ const hasSameClipLayout = (
 };
 
 export const normalizeTimelineClips = (clips: TimelineClip[]) =>
-  sortClipsByStart(clips);
+  sortClipsByStart(relayoutTrackInClipSet(clips, MAIN_VIDEO_TRACK_ID));
 
 const getTrackById = (tracks: TimelineTrack[], trackId: string) =>
   tracks.find((track) => track.id === trackId);
@@ -975,7 +954,6 @@ export const getRippleTrimmedClips = (
 
 export const getTrimmedTimelineClips = (
   clips: TimelineClip[],
-  tracks: TimelineTrack[],
   clipId: string,
   edge: 'start' | 'end',
   trimStart: number,
@@ -984,8 +962,7 @@ export const getTrimmedTimelineClips = (
   const targetClip = clips.find((clip) => clip.id === clipId);
   const shouldCompactMainTrack =
     targetClip?.type === 'video' &&
-    targetClip.trackId === MAIN_VIDEO_TRACK_ID &&
-    hasSingleMainVideoTrack(removeEmptyTimelineTracks(tracks, clips));
+    targetClip.trackId === MAIN_VIDEO_TRACK_ID;
   const trimmedClips = getRippleTrimmedClips(
     clips,
     clipId,
@@ -1066,12 +1043,7 @@ export const createTimelineStore = (
         targetClip,
         insertionIndex,
         requestedStart,
-        shouldCompactMainVideoTrackAfterDrop(
-          nextTracks,
-          state.clips,
-          clipId,
-          nextTargetTrackId,
-        ),
+        shouldCompactMainVideoTrackAfterDrop(nextTargetTrackId),
       );
       const nextTargetClipIds = new Set(
         insertionLayout.clips.map((clip) => clip.id),
@@ -1101,7 +1073,6 @@ export const createTimelineStore = (
 
       const nextClips = getTrimmedTimelineClips(
         state.clips,
-        state.tracks,
         clipId,
         edge,
         trimStart,
@@ -1144,7 +1115,6 @@ export const createTimelineStore = (
       ) => {
         const candidateClips = getTrimmedTimelineClips(
           nextClips,
-          state.tracks,
           clipId,
           edge,
           trimStart,

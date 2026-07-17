@@ -308,12 +308,7 @@ export const planClipDrop = (
         targetClip,
         insertionIndex,
         snapped.snappedStart,
-        shouldCompactMainVideoTrackAfterDrop(
-          tracks,
-          clips,
-          clip.id,
-          targetTrack.id,
-        ),
+        shouldCompactMainVideoTrackAfterDrop(targetTrack.id),
       )
     : {
         clips: [targetClip],

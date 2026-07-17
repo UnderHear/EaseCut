@@ -259,6 +259,41 @@ describe('timelineStore video track layout', () => {
     expect(draft.schemaVersion).toBe(4);
   });
 
+  it('compacts main-track gaps when restoring a saved composition draft', () => {
+    const clips = createFixtureClips();
+
+    timelineStore.getState().resetTimeline({
+      draft: {
+        canvasSize: { height: 720, width: 1280 },
+        clips: [
+          { ...clips[0], start: 2 },
+          { ...clips[1], start: 10 },
+          {
+            ...clips[2],
+            start: 7,
+            trackId: 'video-overlay-1',
+            zIndex: 0,
+          },
+        ],
+        schemaVersion: 4,
+        tracks: [
+          createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
+          createVideoTrack('video-overlay-1', '视频轨 2', 1),
+        ],
+      },
+    });
+
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+      ['clip-video-1', 0],
+      ['clip-video-2', 4],
+    ]);
+    expect(
+      getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
+        (clip) => [clip.id, clip.start],
+      ),
+    ).toEqual([['clip-video-3', 7]]);
+  });
+
   it('restores a schema v1 draft and fills missing clip transforms and track volume', () => {
     const legacyClip = { ...createFixtureClips()[0], transform: undefined };
 
@@ -307,7 +342,7 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().tracks[0]?.volume).toBe(1);
   });
 
-  it('keeps the gap after deleting the selected clip', () => {
+  it('compacts the main track after deleting the selected clip', () => {
     const state = timelineStore.getState();
 
     state.selectClip('clip-video-2');
@@ -315,7 +350,7 @@ describe('timelineStore video track layout', () => {
 
     expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-3', 9],
+      ['clip-video-3', 4],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -572,7 +607,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual(['clip-video-1', 'clip-video-2']);
   });
 
-  it('keeps main track gaps when another dynamic video track still has clips', () => {
+  it('compacts the main track when another dynamic video track still has clips', () => {
     const state = timelineStore.getState();
 
     state.commitClipDrop({
@@ -598,9 +633,14 @@ describe('timelineStore video track layout', () => {
       [MAIN_VIDEO_TRACK_ID, 'video-overlay-1'],
     );
     expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
-      ['clip-video-3', 9],
-      ['clip-video-1', 13],
+      ['clip-video-3', 0],
+      ['clip-video-1', 3.5],
     ]);
+    expect(
+      getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
+        (clip) => [clip.id, clip.start],
+      ),
+    ).toEqual([['clip-video-2', 7]]);
   });
 
   it('keeps the main video track after deleting every main-track clip', () => {
@@ -630,7 +670,7 @@ describe('timelineStore video track layout', () => {
     expectTrackClipsNotToOverlap();
   });
 
-  it('normalizes restored history after undo and redo', () => {
+  it('keeps the main track compact after undo and redo', () => {
     const state = timelineStore.getState();
 
     state.selectClip('clip-video-2');
@@ -641,7 +681,7 @@ describe('timelineStore video track layout', () => {
     state.redo();
     expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-3', 9],
+      ['clip-video-3', 4],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -1723,7 +1763,7 @@ describe('timelineStore video track layout', () => {
     expectTrackClipsNotToOverlap();
   });
 
-  it('keeps main track gaps after left trim when another video track exists', () => {
+  it('compacts the main track after left trim when another video track exists', () => {
     timelineStore.setState({
       clips: [
         ...createFixtureClips(),
@@ -1765,8 +1805,8 @@ describe('timelineStore video track layout', () => {
       getMainVideoClips().map((clip) => [clip.id, clip.start, clip.duration]),
     ).toEqual([
       ['clip-video-1', 0, 4],
-      ['clip-video-2', 5, 4],
-      ['clip-video-3', 9, 3.5],
+      ['clip-video-2', 4, 4],
+      ['clip-video-3', 8, 3.5],
     ]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
@@ -2119,8 +2159,8 @@ describe('timelineStore clip copy and paste', () => {
     ).toEqual([
       ['clip-video-1', 0, 0],
       ['clip-video-1-copy', 4, 1],
-      ['clip-video-2', 10, 2],
-      ['clip-video-3', 17, 3],
+      ['clip-video-2', 8, 2],
+      ['clip-video-3', 13, 3],
     ]);
     expect(timelineStore.getState().selectedClipId).toBe('clip-video-1-copy');
     expect(
