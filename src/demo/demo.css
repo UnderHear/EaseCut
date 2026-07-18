@@ -16,11 +16,6 @@ body,
   margin: 0;
 }
 
-button,
-input {
-  font: inherit;
-}
-
 .oc-demo {
   width: 100%;
   height: 100%;

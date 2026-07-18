@@ -24,6 +24,7 @@ import type {
   TimelineTrack,
 } from '../types';
 import { useMediaRuntime } from '../media';
+import { FloatingInspector } from './FloatingInspector';
 
 const PREVIEW_HANDLE_SIZE = 12;
 const PREVIEW_HANDLE_HIT_PADDING = 8;
@@ -853,6 +854,7 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
           </div>
         </div>
       </div>
+      <FloatingInspector />
     </section>
   );
 }
