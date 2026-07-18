@@ -151,13 +151,6 @@ describe('TimelineViewport DOM interactions', () => {
       tracks: [videoTrack, audioTrack],
     });
     vi.stubGlobal('ResizeObserver', undefined);
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      },
-    );
   });
 
   afterEach(() => {
@@ -525,6 +518,23 @@ describe('TimelineViewport DOM interactions', () => {
       DEFAULT_PIXELS_PER_SECOND + TIMELINE_ZOOM_STEP,
     );
     expect(viewport.scrollLeft).toBeCloseTo(24);
+  });
+
+  it('keeps a pointer-anchored playhead stable while zooming', () => {
+    testTimelineStore.setState({ currentTime: 2.4 });
+    const { viewport } = renderTimeline();
+    const playhead = document.querySelector('.oc-timeline-playhead');
+
+    expect(playhead).toHaveStyle({ left: '300px' });
+
+    fireEvent.wheel(viewport, {
+      clientX: 300,
+      ctrlKey: true,
+      deltaY: -40,
+    });
+
+    expect(viewport.scrollLeft).toBeCloseTo(24);
+    expect(playhead).toHaveStyle({ left: '300px' });
   });
 
   it('commits a same-track clip move on pointer release', () => {

@@ -55,7 +55,6 @@ export function TimelineViewport() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
-  const zoomFrameRef = useRef<number | null>(null);
   const pendingZoomRef = useRef<{
     pixelsPerSecond: number;
     scrollLeft: number;
@@ -158,8 +157,15 @@ export function TimelineViewport() {
   }, []);
 
   useLayoutEffect(() => {
+    const element = viewportRef.current;
+    const pendingZoom = pendingZoomRef.current;
+
+    if (element && pendingZoom?.pixelsPerSecond === pixelsPerSecond) {
+      element.scrollLeft = pendingZoom.scrollLeft;
+      pendingZoomRef.current = null;
+    }
     syncPlayheadHorizontalPosition();
-  }, [syncPlayheadHorizontalPosition]);
+  }, [pixelsPerSecond, syncPlayheadHorizontalPosition]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -211,15 +217,6 @@ export function TimelineViewport() {
           ),
         };
         state.setPixelsPerSecond(nextZoom);
-        if (zoomFrameRef.current !== null) {
-          cancelAnimationFrame(zoomFrameRef.current);
-        }
-        zoomFrameRef.current = requestAnimationFrame(() => {
-          const pending = pendingZoomRef.current;
-          if (pending) element.scrollLeft = pending.scrollLeft;
-          pendingZoomRef.current = null;
-          zoomFrameRef.current = null;
-        });
         return;
       }
 
@@ -232,11 +229,7 @@ export function TimelineViewport() {
     element.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       element.removeEventListener('wheel', handleWheel);
-      if (zoomFrameRef.current !== null) {
-        cancelAnimationFrame(zoomFrameRef.current);
-        zoomFrameRef.current = null;
-        pendingZoomRef.current = null;
-      }
+      pendingZoomRef.current = null;
     };
   }, [controller.isInteracting, store]);
 
