@@ -1,7 +1,22 @@
-import { useMemo, type CSSProperties, type PointerEvent } from 'react';
+import {
+  useMemo,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent,
+} from 'react';
+import * as ContextMenu from '@radix-ui/react-context-menu';
+import {
+  ClipboardPaste,
+  Copy,
+  Download,
+  SquareSplitHorizontal,
+  Trash2,
+} from 'lucide-react';
 
 import { useAudioWaveformSamples, useFramePreviewUrls } from '../media';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
+import { roundTimelineTime } from '../core/timeline-math';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
 import { formatTimelineTime } from '../util/format-timeline-time';
 
@@ -11,11 +26,18 @@ const WAVEFORM_AMPLITUDE = 44;
 const AUDIO_VOLUME_INSET = 8;
 
 export type TimelineClipViewProps = {
+  canPaste: boolean;
+  canSplitAt: (time: number) => boolean;
   clip: TimelineClip;
   isSelected: boolean;
   left: number;
+  onCopy: () => void;
+  onDelete: () => void;
+  onDownload: () => void | Promise<void>;
   onMoveStart: (event: PointerEvent<HTMLElement>, clip: TimelineClip) => void;
+  onPaste: () => void;
   onSelect: (clipId: string) => void;
+  onSplit: (time: number) => void;
   onTrimStart: (
     event: PointerEvent<HTMLElement>,
     clip: TimelineClip,
@@ -147,16 +169,24 @@ function TimelineClipVisual({
 }
 
 export function TimelineClipView({
+  canPaste,
+  canSplitAt,
   clip,
   isSelected,
   left,
+  onCopy,
+  onDelete,
+  onDownload,
   onMoveStart,
+  onPaste,
   onSelect,
+  onSplit,
   onTrimStart,
   onVolumeStart,
   trackVolume,
   width,
 }: TimelineClipViewProps) {
+  const [contextMenuTime, setContextMenuTime] = useState(clip.start);
   const { previews, volume, waveformPath } = useTimelineClipPresentation(
     clip,
     width,
@@ -180,56 +210,122 @@ export function TimelineClipView({
     edge === 'start'
       ? clip.trimStart > 0
       : clip.trimEnd < clip.sourceDuration;
+  const handleContextMenu = (event: MouseEvent<HTMLElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pointerRatio =
+      bounds.width > 0
+        ? Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width))
+        : 0;
+    setContextMenuTime(
+      roundTimelineTime(clip.start + clip.duration * pointerRatio),
+    );
+    onSelect(clip.id);
+  };
 
   return (
-    <article
-      aria-label={`${clip.type} clip: ${clip.name}`}
-      className='oc-timeline-clip'
-      data-clip-id={clip.id}
-      data-selected={isSelected}
-      data-type={clip.type}
-      onClick={(event) => event.stopPropagation()}
-      onPointerDown={(event) => {
-        event.stopPropagation();
-        if (event.button !== 0) return;
-        onSelect(clip.id);
-        onMoveStart(event, clip);
-      }}
-      style={style}
-    >
-      <TimelineClipVisual
-        clip={clip}
-        previews={previews}
-        waveformPath={waveformPath}
-      />
-
-      {clip.type === 'audio' && (
-        <button
-          aria-label={`Adjust ${clip.name} volume, ${Math.round(volume * 100)} percent`}
-          className='oc-timeline-clip__volume'
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <article
+          aria-label={`${clip.type} clip: ${clip.name}`}
+          className='oc-timeline-clip'
+          data-clip-id={clip.id}
+          data-selected={isSelected}
+          data-type={clip.type}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={handleContextMenu}
           onPointerDown={(event) => {
             event.stopPropagation();
-            if (event.button === 0) onVolumeStart(event, clip.trackId);
+            if (event.button !== 0) return;
+            onSelect(clip.id);
+            onMoveStart(event, clip);
           }}
-          type='button'
+          style={style}
         >
-          <span className='oc-timeline-clip__volume-line' />
-        </button>
-      )}
-
-      {isSelected &&
-        (['start', 'end'] as const).map((edge) => (
-          <button
-            aria-label={`Trim ${edge} of ${clip.name}`}
-            className='oc-timeline-clip__trim-handle'
-            data-edge={edge}
-            data-trimmed={isTrimmedAt(edge)}
-            key={edge}
-            onPointerDown={startTrim(edge)}
-            type='button'
+          <TimelineClipVisual
+            clip={clip}
+            previews={previews}
+            waveformPath={waveformPath}
           />
-        ))}
-    </article>
+
+          {clip.type === 'audio' && (
+            <button
+              aria-label={`Adjust ${clip.name} volume, ${Math.round(volume * 100)} percent`}
+              className='oc-timeline-clip__volume'
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                if (event.button === 0) onVolumeStart(event, clip.trackId);
+              }}
+              type='button'
+            >
+              <span className='oc-timeline-clip__volume-line' />
+            </button>
+          )}
+
+          {isSelected &&
+            (['start', 'end'] as const).map((edge) => (
+              <button
+                aria-label={`Trim ${edge} of ${clip.name}`}
+                className='oc-timeline-clip__trim-handle'
+                data-edge={edge}
+                data-trimmed={isTrimmedAt(edge)}
+                key={edge}
+                onPointerDown={startTrim(edge)}
+                type='button'
+              />
+            ))}
+        </article>
+      </ContextMenu.Trigger>
+
+      <ContextMenu.Portal>
+        <ContextMenu.Content
+          aria-label={`${clip.name} 操作菜单`}
+          className='oc-clip-context-menu'
+          collisionPadding={8}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <ContextMenu.Item
+            className='oc-clip-context-menu__item'
+            disabled={!canSplitAt(contextMenuTime)}
+            onSelect={() => onSplit(contextMenuTime)}
+          >
+            <SquareSplitHorizontal aria-hidden='true' />
+            <span>分割</span>
+          </ContextMenu.Item>
+          <ContextMenu.Separator className='oc-clip-context-menu__separator' />
+          <ContextMenu.Item
+            className='oc-clip-context-menu__item'
+            onSelect={onCopy}
+          >
+            <Copy aria-hidden='true' />
+            <span>复制</span>
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className='oc-clip-context-menu__item'
+            disabled={!canPaste}
+            onSelect={onPaste}
+          >
+            <ClipboardPaste aria-hidden='true' />
+            <span>粘贴</span>
+          </ContextMenu.Item>
+          <ContextMenu.Separator className='oc-clip-context-menu__separator' />
+          <ContextMenu.Item
+            className='oc-clip-context-menu__item'
+            onSelect={() => void onDownload()}
+          >
+            <Download aria-hidden='true' />
+            <span>下载原始素材</span>
+          </ContextMenu.Item>
+          <ContextMenu.Separator className='oc-clip-context-menu__separator' />
+          <ContextMenu.Item
+            className='oc-clip-context-menu__item oc-clip-context-menu__item--danger'
+            onSelect={onDelete}
+          >
+            <Trash2 aria-hidden='true' />
+            <span>删除</span>
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   );
 }
 

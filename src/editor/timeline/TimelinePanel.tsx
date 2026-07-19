@@ -1,17 +1,19 @@
 import { TimelineToolbar } from '../components/TimelineToolbar';
-import type { TimelineClipTimingPreview } from '../types';
+import type { TimelineClip, TimelineClipTimingPreview } from '../types';
 import { TimelineViewport } from './TimelineViewport';
 
 type TimelinePanelProps = {
   onClipTimingPreviewChange?: (
     preview: TimelineClipTimingPreview | null,
   ) => void;
+  onDownloadClip: (clip: TimelineClip) => void | Promise<void>;
   onRequestImport?: () => void;
   onRequestPreviewFullscreen: () => void;
 };
 
 export function TimelinePanel({
   onClipTimingPreviewChange,
+  onDownloadClip,
   onRequestImport,
   onRequestPreviewFullscreen,
 }: TimelinePanelProps) {
@@ -23,6 +25,7 @@ export function TimelinePanel({
       />
       <TimelineViewport
         onClipTimingPreviewChange={onClipTimingPreviewChange}
+        onDownloadClip={onDownloadClip}
       />
     </section>
   );

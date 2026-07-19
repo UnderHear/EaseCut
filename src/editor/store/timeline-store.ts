@@ -136,6 +136,7 @@ export type TimelineActions = {
     volume: number,
   ) => void;
   splitAtPlayhead: () => void;
+  splitClipAtTime: (clipId: string, time: number) => void;
   toggleCanvasSnapping: () => void;
   toggleSnapping: () => void;
   toggleTrackMute: (trackId: string) => void;
@@ -1389,35 +1390,44 @@ export const createTimelineStore = (
 
       if (!clipAtPlayhead) return;
 
-      const splitOffset = roundTimelineTime(
-        state.currentTime - clipAtPlayhead.start,
-      );
-      const rightDuration = roundTimelineTime(
-        clipAtPlayhead.duration - splitOffset,
-      );
+      get().splitClipAtTime(clipAtPlayhead.id, state.currentTime);
+    },
+
+    splitClipAtTime: (clipId, time) => {
+      const state = get();
+      const clipAtTime = state.clips.find((clip) => clip.id === clipId);
+      const splitTime = roundTimelineTime(time);
 
       if (
-        !canSplitClipAtTime(state.clips, state.currentTime, clipAtPlayhead.id)
+        !clipAtTime ||
+        splitTime <= clipAtTime.start ||
+        splitTime >= clipAtTime.start + clipAtTime.duration ||
+        !canSplitClipAtTime(state.clips, splitTime, clipAtTime.id)
       ) {
         return;
       }
 
+      const splitOffset = roundTimelineTime(splitTime - clipAtTime.start);
+      const rightDuration = roundTimelineTime(
+        clipAtTime.duration - splitOffset,
+      );
+
       const leftClip: TimelineClip = {
-        ...clipAtPlayhead,
+        ...clipAtTime,
         duration: splitOffset,
-        trimEnd: roundTimelineTime(clipAtPlayhead.trimStart + splitOffset),
+        trimEnd: roundTimelineTime(clipAtTime.trimStart + splitOffset),
       };
       const rightClip: TimelineClip = {
-        ...clipAtPlayhead,
-        id: `${clipAtPlayhead.id}-split-${Date.now().toString(36)}`,
-        start: roundTimelineTime(state.currentTime),
+        ...clipAtTime,
+        id: `${clipAtTime.id}-split-${Date.now().toString(36)}`,
+        start: splitTime,
         duration: rightDuration,
-        trimStart: roundTimelineTime(clipAtPlayhead.trimStart + splitOffset),
-        zIndex: clipAtPlayhead.zIndex + 1,
+        trimStart: roundTimelineTime(clipAtTime.trimStart + splitOffset),
+        zIndex: clipAtTime.zIndex + 1,
       };
       const nextClips = sortClipsByStart(
         state.clips.flatMap((clip) =>
-          clip.id === clipAtPlayhead.id ? [leftClip, rightClip] : [clip],
+          clip.id === clipAtTime.id ? [leftClip, rightClip] : [clip],
         ),
       );
 

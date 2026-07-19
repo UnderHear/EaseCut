@@ -23,6 +23,7 @@ import {
 } from './store/timeline-store-context';
 import type {
   CompositionExportPayload,
+  TimelineClip,
   TimelineClipTimingPreview,
   VideoTimelineDraft,
   VideoTimelineEditorProps,
@@ -97,10 +98,7 @@ const shouldIgnoreShortcutTarget = (target: EventTarget | null) => {
   );
 };
 
-const downloadJson = (fileName: string, payload: unknown) => {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: 'application/json;charset=utf-8',
-  });
+const downloadBlob = (fileName: string, blob: Blob) => {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.download = fileName;
@@ -109,6 +107,15 @@ const downloadJson = (fileName: string, payload: unknown) => {
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+const downloadJson = (fileName: string, payload: unknown) => {
+  downloadBlob(
+    fileName,
+    new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json;charset=utf-8',
+    }),
+  );
 };
 
 export function VideoTimelineEditor({
@@ -424,6 +431,19 @@ function VideoTimelineEditorView({
     payload: store.getState().createExportPayload(),
   });
 
+  const downloadOriginalClip = async (clip: TimelineClip) => {
+    try {
+      const blob = await runtime.getBlob(clip.src);
+      downloadBlob(clip.name, blob);
+    } catch (error) {
+      setMediaError(
+        error instanceof Error
+          ? `素材下载失败：${error.message}`
+          : '素材下载失败，请稍后重试。',
+      );
+    }
+  };
+
   const submitExport = async () => {
     if (!onExport || isExporting) return;
 
@@ -469,7 +489,7 @@ function VideoTimelineEditorView({
           if (!(event.target instanceof HTMLElement)) return;
           if (
             !event.target.closest(
-              'button, input, select, textarea, summary, a[href], [role="dialog"]',
+              'button, input, select, textarea, summary, a[href], [role="dialog"], [role="menu"]',
             )
           ) {
             rootRef.current?.focus({ preventScroll: true });
@@ -523,6 +543,7 @@ function VideoTimelineEditorView({
 
         <TimelinePanel
           onClipTimingPreviewChange={setClipTimingPreview}
+          onDownloadClip={downloadOriginalClip}
           onRequestImport={onImportMedia ? openImportDialog : undefined}
           onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
         />

@@ -10,6 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  TimelineClip,
   VideoTimelineDraft,
   VideoTimelineExportRequest,
   VideoTimelineImportRequest,
@@ -28,9 +29,11 @@ vi.mock('./timeline/TimelinePanel', async () => {
 
   return {
     TimelinePanel: ({
+      onDownloadClip,
       onRequestImport,
       onRequestPreviewFullscreen,
     }: {
+      onDownloadClip: (clip: TimelineClip) => void | Promise<void>;
       onRequestImport?: () => void;
       onRequestPreviewFullscreen: () => void;
     }) => {
@@ -75,6 +78,14 @@ vi.mock('./timeline/TimelinePanel', async () => {
               disabled={!firstClip}
               onClick={() => {
                 if (firstClip) toggleTrackMute(firstClip.trackId);
+              }}
+              type='button'
+            />
+            <button
+              aria-label='测试：下载首个片段原始素材'
+              disabled={!firstClip}
+              onClick={() => {
+                if (firstClip) void onDownloadClip(firstClip);
               }}
               type='button'
             />
@@ -392,6 +403,67 @@ describe('VideoTimelineEditor', () => {
       }),
     ]);
     expect(revokeObjectUrl).toHaveBeenCalledWith('blob:composition-json');
+  });
+
+  it('downloads a clip original blob with its clip name', async () => {
+    const user = userEvent.setup();
+    const sourceBlob = new Blob(['original-video'], { type: 'video/mp4' });
+    const loadBlob = vi.fn().mockResolvedValue(sourceBlob);
+    let downloadedFileName = '';
+    const createObjectUrl = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:clip-original');
+    const revokeObjectUrl = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(
+      function captureDownload(this: HTMLAnchorElement) {
+        downloadedFileName = this.download;
+      },
+    );
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob }}
+        sources={[videoSource]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '测试：下载首个片段原始素材',
+      }),
+    );
+
+    await waitFor(() => expect(downloadedFileName).toBe(videoSource.fileName));
+    expect(loadBlob).toHaveBeenCalledWith(videoSource.src, {
+      signal: expect.any(AbortSignal),
+      source: videoSource,
+    });
+    expect(createObjectUrl).toHaveBeenCalledWith(sourceBlob);
+    await waitFor(() =>
+      expect(revokeObjectUrl).toHaveBeenCalledWith('blob:clip-original'),
+    );
+  });
+
+  it('shows a media toast when downloading a clip original fails', async () => {
+    const user = userEvent.setup();
+    const loadBlob = vi.fn().mockRejectedValue(new Error('无权访问素材'));
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob }}
+        sources={[videoSource]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: '测试：下载首个片段原始素材',
+      }),
+    );
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '素材下载失败：无权访问素材',
+    );
   });
 
   it('fills a missing audio duration through the injected metadata loader', async () => {

@@ -670,6 +670,36 @@ describe('timelineStore video track layout', () => {
     expectTrackClipsNotToOverlap();
   });
 
+  it('splits a specific clip at an explicit time without moving the playhead', () => {
+    const state = timelineStore.getState();
+
+    state.setCurrentTime(1);
+    state.splitClipAtTime('clip-video-2', 6);
+
+    expect(timelineStore.getState().currentTime).toBe(1);
+    expect(getMainVideoClips().map((clip) => [clip.start, clip.duration])).toEqual(
+      [
+        [0, 4],
+        [4, 2],
+        [6, 3],
+        [9, 3.5],
+      ],
+    );
+    expect(timelineStore.getState().selectedClipId).toMatch(
+      /^clip-video-2-split-/,
+    );
+    expectTrackClipsNotToOverlap();
+  });
+
+  it('does not split a specific clip inside its minimum edge duration', () => {
+    const state = timelineStore.getState();
+
+    state.splitClipAtTime('clip-video-2', 4.5);
+
+    expect(getMainVideoClips()).toHaveLength(3);
+    expect(timelineStore.getState().past).toHaveLength(0);
+  });
+
   it('keeps the main track compact after undo and redo', () => {
     const state = timelineStore.getState();
 

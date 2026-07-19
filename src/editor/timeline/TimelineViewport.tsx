@@ -26,11 +26,12 @@ import {
   durationToWidth,
   timeToX,
 } from '../core/timeline-math';
+import { canSplitClipAtTime } from '../store/timeline-store';
 import {
   useTimelineStore,
   useTimelineStoreApi,
 } from '../store/timeline-store-context';
-import type { TimelineClipTimingPreview } from '../types';
+import type { TimelineClip, TimelineClipTimingPreview } from '../types';
 import {
   TimelineClipDragOverlay,
   TimelineClipView,
@@ -45,12 +46,15 @@ type TimelineViewportProps = {
   onClipTimingPreviewChange?: (
     preview: TimelineClipTimingPreview | null,
   ) => void;
+  onDownloadClip?: (clip: TimelineClip) => void | Promise<void>;
 };
 
 export function TimelineViewport({
   onClipTimingPreviewChange,
+  onDownloadClip,
 }: TimelineViewportProps) {
   const clips = useTimelineStore((state) => state.clips);
+  const copiedClip = useTimelineStore((state) => state.copiedClip);
   const currentTime = useTimelineStore((state) => state.currentTime);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
@@ -373,6 +377,12 @@ export function TimelineViewport({
                     )}
                     {trackClips.map((clip) => (
                       <TimelineClipView
+                        canPaste={Boolean(
+                          copiedClip && copiedClip.type === clip.type,
+                        )}
+                        canSplitAt={(time) =>
+                          canSplitClipAtTime(clips, time, clip.id)
+                        }
                         clip={clip}
                         isSelected={selectedClipId === clip.id}
                         key={clip.id}
@@ -381,7 +391,14 @@ export function TimelineViewport({
                           timeToX(clip.start, pixelsPerSecond)
                         }
                         onMoveStart={controller.beginMove}
+                        onCopy={() => store.getState().copySelectedClip()}
+                        onDelete={() => store.getState().deleteSelectedClip()}
+                        onDownload={() => onDownloadClip?.(clip)}
+                        onPaste={() => store.getState().pasteCopiedClip()}
                         onSelect={selectClip}
+                        onSplit={(time) =>
+                          store.getState().splitClipAtTime(clip.id, time)
+                        }
                         onTrimStart={controller.beginTrim}
                         onVolumeStart={controller.beginVolume}
                         trackVolume={track.volume}
