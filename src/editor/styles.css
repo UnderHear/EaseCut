@@ -280,11 +280,17 @@
   z-index: 10;
   top: 8px;
   right: 8px;
-  display: flex;
-  width: min(360px, calc(100% - 16px));
+  display: grid;
+  width: min(340px, calc(100% - 16px));
   height: min(660px, calc(100% - 16px));
+  grid-template-columns: minmax(0, 1fr) 62px;
   gap: 6px;
   color: var(--oc-text);
+}
+
+.oc-floating-inspector[data-panel-open='false'] {
+  grid-template-columns: 62px;
+  width: 62px;
 }
 
 .oc-floating-inspector__panel,
@@ -298,10 +304,13 @@
 .oc-floating-inspector__panel {
   display: flex;
   min-width: 0;
-  flex: 1;
   flex-direction: column;
   overflow: hidden;
   border-radius: 10px;
+}
+
+.oc-floating-inspector__panel[hidden] {
+  display: none;
 }
 
 .oc-floating-inspector__header {
@@ -342,12 +351,28 @@
   font-size: 18px;
 }
 
-.oc-floating-inspector__header > svg,
-.oc-floating-inspector__section-heading > svg,
-.oc-floating-inspector__option-row > svg,
-.oc-floating-inspector__value-row > svg {
+.oc-floating-inspector__close {
   flex: 0 0 auto;
   color: #9ca3af;
+}
+
+.oc-floating-inspector__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.oc-floating-inspector__close:hover {
+  color: var(--oc-text);
+  background: var(--oc-panel-hover);
 }
 
 .oc-floating-inspector__body {
@@ -361,169 +386,73 @@
   padding: 18px 0;
 }
 
-.oc-floating-inspector__section-heading {
+.oc-floating-inspector__details {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.oc-floating-inspector__option-row {
-  display: flex;
-  min-height: 46px;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.oc-floating-inspector__option-row--plain {
-  justify-content: space-between;
-  margin-top: 0;
-}
-
-.oc-floating-inspector__option-row--plain > span {
-  display: flex;
-  min-width: 0;
   flex-direction: column;
-  gap: 3px;
+  gap: 10px;
+  margin: 14px 0 0;
 }
 
-.oc-floating-inspector__option-row strong {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 15px;
-  font-weight: 650;
+.oc-floating-inspector__details > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
 }
 
-.oc-floating-inspector__option-row small,
-.oc-floating-inspector__muted,
-.oc-floating-inspector__field > span:first-child {
+.oc-floating-inspector__details dt,
+.oc-floating-inspector__number-field > span:first-child {
   color: var(--oc-text-muted);
   font-size: 13px;
 }
 
-.oc-floating-inspector__option-icon {
-  display: inline-flex;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  color: #9ca3af;
-  background: #303030;
-}
-
-.oc-floating-inspector__muted {
-  flex: 1;
-}
-
-.oc-floating-inspector__status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fb7185;
-}
-
-.oc-floating-inspector__field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 12px;
-}
-
-.oc-floating-inspector__select {
-  display: flex;
-  height: 40px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
-  border-radius: 9px;
-  color: var(--oc-text);
-  background: #303030;
-  font-size: 14px;
-}
-
-.oc-floating-inspector__value-row {
-  display: grid;
-  grid-template-columns: minmax(80px, 1fr) 82px 18px;
-  align-items: center;
-  gap: 10px;
-}
-
-.oc-floating-inspector__value-row input[type='range'] {
-  width: 100%;
-  height: 16px;
+.oc-floating-inspector__details dd {
+  overflow: hidden;
   margin: 0;
-  appearance: none;
-  opacity: 1;
-  background: transparent;
-}
-
-.oc-floating-inspector__value-row input[type='range']::-webkit-slider-runnable-track {
-  height: 2px;
-  border-radius: 999px;
-  background: #78828f;
-}
-
-.oc-floating-inspector__value-row input[type='range']::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  margin-top: -6px;
-  appearance: none;
-  border: 1px solid #9ca3af;
-  border-radius: 50%;
-  background: #f5f5f5;
-}
-
-.oc-floating-inspector__value-row input[type='range']::-moz-range-track {
-  height: 2px;
-  border-radius: 999px;
-  background: #78828f;
-}
-
-.oc-floating-inspector__value-row input[type='range']::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 1px solid #9ca3af;
-  border-radius: 50%;
-  background: #f5f5f5;
-}
-
-.oc-floating-inspector__value-row output,
-.oc-floating-inspector__position-row output {
-  display: flex;
-  height: 40px;
-  align-items: center;
-  padding: 0 12px;
-  border-radius: 9px;
   color: #d4d4d4;
-  background: #303030;
-  font-size: 14px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.oc-floating-inspector__position-row {
+.oc-floating-inspector__details .oc-floating-inspector__detail-value--wrap {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.oc-floating-inspector__number-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px 10px;
+  margin-top: 14px;
+}
+
+.oc-floating-inspector__number-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.oc-floating-inspector__number-grid .oc-floating-inspector__number-field {
+  margin-top: 0;
 }
 
 .oc-floating-inspector__rail {
   display: flex;
-  width: 62px;
-  flex: 0 0 62px;
   align-self: flex-start;
   flex-direction: column;
-  gap: 2px;
+  gap: 5px;
   padding: 5px;
   border-radius: 10px;
 }
 
 .oc-floating-inspector__rail-item {
   display: flex;
-  height: 63px;
+  height: 60px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -536,7 +465,15 @@
   cursor: pointer;
   font-size: 11px;
   line-height: 1.4;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
   white-space: nowrap;
+}
+
+.oc-floating-inspector__rail-item:hover:not(.oc-is-active) {
+  color: var(--oc-text);
+  background: var(--oc-panel-hover);
 }
 
 .oc-floating-inspector__rail-item.oc-is-active {
@@ -1198,7 +1135,10 @@
 }
 
 .oc-timeline-clip__name {
-  display: inline-block;
+  display: flex;
+  position: absolute;
+  top: 2px;
+  left: 5px;
   max-width: 100%;
   overflow: hidden;
   font-size: 11px;

@@ -30,6 +30,7 @@ import {
   useTimelineStore,
   useTimelineStoreApi,
 } from '../store/timeline-store-context';
+import type { TimelineClipTimingPreview } from '../types';
 import {
   TimelineClipDragOverlay,
   TimelineClipView,
@@ -40,7 +41,15 @@ import { getTimelineContentDuration } from './timeline-interaction';
 import { useTimelineController } from './useTimelineController';
 import { getVideoGaps } from './video-gaps';
 
-export function TimelineViewport() {
+type TimelineViewportProps = {
+  onClipTimingPreviewChange?: (
+    preview: TimelineClipTimingPreview | null,
+  ) => void;
+};
+
+export function TimelineViewport({
+  onClipTimingPreviewChange,
+}: TimelineViewportProps) {
   const clips = useTimelineStore((state) => state.clips);
   const currentTime = useTimelineStore((state) => state.currentTime);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
@@ -63,7 +72,10 @@ export function TimelineViewport() {
     () => getTimelineTrackLayouts(tracks),
     [tracks],
   );
-  const controller = useTimelineController({ gridRef });
+  const controller = useTimelineController({
+    gridRef,
+    onClipTimingPreviewChange,
+  });
   const { displayClips } = controller;
   const dropPreview = controller.dropPreview;
   const draggedClip = dropPreview
