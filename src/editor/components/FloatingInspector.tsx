@@ -4,17 +4,15 @@ import {
   Ban,
   ChevronDown,
   ChevronRight,
-  CircleDashed,
   Diamond,
   Film,
   Gauge,
   Image,
   RotateCcw,
-  WandSparkles,
   X,
 } from 'lucide-react';
 
-type InspectorSection = 'basic' | 'background' | 'smart' | 'animation' | 'speed';
+type InspectorSection = 'basic' | 'background' | 'speed';
 
 export function FloatingInspector() {
   const [activeSection, setActiveSection] =
@@ -23,8 +21,6 @@ export function FloatingInspector() {
   const sectionTitle = {
     basic: '基本',
     background: '背景',
-    smart: '智能工具',
-    animation: '动画',
     speed: '变速',
   }[activeSection];
 
@@ -172,24 +168,6 @@ export function FloatingInspector() {
         >
           <Image aria-hidden='true' size={20} />
           <span>背景</span>
-        </button>
-        <button
-          aria-current={activeSection === 'smart' ? 'page' : undefined}
-          className={`oc-floating-inspector__rail-item${activeSection === 'smart' ? ' oc-is-active' : ''}`}
-          onClick={() => setActiveSection('smart')}
-          type='button'
-        >
-          <WandSparkles aria-hidden='true' size={20} />
-          <span>智能工具</span>
-        </button>
-        <button
-          aria-current={activeSection === 'animation' ? 'page' : undefined}
-          className={`oc-floating-inspector__rail-item${activeSection === 'animation' ? ' oc-is-active' : ''}`}
-          onClick={() => setActiveSection('animation')}
-          type='button'
-        >
-          <CircleDashed aria-hidden='true' size={20} />
-          <span>动画</span>
         </button>
         <button
           aria-current={activeSection === 'speed' ? 'page' : undefined}

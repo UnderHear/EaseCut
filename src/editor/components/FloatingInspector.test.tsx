@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
@@ -13,7 +13,13 @@ describe('FloatingInspector', () => {
       screen.getByRole('complementary', { name: '基础属性面板' }),
     ).toBeVisible();
     expect(screen.getByRole('heading', { name: '基本' })).toBeVisible();
-    expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
+    const rail = screen.getByRole('navigation', { name: '属性分类' });
+    expect(rail).toBeVisible();
+    expect(
+      within(rail)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['基本', '背景', '变速']);
     expect(screen.getByText('蒙版')).toBeVisible();
     expect(screen.getByText('颜色调整')).toBeVisible();
     expect(screen.getByText('混合')).toBeVisible();
@@ -40,7 +46,7 @@ describe('FloatingInspector', () => {
     const { container } = renderWithEditorProviders(<FloatingInspector />);
     const main = container.querySelector('.oc-floating-inspector__main');
 
-    for (const sectionName of ['背景', '智能工具', '动画', '变速']) {
+    for (const sectionName of ['背景', '变速']) {
       const sectionButton = screen.getByRole('button', {
         name: sectionName,
       });
