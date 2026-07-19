@@ -454,7 +454,7 @@ export function TimelineViewport({
       >
         <div
           className='oc-timeline-playhead'
-          onPointerDown={controller.beginScrub}
+          onPointerDown={controller.beginPlayheadScrub}
           ref={playheadRef}
           style={{ left: playheadLeft }}
         >

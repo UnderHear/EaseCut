@@ -356,7 +356,10 @@ export function useTimelineController({
     });
   };
 
-  const beginScrub = (event: ReactPointerEvent<HTMLElement>) => {
+  const beginScrub = (
+    event: ReactPointerEvent<HTMLElement>,
+    preserveSelection = false,
+  ) => {
     if (event.button !== 0) return;
     lastCompletedClipClickRef.current = null;
     const point = getContentPoint(
@@ -368,7 +371,7 @@ export function useTimelineController({
 
     event.preventDefault();
     store.getState().setIsPlaying(false);
-    store.getState().selectClip(null);
+    if (!preserveSelection) store.getState().selectClip(null);
     const snapCandidates = getClipSnapCandidates(clips);
     const candidate = xToTime(point.x, pixelsPerSecond);
     const snapped = snappingEnabled
@@ -388,6 +391,10 @@ export function useTimelineController({
       snapCandidates,
       snappingEnabled,
     });
+  };
+
+  const beginPlayheadScrub = (event: ReactPointerEvent<HTMLElement>) => {
+    beginScrub(event, true);
   };
 
   const beginVolume = (
@@ -420,6 +427,7 @@ export function useTimelineController({
 
   return {
     beginMove,
+    beginPlayheadScrub,
     beginScrub,
     beginTrim,
     beginVolume,

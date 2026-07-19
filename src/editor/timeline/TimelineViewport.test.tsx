@@ -440,6 +440,7 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 1,
     });
     expect(testTimelineStore.getState().currentTime).toBe(2.5);
+    expect(testTimelineStore.getState().selectedClipId).toBeNull();
     expect(screen.getByLabelText('时间线轨道区域')).toHaveAttribute(
       'data-scrubbing',
       'true',
@@ -473,6 +474,28 @@ describe('TimelineViewport DOM interactions', () => {
       'oc-timeline-playhead__handle',
     );
     expect(playhead?.children[1]).toHaveClass('oc-timeline-playhead__line');
+  });
+
+  it('keeps the selected clip while scrubbing from the playhead', () => {
+    renderTimeline();
+
+    const playhead = document.querySelector('.oc-timeline-playhead');
+    expect(playhead).not.toBeNull();
+
+    fireEvent.pointerDown(playhead as Element, {
+      button: 0,
+      clientX: 108,
+      clientY: 10,
+      pointerId: 3,
+    });
+
+    expect(testTimelineStore.getState().selectedClipId).toBe(videoClip.id);
+
+    fireEvent.pointerUp(window, {
+      clientX: 108,
+      clientY: 10,
+      pointerId: 3,
+    });
   });
 
   it('keeps the playhead in the viewport overlay while syncing only horizontal scroll', () => {
