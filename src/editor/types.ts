@@ -166,6 +166,11 @@ export type TimelineClipTransform = VideoTimelineClipTransform;
 export type TimelineClip = VideoTimelineClip;
 export type TimelineClipDraft = VideoTimelineClipDraft;
 export type TimelineCanvasSize = VideoTimelineCanvasSize;
+export type TimelineClipTimingPreview = {
+  clipId: string;
+  duration: number;
+  start: number;
+};
 export type TimelineSnapshot = {
   clips: TimelineClip[];
   selectedClipId: string | null;

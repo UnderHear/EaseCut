@@ -20,10 +20,12 @@ import { useTimelineStore } from '../store/timeline-store-context';
 import type {
   TimelineCanvasSize,
   TimelineClip,
+  TimelineClipTimingPreview,
   TimelineClipTransform,
   TimelineTrack,
 } from '../types';
 import { useMediaRuntime } from '../media';
+import { FloatingInspector } from './FloatingInspector';
 
 const PREVIEW_HANDLE_SIZE = 12;
 const PREVIEW_HANDLE_HIT_PADDING = 8;
@@ -53,6 +55,7 @@ type PreviewInteractionState = {
 type PreviewCursor = 'default' | 'move' | 'nesw-resize' | 'nwse-resize';
 
 type PreviewPanelProps = {
+  clipTimingPreview?: TimelineClipTimingPreview | null;
   previewRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -344,7 +347,10 @@ const drawPreviewGuides = (
   context.restore();
 };
 
-export function PreviewPanel({ previewRef }: PreviewPanelProps) {
+export function PreviewPanel({
+  clipTimingPreview = null,
+  previewRef,
+}: PreviewPanelProps) {
   const canvasSnappingEnabled = useTimelineStore(
     (state) => state.canvasSnappingEnabled,
   );
@@ -367,6 +373,10 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
   const [previewObjectUrls, setPreviewObjectUrls] = useState<
     Record<string, string>
   >({});
+  const [liveTransform, setLiveTransform] = useState<{
+    clipId: string;
+    transform: TimelineClipTransform;
+  } | null>(null);
   const [previewContainerSize, setPreviewContainerSize] =
     useState<TimelineCanvasSize | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -702,6 +712,10 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
       mode,
       transform: targetClip.transform,
     };
+    setLiveTransform({
+      clipId: targetClip.id,
+      transform: targetClip.transform,
+    });
     drawPreview(interactionRef.current);
   };
 
@@ -759,6 +773,7 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
       guides,
       transform,
     };
+    setLiveTransform({ clipId: interaction.clipId, transform });
     drawPreview(interactionRef.current);
   };
 
@@ -781,6 +796,7 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
       clipId: interaction.clipId,
       transform: interaction.transform,
     });
+    setLiveTransform(null);
   };
 
   const cancelPreviewInteraction = (
@@ -791,6 +807,7 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
     event.preventDefault();
     event.currentTarget.releasePointerCapture(event.pointerId);
     interactionRef.current = null;
+    setLiveTransform(null);
     event.currentTarget.style.cursor = 'default';
     drawPreview();
   };
@@ -853,6 +870,13 @@ export function PreviewPanel({ previewRef }: PreviewPanelProps) {
           </div>
         </div>
       </div>
+      {selectedClipId !== null && (
+        <FloatingInspector
+          key={selectedClipId}
+          previewTiming={clipTimingPreview}
+          previewTransform={liveTransform}
+        />
+      )}
     </section>
   );
 }

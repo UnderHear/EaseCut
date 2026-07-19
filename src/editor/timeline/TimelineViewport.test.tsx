@@ -102,8 +102,10 @@ const createRect = ({
     y: top,
   }) as DOMRect;
 
-const renderTimeline = () => {
-  const result = renderWithEditorProviders(<TimelineViewport />);
+const renderTimeline = (
+  props: Parameters<typeof TimelineViewport>[0] = {},
+) => {
+  const result = renderWithEditorProviders(<TimelineViewport {...props} />);
   const viewport = screen.getByLabelText('时间线轨道区域');
   const grid = viewport.firstElementChild as HTMLDivElement;
 
@@ -438,6 +440,7 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 1,
     });
     expect(testTimelineStore.getState().currentTime).toBe(2.5);
+    expect(testTimelineStore.getState().selectedClipId).toBeNull();
     expect(screen.getByLabelText('时间线轨道区域')).toHaveAttribute(
       'data-scrubbing',
       'true',
@@ -471,6 +474,28 @@ describe('TimelineViewport DOM interactions', () => {
       'oc-timeline-playhead__handle',
     );
     expect(playhead?.children[1]).toHaveClass('oc-timeline-playhead__line');
+  });
+
+  it('keeps the selected clip while scrubbing from the playhead', () => {
+    renderTimeline();
+
+    const playhead = document.querySelector('.oc-timeline-playhead');
+    expect(playhead).not.toBeNull();
+
+    fireEvent.pointerDown(playhead as Element, {
+      button: 0,
+      clientX: 108,
+      clientY: 10,
+      pointerId: 3,
+    });
+
+    expect(testTimelineStore.getState().selectedClipId).toBe(videoClip.id);
+
+    fireEvent.pointerUp(window, {
+      clientX: 108,
+      clientY: 10,
+      pointerId: 3,
+    });
   });
 
   it('keeps the playhead in the viewport overlay while syncing only horizontal scroll', () => {
@@ -538,7 +563,8 @@ describe('TimelineViewport DOM interactions', () => {
   });
 
   it('commits a same-track clip move on pointer release', () => {
-    const { viewport } = renderTimeline();
+    const onClipTimingPreviewChange = vi.fn();
+    const { viewport } = renderTimeline({ onClipTimingPreviewChange });
     const clip = screen.getByRole('article', {
       name: 'audio clip: background.mp3',
     });
@@ -572,6 +598,14 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       screen.queryByRole('article', { name: 'audio clip: background.mp3' }),
     ).not.toBeInTheDocument();
+    expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith({
+      clipId: audioClip.id,
+      duration: 3,
+      start: 5,
+    });
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
+    ).toEqual(expect.objectContaining({ start: 1 }));
     fireEvent.pointerUp(window, {
       clientX: 528,
       clientY: 100,
@@ -581,11 +615,13 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
     ).toEqual(expect.objectContaining({ start: 5, trackId: audioTrack.id }));
+    expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith(null);
     expect(testTimelineStore.getState().past).toHaveLength(1);
   });
 
   it('separates the pointer-following clip from its compact drop ghost', () => {
-    renderTimeline();
+    const onClipTimingPreviewChange = vi.fn();
+    renderTimeline({ onClipTimingPreviewChange });
     const clip = screen.getByRole('article', {
       name: 'video clip: opening.mp4',
     });
@@ -615,6 +651,7 @@ describe('TimelineViewport DOM interactions', () => {
     ).toHaveAttribute('data-drop-target', 'true');
 
     fireEvent.pointerCancel(window, { pointerId: 15 });
+    expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith(null);
   });
 
   it('strengthens the ghost and renders a guide when a drop snaps', () => {
@@ -1279,7 +1316,8 @@ describe('TimelineViewport DOM interactions', () => {
   });
 
   it('previews and commits an end trim from the selected clip handle', () => {
-    renderTimeline();
+    const onClipTimingPreviewChange = vi.fn();
+    renderTimeline({ onClipTimingPreviewChange });
     const clip = screen.getByRole('article', {
       name: 'video clip: opening.mp4',
     });
@@ -1302,6 +1340,14 @@ describe('TimelineViewport DOM interactions', () => {
       'dateTime',
       'PT3S',
     );
+    expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith({
+      clipId: videoClip.id,
+      duration: 3,
+      start: 0,
+    });
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
+    ).toEqual(expect.objectContaining({ duration: 4 }));
     fireEvent.pointerUp(window, {
       clientX: 348,
       clientY: 50,
@@ -1313,6 +1359,7 @@ describe('TimelineViewport DOM interactions', () => {
     ).toEqual(
       expect.objectContaining({ duration: 3, trimEnd: 3, trimStart: 0 }),
     );
+    expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith(null);
     expect(testTimelineStore.getState().past).toHaveLength(1);
   });
 

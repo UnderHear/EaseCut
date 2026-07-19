@@ -442,6 +442,33 @@ describe('PreviewPanel', () => {
     expect(selectedFrameIndex).toBeGreaterThan(lastDrawImageIndex);
   });
 
+  it('shows the inspector only for a selected clip and allows it to be closed', () => {
+    testTimelineStore.setState({ selectedClipId: null });
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    expect(
+      screen.queryByRole('navigation', { name: '属性分类' }),
+    ).not.toBeInTheDocument();
+
+    act(() => testTimelineStore.getState().selectClip('clip-main'));
+
+    expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭属性面板' }));
+
+    expect(testTimelineStore.getState().selectedClipId).toBe('clip-main');
+    expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
+    expect(
+      document.querySelector('.oc-floating-inspector__panel'),
+    ).not.toBeVisible();
+
+    act(() => testTimelineStore.getState().selectClip('clip-overlay'));
+
+    expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
+  });
+
   it('draws clips inside the centered composition frame when the parent is wider', async () => {
     renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
     triggerPreviewResize(1600, 720);
@@ -521,7 +548,7 @@ describe('PreviewPanel', () => {
     expect(testTimelineStore.getState().selectedClipId).toBeNull();
   });
 
-  it('commits a moved selected clip transform on pointer up', () => {
+  it('shows a moved transform live and commits it once on pointer up', () => {
     renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
@@ -529,13 +556,50 @@ describe('PreviewPanel', () => {
 
     fireEvent.pointerDown(canvas, { clientX: 310, clientY: 140, pointerId: 1 });
     fireEvent.pointerMove(canvas, { clientX: 370, clientY: 170, pointerId: 1 });
+
+    expect(screen.getByLabelText('X 位置')).toHaveValue(160);
+    expect(screen.getByLabelText('Y 位置')).toHaveValue(110);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
+    ).toEqual({ height: 180, width: 320, x: 100, y: 80 });
+    expect(testTimelineStore.getState().past).toHaveLength(0);
+
     fireEvent.pointerUp(canvas, { clientX: 370, clientY: 170, pointerId: 1 });
 
+    expect(screen.getByLabelText('X 位置')).toHaveValue(160);
+    expect(screen.getByLabelText('Y 位置')).toHaveValue(110);
     expect(
       testTimelineStore
         .getState()
         .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
     ).toEqual({ height: 180, width: 320, x: 160, y: 110 });
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+  });
+
+  it('restores inspector values without committing a cancelled move', () => {
+    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 310, clientY: 140, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 370, clientY: 170, pointerId: 1 });
+
+    expect(screen.getByLabelText('X 位置')).toHaveValue(160);
+    expect(screen.getByLabelText('Y 位置')).toHaveValue(110);
+
+    fireEvent.pointerCancel(canvas, { pointerId: 1 });
+
+    expect(screen.getByLabelText('X 位置')).toHaveValue(100);
+    expect(screen.getByLabelText('Y 位置')).toHaveValue(80);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
+    ).toEqual({ height: 180, width: 320, x: 100, y: 80 });
+    expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
   it('snaps a moved clip to the canvas center and draws a full-height guide', () => {
@@ -690,7 +754,7 @@ describe('PreviewPanel', () => {
     ).toEqual({ height: 180, width: 320, x: 478, y: 80 });
   });
 
-  it('commits a resized selected clip transform from a corner handle', () => {
+  it('shows a resized transform live and commits it from a corner handle', () => {
     renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
@@ -698,8 +762,19 @@ describe('PreviewPanel', () => {
 
     fireEvent.pointerDown(canvas, { clientX: 590, clientY: 280, pointerId: 1 });
     fireEvent.pointerMove(canvas, { clientX: 640, clientY: 320, pointerId: 1 });
+
+    expect(screen.getByLabelText('宽度')).toHaveValue(370);
+    expect(screen.getByLabelText('高度')).toHaveValue(220);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
+    ).toEqual({ height: 180, width: 320, x: 100, y: 80 });
+
     fireEvent.pointerUp(canvas, { clientX: 640, clientY: 320, pointerId: 1 });
 
+    expect(screen.getByLabelText('宽度')).toHaveValue(370);
+    expect(screen.getByLabelText('高度')).toHaveValue(220);
     expect(
       testTimelineStore
         .getState()

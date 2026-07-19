@@ -26,7 +26,6 @@
   color: var(--oc-text);
   color-scheme: dark;
   background: var(--oc-background);
-  font-size: 14px;
   line-height: 1.4;
   outline: none;
   container-name: opencut-editor;
@@ -43,7 +42,7 @@
 
 .oc-editor button,
 .oc-editor input {
-  font: inherit;
+  font-family: inherit;
 }
 
 .oc-editor button {
@@ -99,7 +98,7 @@
   gap: 7px;
   padding: 0 11px;
   font-size: 13px;
-  font-weight: 600;
+  line-height: 1.4;
 }
 
 .oc-button--secondary {
@@ -276,6 +275,227 @@
   font-size: 12px;
 }
 
+.oc-floating-inspector {
+  --oc-floating-inspector-rail-width: 62px;
+  --oc-floating-inspector-gap: 6px;
+
+  position: absolute;
+  z-index: 10;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(340px, calc(100% - 16px));
+  color: var(--oc-text);
+  pointer-events: none;
+}
+
+.oc-floating-inspector[data-panel-open='false'] {
+  width: var(--oc-floating-inspector-rail-width);
+}
+
+.oc-floating-inspector__panel,
+.oc-floating-inspector__rail {
+  border: 1px solid var(--oc-border);
+  background: rgb(34 34 34 / 96%);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 32%);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+
+.oc-floating-inspector__panel {
+  position: absolute;
+  top: 0;
+  right: calc(
+    var(--oc-floating-inspector-rail-width) + var(--oc-floating-inspector-gap)
+  );
+  display: flex;
+  width: calc(
+    100% - var(--oc-floating-inspector-rail-width) -
+      var(--oc-floating-inspector-gap)
+  );
+  height: fit-content;
+  max-height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.oc-floating-inspector__panel[hidden] {
+  display: none;
+}
+
+.oc-floating-inspector__header {
+  display: flex;
+  height: 57px;
+  flex: 0 0 57px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 18px;
+}
+
+.oc-floating-inspector__main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.oc-floating-inspector__separator {
+  height: 1px;
+  flex: 0 0 1px;
+  border-bottom: 1px solid var(--oc-border);
+}
+
+.oc-floating-inspector__separator--header {
+  margin: 0 18px;
+}
+
+.oc-floating-inspector__header h2,
+.oc-floating-inspector__section h3 {
+  margin: 0;
+  color: var(--oc-text);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.oc-floating-inspector__header h2 {
+  font-size: 18px;
+}
+
+.oc-floating-inspector__close {
+  flex: 0 0 auto;
+  color: #9ca3af;
+}
+
+.oc-floating-inspector__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.oc-floating-inspector__close:hover {
+  color: var(--oc-text);
+  background: var(--oc-panel-hover);
+}
+
+.oc-floating-inspector__body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 18px 16px;
+}
+
+.oc-floating-inspector__section {
+  padding: 18px 0;
+}
+
+.oc-floating-inspector__details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.oc-floating-inspector__details > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.oc-floating-inspector__details dt,
+.oc-floating-inspector__number-field > span:first-child {
+  color: var(--oc-text-muted);
+  font-size: 13px;
+}
+
+.oc-floating-inspector__details dd {
+  overflow: hidden;
+  margin: 0;
+  color: #d4d4d4;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oc-floating-inspector__details .oc-floating-inspector__detail-value--wrap {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.oc-floating-inspector__number-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 10px;
+  margin-top: 14px;
+}
+
+.oc-floating-inspector__number-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.oc-floating-inspector__number-grid .oc-floating-inspector__number-field {
+  margin-top: 0;
+}
+
+.oc-floating-inspector__rail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  width: var(--oc-floating-inspector-rail-width);
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 10px;
+}
+
+.oc-floating-inspector__rail-item {
+  display: flex;
+  height: 60px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: #a3a3a3;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.4;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+  white-space: nowrap;
+}
+
+.oc-floating-inspector__rail-item:hover:not(.oc-is-active) {
+  color: var(--oc-text);
+  background: var(--oc-panel-hover);
+}
+
+.oc-floating-inspector__rail-item.oc-is-active {
+  color: var(--oc-text);
+  background: #3a3a3a;
+}
+
 .oc-timeline-panel {
   display: flex;
   height: 360px;
@@ -330,6 +550,7 @@
 .oc-timeline-toolbar__time {
   min-width: 44px;
   color: var(--oc-text);
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -404,6 +625,9 @@
   border-radius: var(--oc-radius);
   color: var(--oc-text);
   background: #141414;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .oc-import-dialog__field input::placeholder {
@@ -926,7 +1150,10 @@
 }
 
 .oc-timeline-clip__name {
-  display: inline-block;
+  display: flex;
+  position: absolute;
+  top: 2px;
+  left: 5px;
   max-width: 100%;
   overflow: hidden;
   font-size: 11px;
@@ -1065,9 +1292,22 @@
   scrollbar-width: thin;
 }
 
+@supports selector(::-webkit-scrollbar) {
+  .oc-scrollbar {
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+  }
+}
+
 .oc-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+}
+
+.oc-scrollbar::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .oc-scrollbar::-webkit-scrollbar-thumb {

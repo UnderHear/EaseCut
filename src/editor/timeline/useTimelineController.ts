@@ -30,6 +30,7 @@ import {
 } from '../store/timeline-store-context';
 import type {
   TimelineClip,
+  TimelineClipTimingPreview,
   TimelineClipTrimEdge,
 } from '../types';
 import {
@@ -45,6 +46,9 @@ import {
 
 type TimelineControllerOptions = {
   gridRef: RefObject<HTMLDivElement | null>;
+  onClipTimingPreviewChange?: (
+    preview: TimelineClipTimingPreview | null,
+  ) => void;
 };
 
 const DOUBLE_CLICK_INTERVAL_MS = 500;
@@ -56,6 +60,7 @@ type CompletedClipClick = {
 
 export function useTimelineController({
   gridRef,
+  onClipTimingPreviewChange,
 }: TimelineControllerOptions) {
   const clips = useTimelineStore((state) => state.clips);
   const currentTime = useTimelineStore((state) => state.currentTime);
@@ -70,6 +75,11 @@ export function useTimelineController({
   const lastCompletedClipClickRef = useRef<CompletedClipClick | null>(null);
   const moveActivatedRef = useRef(false);
   const trimPreviewRef = useRef<TrimPreview | null>(null);
+
+  useEffect(
+    () => () => onClipTimingPreviewChange?.(null),
+    [onClipTimingPreviewChange],
+  );
 
   const displayClips = useMemo(() => {
     if (dropPreview) return dropPreview.clips;
@@ -119,6 +129,11 @@ export function useTimelineController({
       const next = planClipDrop(gesture, point, dropPreviewRef.current);
       dropPreviewRef.current = next;
       setDropPreview(next);
+      onClipTimingPreviewChange?.({
+        clipId: gesture.clip.id,
+        duration: gesture.clip.duration,
+        start: next.start,
+      });
     };
     const updateTrim = (clientX: number, clientY: number) => {
       if (gesture.kind !== 'trim') return;
@@ -142,6 +157,20 @@ export function useTimelineController({
       };
       trimPreviewRef.current = next;
       setTrimPreview(next);
+      const previewClip = getTrimmedTimelineClips(
+        clips,
+        next.clipId,
+        next.edge,
+        next.trimStart,
+        next.trimEnd,
+      ).find((clip) => clip.id === next.clipId);
+      if (previewClip) {
+        onClipTimingPreviewChange?.({
+          clipId: previewClip.id,
+          duration: previewClip.duration,
+          start: previewClip.start,
+        });
+      }
     };
     const handlePointerMove = (event: PointerEvent) => {
       if (event.pointerId !== gesture.pointerId) return;
@@ -204,6 +233,7 @@ export function useTimelineController({
       dropPreviewRef.current = null;
       moveActivatedRef.current = false;
       trimPreviewRef.current = null;
+      onClipTimingPreviewChange?.(null);
       setDropPreview(null);
       setTrimPreview(null);
       setGesture(null);
@@ -235,7 +265,7 @@ export function useTimelineController({
       window.removeEventListener('blur', handleWindowBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [gesture, gridRef, store]);
+  }, [clips, gesture, gridRef, onClipTimingPreviewChange, store]);
 
   const beginMove = (
     event: ReactPointerEvent<HTMLElement>,
@@ -326,7 +356,10 @@ export function useTimelineController({
     });
   };
 
-  const beginScrub = (event: ReactPointerEvent<HTMLElement>) => {
+  const beginScrub = (
+    event: ReactPointerEvent<HTMLElement>,
+    preserveSelection = false,
+  ) => {
     if (event.button !== 0) return;
     lastCompletedClipClickRef.current = null;
     const point = getContentPoint(
@@ -338,7 +371,7 @@ export function useTimelineController({
 
     event.preventDefault();
     store.getState().setIsPlaying(false);
-    store.getState().selectClip(null);
+    if (!preserveSelection) store.getState().selectClip(null);
     const snapCandidates = getClipSnapCandidates(clips);
     const candidate = xToTime(point.x, pixelsPerSecond);
     const snapped = snappingEnabled
@@ -358,6 +391,10 @@ export function useTimelineController({
       snapCandidates,
       snappingEnabled,
     });
+  };
+
+  const beginPlayheadScrub = (event: ReactPointerEvent<HTMLElement>) => {
+    beginScrub(event, true);
   };
 
   const beginVolume = (
@@ -390,6 +427,7 @@ export function useTimelineController({
 
   return {
     beginMove,
+    beginPlayheadScrub,
     beginScrub,
     beginTrim,
     beginVolume,

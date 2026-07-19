@@ -23,6 +23,7 @@ import {
 } from './store/timeline-store-context';
 import type {
   CompositionExportPayload,
+  TimelineClipTimingPreview,
   VideoTimelineDraft,
   VideoTimelineEditorProps,
   VideoTimelineMediaType,
@@ -160,6 +161,8 @@ function VideoTimelineEditorView({
   const [isImporting, setIsImporting] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [clipTimingPreview, setClipTimingPreview] =
+    useState<TimelineClipTimingPreview | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const importUrlInputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
@@ -513,9 +516,13 @@ function VideoTimelineEditorView({
       </header>
 
       <main className='oc-editor__main'>
-        <PreviewPanel previewRef={previewRef} />
+        <PreviewPanel
+          clipTimingPreview={clipTimingPreview}
+          previewRef={previewRef}
+        />
 
         <TimelinePanel
+          onClipTimingPreviewChange={setClipTimingPreview}
           onRequestImport={onImportMedia ? openImportDialog : undefined}
           onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
         />
