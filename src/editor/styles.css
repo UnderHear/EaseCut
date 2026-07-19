@@ -276,21 +276,21 @@
 }
 
 .oc-floating-inspector {
+  --oc-floating-inspector-rail-width: 62px;
+  --oc-floating-inspector-gap: 6px;
+
   position: absolute;
   z-index: 10;
   top: 8px;
   right: 8px;
-  display: grid;
+  bottom: 8px;
   width: min(340px, calc(100% - 16px));
-  height: min(660px, calc(100% - 16px));
-  grid-template-columns: minmax(0, 1fr) 62px;
-  gap: 6px;
   color: var(--oc-text);
+  pointer-events: none;
 }
 
 .oc-floating-inspector[data-panel-open='false'] {
-  grid-template-columns: 62px;
-  width: 62px;
+  width: var(--oc-floating-inspector-rail-width);
 }
 
 .oc-floating-inspector__panel,
@@ -299,10 +299,22 @@
   background: rgb(34 34 34 / 96%);
   box-shadow: 0 14px 36px rgb(0 0 0 / 32%);
   backdrop-filter: blur(14px);
+  pointer-events: auto;
 }
 
 .oc-floating-inspector__panel {
+  position: absolute;
+  top: 0;
+  right: calc(
+    var(--oc-floating-inspector-rail-width) + var(--oc-floating-inspector-gap)
+  );
   display: flex;
+  width: calc(
+    100% - var(--oc-floating-inspector-rail-width) -
+      var(--oc-floating-inspector-gap)
+  );
+  height: fit-content;
+  max-height: 100%;
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
@@ -442,8 +454,11 @@
 }
 
 .oc-floating-inspector__rail {
+  position: absolute;
+  top: 0;
+  right: 0;
   display: flex;
-  align-self: flex-start;
+  width: var(--oc-floating-inspector-rail-width);
   flex-direction: column;
   gap: 5px;
   padding: 5px;

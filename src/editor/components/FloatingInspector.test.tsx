@@ -35,6 +35,31 @@ const videoClip: TimelineClip = {
   zIndex: 0,
 };
 
+const audioTrack: TimelineTrack = {
+  id: 'audio-track',
+  name: '音频轨 1',
+  type: 'audio',
+  volume: 0.65,
+  zIndex: 1,
+};
+
+const audioClip: TimelineClip = {
+  duration: 6,
+  id: 'audio-clip',
+  name: 'sample.mp3',
+  sourceDuration: 10,
+  sourceId: 'audio-source',
+  src: '/sample.mp3',
+  start: 2,
+  thumbnailUrls: [],
+  trackId: audioTrack.id,
+  transform: { height: 0, width: 0, x: 0, y: 0 },
+  trimEnd: 8,
+  trimStart: 2,
+  type: 'audio',
+  zIndex: 0,
+};
+
 describe('FloatingInspector', () => {
   beforeEach(() => {
     resetTestTimelineStore();
@@ -101,6 +126,35 @@ describe('FloatingInspector', () => {
     expect(screen.getByText('2.75 秒')).toBeVisible();
     expect(screen.getByText('3.25 秒')).toBeVisible();
     expect(testTimelineStore.getState().clips[0]).toEqual(videoClip);
+  });
+
+  it('renders the audio-specific rail and panel', () => {
+    testTimelineStore.setState({
+      clips: [audioClip],
+      selectedClipId: audioClip.id,
+      tracks: [audioTrack],
+    });
+
+    const { container } = renderWithEditorProviders(<FloatingInspector />);
+    const rail = screen.getByRole('navigation', { name: '属性分类' });
+
+    expect(
+      within(rail)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['基本']);
+    expect(screen.getByText('sample.mp3')).toBeVisible();
+    expect(screen.getByText('音频')).toBeVisible();
+    expect(screen.getByLabelText('轨道音量')).toHaveValue(65);
+    expect(screen.queryByRole('button', { name: '背景' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '变速' })).not.toBeInTheDocument();
+    expect(screen.queryByText('转换')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('X 位置')).not.toBeInTheDocument();
+    expect(
+      container.querySelectorAll(
+        '.oc-floating-inspector__separator[data-orientation="horizontal"]',
+      ),
+    ).toHaveLength(2);
   });
 
   it('commits transform and track volume edits through the timeline store', async () => {
