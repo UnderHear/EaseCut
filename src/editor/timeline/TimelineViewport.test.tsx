@@ -707,6 +707,138 @@ describe('TimelineViewport DOM interactions', () => {
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
+  it('opens the target clip menu without starting a move gesture', () => {
+    testTimelineStore.setState({ past: [], selectedClipId: videoClip.id });
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'audio clip: background.mp3',
+    });
+    vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 300 }),
+    );
+
+    fireEvent.contextMenu(clip, { clientX: 250, clientY: 100 });
+
+    expect(
+      screen.getByRole('menu', { name: 'background.mp3 操作菜单' }),
+    ).toBeVisible();
+    expect(screen.queryByText('Ctrl+B')).not.toBeInTheDocument();
+    expect(testTimelineStore.getState().selectedClipId).toBe(audioClip.id);
+    expect(testTimelineStore.getState().past).toHaveLength(0);
+    expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toBeNull();
+  });
+
+  it('splits a clip at the context-menu pointer without moving the playhead', () => {
+    testTimelineStore.setState({ currentTime: 0.25, selectedClipId: null });
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 400 }),
+    );
+
+    fireEvent.contextMenu(clip, { clientX: 300, clientY: 50 });
+    const splitItem = screen.getByRole('menuitem', { name: /\u5206\u5272/ });
+    fireEvent.pointerDown(splitItem, {
+      button: 0,
+      clientX: 300,
+      clientY: 50,
+      pointerId: 29,
+    });
+    fireEvent.click(splitItem);
+
+    expect(testTimelineStore.getState().currentTime).toBe(0.25);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.filter(({ type }) => type === 'video')
+        .map(({ duration, start }) => [start, duration]),
+    ).toEqual([
+      [0, 2],
+      [2, 2],
+    ]);
+  });
+
+  it('disables context-menu operations when their current state is invalid', () => {
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 400 }),
+    );
+
+    fireEvent.contextMenu(clip, { clientX: 110, clientY: 50 });
+
+    expect(screen.getByRole('menuitem', { name: /\u5206\u5272/ })).toHaveAttribute(
+      'data-disabled',
+    );
+    expect(screen.getByRole('menuitem', { name: /\u7c98\u8d34/ })).toHaveAttribute(
+      'data-disabled',
+    );
+  });
+
+  it('disables pasting a copied clip into a different media type', () => {
+    testTimelineStore.setState({ copiedClip: videoClip });
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'audio clip: background.mp3',
+    });
+    vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 300 }),
+    );
+
+    fireEvent.contextMenu(clip, { clientX: 250, clientY: 100 });
+
+    expect(screen.getByRole('menuitem', { name: /\u7c98\u8d34/ })).toHaveAttribute(
+      'data-disabled',
+    );
+  });
+
+  it('uses the existing copy, paste, download and delete clip actions', () => {
+    const onDownloadClip = vi.fn();
+    renderTimeline({ onDownloadClip });
+    const video = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    vi.spyOn(video, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 400 }),
+    );
+
+    fireEvent.contextMenu(video, { clientX: 300, clientY: 50 });
+    fireEvent.click(screen.getByRole('menuitem', { name: /\u590d\u5236/ }));
+    expect(testTimelineStore.getState().copiedClip?.id).toBe(videoClip.id);
+
+    fireEvent.contextMenu(video, { clientX: 300, clientY: 50 });
+    fireEvent.click(screen.getByRole('menuitem', { name: /\u7c98\u8d34/ }));
+    expect(testTimelineStore.getState().clips).toHaveLength(3);
+
+    const pastedClipId = testTimelineStore.getState().selectedClipId;
+    const pastedClip = screen
+      .getAllByRole('article', { name: 'video clip: opening.mp4' })
+      .find(
+        (candidate) => candidate.getAttribute('data-clip-id') === pastedClipId,
+      )!;
+    expect(pastedClip).toBeDefined();
+    vi.spyOn(pastedClip, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 400 }),
+    );
+    fireEvent.contextMenu(pastedClip, { clientX: 300, clientY: 50 });
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: '下载原始素材' }),
+    );
+    expect(onDownloadClip).toHaveBeenCalledWith(
+      expect.objectContaining({ id: pastedClipId, src: videoClip.src }),
+    );
+
+    fireEvent.contextMenu(pastedClip, { clientX: 300, clientY: 50 });
+    fireEvent.click(screen.getByRole('menuitem', { name: /\u5220\u9664/ }));
+    expect(testTimelineStore.getState().clips).toHaveLength(2);
+    expect(testTimelineStore.getState().selectedClipId).toBeNull();
+    expect(pastedClipId).not.toBeNull();
+  });
+
   it('does not commit the stale preview when a drag returns to its origin', () => {
     renderTimeline();
     const clip = screen.getByRole('article', {
