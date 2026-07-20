@@ -1,4 +1,4 @@
-import { Film } from 'lucide-react';
+import { Music2 } from 'lucide-react';
 import { useState } from 'react';
 
 import type { TimelineClip, TimelineClipTimingPreview } from '../types';
@@ -29,7 +29,7 @@ export function AudioFloatingInspector({
           onClick={() => setIsPanelOpen(true)}
           type='button'
         >
-          <Film aria-hidden='true' size={20} />
+          <Music2 aria-hidden='true' size={20} />
           <span>基本</span>
         </button>
       }

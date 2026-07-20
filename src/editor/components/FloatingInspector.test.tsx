@@ -143,6 +143,8 @@ describe('FloatingInspector', () => {
         .getAllByRole('button')
         .map((button) => button.textContent),
     ).toEqual(['基本']);
+    expect(rail.querySelector('.lucide-music-2')).toBeInTheDocument();
+    expect(rail.querySelector('.lucide-film')).not.toBeInTheDocument();
     expect(screen.getByText('sample.mp3')).toBeVisible();
     expect(screen.getByText('音频')).toBeVisible();
     expect(screen.getByLabelText('轨道音量')).toHaveValue(65);
