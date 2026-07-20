@@ -18,7 +18,6 @@ const createValidDraft = (): VideoTimelineDraft => ({
       sourceId: 'video-1',
       src: 'https://example.test/video.mp4',
       start: 0,
-      thumbnailUrls: [],
       trackId: MAIN_VIDEO_TRACK_ID,
       trimEnd: 4,
       trimStart: 0,

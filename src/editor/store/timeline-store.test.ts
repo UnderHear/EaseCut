@@ -93,7 +93,6 @@ const createFixtureClips = (): TimelineClip[] => [
     sourceDuration: 4,
     src: 'http://localhost/video-1.mp4',
     start: 0,
-    thumbnailUrls: [],
     trackId: MAIN_VIDEO_TRACK_ID,
     trimEnd: 4,
     trimStart: 0,
@@ -109,7 +108,6 @@ const createFixtureClips = (): TimelineClip[] => [
     sourceDuration: 6,
     src: 'http://localhost/video-2.mp4',
     start: 4,
-    thumbnailUrls: [],
     trackId: MAIN_VIDEO_TRACK_ID,
     trimEnd: 6,
     trimStart: 1,
@@ -125,7 +123,6 @@ const createFixtureClips = (): TimelineClip[] => [
     sourceDuration: 4,
     src: 'http://localhost/video-3.mp4',
     start: 9,
-    thumbnailUrls: [],
     trackId: MAIN_VIDEO_TRACK_ID,
     trimEnd: 4,
     trimStart: 0.5,
@@ -143,7 +140,6 @@ const createAudioClip = (id: string, trackId: string): TimelineClip => ({
   sourceDuration: 4,
   src: `http://localhost/${id}.mp3`,
   start: 0,
-  thumbnailUrls: [],
   trackId,
   trimEnd: 4,
   trimStart: 0,
@@ -2135,7 +2131,6 @@ describe('timelineStore clip copy and paste', () => {
         clip.id === 'clip-video-2'
           ? {
               ...clip,
-              thumbnailUrls: ['thumbnail-a', 'thumbnail-b'],
               transform: { ...clip.transform, width: 900, x: 20 },
             }
           : clip,
@@ -2153,7 +2148,6 @@ describe('timelineStore clip copy and paste', () => {
     expect(copiedClip).toEqual(selectedClip);
     expect(copiedClip).not.toBe(selectedClip);
     expect(copiedClip?.transform).not.toBe(selectedClip.transform);
-    expect(copiedClip?.thumbnailUrls).not.toBe(selectedClip.thumbnailUrls);
     expect(timelineStore.getState().past).toEqual([]);
     expect(timelineStore.getState().future).toEqual([]);
   });

@@ -91,22 +91,19 @@ const useTimelineClipPresentation = (
   const generatedPreviews = useFramePreviewUrls(
     clip,
     previewCount,
-    clip.type === 'video' && clip.thumbnailUrls.length === 0,
+    clip.type === 'video',
   );
   const waveformSamples = useAudioWaveformSamples(
     clip.waveformSrc ?? clip.src,
     clip.type === 'audio',
   );
-  const previews = clip.thumbnailUrls.length
-    ? clip.thumbnailUrls
-    : generatedPreviews;
   const waveformPath = useMemo(
     () => createWaveformPath(getVisibleSamples(waveformSamples, clip)),
     [clip, waveformSamples],
   );
 
   return {
-    previews,
+    previews: generatedPreviews,
     volume: clampUnit(trackVolume),
     waveformPath,
   };

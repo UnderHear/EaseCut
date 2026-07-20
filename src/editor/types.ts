@@ -37,7 +37,6 @@ export type VideoTimelineClip = {
   trimStart: number;
   trimEnd: number;
   transform: VideoTimelineClipTransform;
-  thumbnailUrls: string[];
   zIndex: number;
 };
 

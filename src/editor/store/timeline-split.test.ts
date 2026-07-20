@@ -66,7 +66,6 @@ describe('timeline splitting', () => {
           sourceId: 'audio-source',
           src: 'http://localhost/music.mp3',
           start: 0,
-          thumbnailUrls: [],
           trackId: 'audio-track',
           trimEnd: 4,
           trimStart: 0,

@@ -87,7 +87,6 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
   sourceDuration: 5,
   src: '/clip.mp4',
   start: 0,
-  thumbnailUrls: [],
   trackId: MAIN_VIDEO_TRACK_ID,
   trimEnd: 5,
   trimStart: 0,

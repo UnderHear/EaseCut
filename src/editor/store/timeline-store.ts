@@ -263,7 +263,6 @@ export const createTimelineClipsFromSources = (
       src: source.src,
       ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
       start: isVideo ? roundTimelineTime(videoCursor) : 0,
-      thumbnailUrls: [],
       trackId: isVideo ? MAIN_VIDEO_TRACK_ID : getAudioSourceTrackId(source.id),
       trimEnd: duration,
       trimStart: 0,
@@ -295,7 +294,6 @@ const createTimelineTracksFromSources = (sources: VideoTimelineSource[]) =>
 
 const cloneClip = (clip: TimelineClip): TimelineClip => ({
   ...clip,
-  thumbnailUrls: [...clip.thumbnailUrls],
   transform: { ...clip.transform },
 });
 
@@ -457,8 +455,6 @@ const isTimelineClipDraft = (value: unknown): value is TimelineClipDraft => {
     clip.trimEnd <= clip.sourceDuration &&
     roundTimelineTime(clip.trimEnd - clip.trimStart) ===
       roundTimelineTime(clip.duration) &&
-    Array.isArray(clip.thumbnailUrls) &&
-    clip.thumbnailUrls.every((url) => typeof url === 'string') &&
     (typeof clip.transform === 'undefined' ||
       isTimelineClipTransform(clip.transform)) &&
     typeof clip.zIndex === 'number' &&
@@ -629,7 +625,6 @@ const mergeSourcesIntoDraftState = (
       src: source.src,
       ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
       start: isVideo ? roundTimelineTime(videoCursor) : 0,
-      thumbnailUrls: [],
       trackId,
       trimEnd: duration,
       trimStart: 0,

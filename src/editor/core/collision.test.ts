@@ -20,7 +20,6 @@ const createClip = (
   sourceDuration: duration,
   src: `${id}.mp4`,
   start,
-  thumbnailUrls: [],
   trackId: 'video-main',
   trimEnd: duration,
   trimStart: 0,
