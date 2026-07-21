@@ -10,7 +10,6 @@ import {
 } from 'react';
 
 import type {
-  VideoTimelineClip,
   VideoTimelineMediaLoader,
   VideoTimelineMediaMetadata,
   VideoTimelineSource,
@@ -18,15 +17,12 @@ import type {
 import { createAudioWaveformCache, isAbortError } from './audio-waveform';
 import {
   createFramePreviewCache,
+  type FramePreviewRequest,
+  type FramePreviewStrip,
   type FramePreviewSubscriber,
-  type FramePreviewUrl,
 } from './frame-preview';
 
 type MediaInput = string | VideoTimelineSource;
-type FramePreviewClip = Pick<
-  VideoTimelineClip,
-  'src' | 'trimEnd' | 'trimStart'
->;
 
 type BlobCacheEntry =
   | {
@@ -173,22 +169,16 @@ export type MediaRuntime = {
     sampleCount?: number,
   ): Promise<number[]>;
   getBlob(input: MediaInput): Promise<Blob>;
-  getFramePreviewUrls(
-    clip: FramePreviewClip,
-    frameCount: number,
-    subscriber?: FramePreviewSubscriber,
-  ): Promise<string[]>;
   getMetadata(
     input: MediaInput,
   ): Promise<VideoTimelineMediaMetadata | null>;
   getObjectUrl(input: MediaInput): Promise<string>;
   isDisposed(): boolean;
   setSources(sources: VideoTimelineSource[]): void;
-  unsubscribeFramePreviews(
-    clip: FramePreviewClip,
-    frameCount: number,
+  subscribeFramePreviews(
+    request: FramePreviewRequest,
     subscriber: FramePreviewSubscriber,
-  ): void;
+  ): () => void;
 };
 
 export const createMediaRuntime = (
@@ -345,15 +335,12 @@ export const createMediaRuntime = (
       return waveformCache.getSamples(src, sampleCount);
     },
     getBlob,
-    getFramePreviewUrls(clip, frameCount, subscriber) {
-      return framePreviewCache.getUrls(clip, frameCount, subscriber);
-    },
     getMetadata,
     getObjectUrl,
     isDisposed: () => disposed,
     setSources,
-    unsubscribeFramePreviews(clip, frameCount, subscriber) {
-      framePreviewCache.unsubscribe(clip, frameCount, subscriber);
+    subscribeFramePreviews(request, subscriber) {
+      return framePreviewCache.subscribe(request, subscriber);
     },
   };
   return runtime;
@@ -498,48 +485,50 @@ export const useAudioWaveformSamples = (
   return enabled && result?.src === src ? result.samples : [];
 };
 
-export const useFramePreviewUrls = (
-  clip: FramePreviewClip,
-  frameCount: number,
-  enabled = true,
-) => {
+export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
   const runtime = useMediaRuntime();
-  const key = `${clip.src}\n${clip.trimStart}\n${clip.trimEnd}\n${frameCount}`;
+  const pixelsPerSecond = request?.pixelsPerSecond ?? 0;
+  const rangeEnd = request?.rangeEnd ?? 0;
+  const rangeStart = request?.rangeStart ?? 0;
+  const sourceDuration = request?.sourceDuration ?? 0;
+  const src = request?.src ?? '';
+  const key = src
+    ? [
+        src,
+        sourceDuration,
+        pixelsPerSecond,
+        rangeStart,
+        rangeEnd,
+      ].join('\n')
+    : '';
   const [result, setResult] = useState<{
     key: string;
-    urls: FramePreviewUrl[];
+    strip: FramePreviewStrip;
   } | null>(null);
 
   useEffect(() => {
-    if (!enabled || !clip.src || frameCount <= 0) return undefined;
+    if (!src) return undefined;
     let cancelled = false;
-    const requestClip: FramePreviewClip = {
-      src: clip.src,
-      trimEnd: clip.trimEnd,
-      trimStart: clip.trimStart,
+    const update = (strip: FramePreviewStrip) => {
+      if (!cancelled) setResult({ key, strip });
     };
-    const update = (urls: FramePreviewUrl[]) => {
-      if (!cancelled) setResult({ key, urls });
-    };
-    void runtime
-      .getFramePreviewUrls(requestClip, frameCount, update)
-      .then((urls) => update(urls))
-      .catch(() => update([]));
+    const unsubscribe = runtime.subscribeFramePreviews(
+      { pixelsPerSecond, rangeEnd, rangeStart, sourceDuration, src },
+      update,
+    );
     return () => {
       cancelled = true;
-      runtime.unsubscribeFramePreviews(requestClip, frameCount, update);
+      unsubscribe();
     };
   }, [
-    clip.src,
-    clip.trimEnd,
-    clip.trimStart,
-    enabled,
-    frameCount,
     key,
+    pixelsPerSecond,
+    rangeEnd,
+    rangeStart,
     runtime,
+    sourceDuration,
+    src,
   ]);
 
-  return enabled && result?.key === key ? result.urls : [];
+  return result?.key === key ? result.strip : null;
 };
-
-export const useGeneratedFramePreviewUrls = useFramePreviewUrls;

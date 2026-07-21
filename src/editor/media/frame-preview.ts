@@ -1,99 +1,99 @@
-import type { VideoTimelineClip } from '../types';
-
-export const FRAME_PREVIEW_WIDTH = 96;
 export const FRAME_PREVIEW_HEIGHT = 48;
+export const FRAME_PREVIEW_CHUNK_DURATION_SECONDS = 5;
 
-export type FramePreviewUrl = string | null;
-export type FramePreviewSubscriber = (urls: FramePreviewUrl[]) => void;
+export type FramePreviewFrame = {
+  index: number;
+  url: string;
+};
+
+export type FramePreviewStrip = {
+  frameHeight: number;
+  frameWidth: number;
+  frames: FramePreviewFrame[];
+};
+
+export type FramePreviewRequest = {
+  pixelsPerSecond: number;
+  rangeEnd: number;
+  rangeStart: number;
+  sourceDuration: number;
+  src: string;
+};
+
+export type FramePreviewSubscriber = (strip: FramePreviewStrip) => void;
 
 type CachedFramePreview = {
   time: number;
   url: string;
 };
 
-type FramePreviewTiming = {
-  frameTimes: number[];
-  reuseTolerance: number;
-};
+type FramePreviewRange = Pick<FramePreviewRequest, 'rangeEnd' | 'rangeStart'>;
 
 type FramePreviewCacheEntry = {
-  frameTimes: number[];
-  promise: Promise<string[]>;
-  reuseTolerance: number;
+  frameWidth: number | null;
+  key: string;
+  pixelsPerSecond: number;
+  sourceDuration: number;
   src: string;
-  subscribers: Set<FramePreviewSubscriber>;
-  urls: FramePreviewUrl[];
+  subscribers: Map<FramePreviewSubscriber, FramePreviewRange>;
+  task: Promise<void> | null;
+  totalFrames: number;
+  urls: Map<number, string>;
 };
 
 const FRAME_PREVIEW_TIME_EPSILON = 0.001;
+
+const EMPTY_FRAME_PREVIEW_STRIP: FramePreviewStrip = {
+  frameHeight: FRAME_PREVIEW_HEIGHT,
+  frameWidth: 0,
+  frames: [],
+};
 
 export const canGenerateFramePreviews = () =>
   typeof document !== 'undefined' &&
   (typeof navigator === 'undefined' ||
     !navigator.userAgent.toLowerCase().includes('jsdom'));
 
-const getFramePreviewCacheKey = (
-  clip: Pick<VideoTimelineClip, 'src' | 'trimEnd' | 'trimStart'>,
-  frameCount: number,
-) => [clip.src, clip.trimStart, clip.trimEnd, frameCount].join('\n');
-
-const getFramePreviewTiming = (
-  clip: Pick<VideoTimelineClip, 'trimEnd' | 'trimStart'>,
-  frameCount: number,
-  sourceDuration: number,
-): FramePreviewTiming => {
-  if (frameCount <= 0) {
-    return { frameTimes: [], reuseTolerance: 0 };
-  }
-
-  const safeSourceDuration =
-    Number.isFinite(sourceDuration) && sourceDuration > 0
-      ? sourceDuration
-      : clip.trimEnd;
-  const start = Math.min(Math.max(0, clip.trimStart), safeSourceDuration);
-  const end = Math.min(Math.max(start, clip.trimEnd), safeSourceDuration);
-  const visibleDuration = end - start;
-  if (visibleDuration <= 0) {
-    return { frameTimes: [], reuseTolerance: 0 };
-  }
+const normalizeRequest = (
+  request: FramePreviewRequest,
+): FramePreviewRequest => {
+  const sourceDuration = Math.max(0, request.sourceDuration);
+  const rangeStart = Math.min(
+    sourceDuration,
+    Math.max(0, request.rangeStart),
+  );
+  const rangeEnd = Math.min(
+    sourceDuration,
+    Math.max(rangeStart, request.rangeEnd),
+  );
 
   return {
-    frameTimes: Array.from({ length: frameCount }, (_, index) =>
-      Math.max(
-        start,
-        Math.min(
-          end - 0.01,
-          start + visibleDuration * ((index + 0.5) / frameCount),
-        ),
-      ),
-    ),
-    reuseTolerance: visibleDuration / frameCount / 2,
+    pixelsPerSecond: Math.max(1, request.pixelsPerSecond),
+    rangeEnd,
+    rangeStart,
+    sourceDuration,
+    src: request.src,
   };
 };
 
-const getProgressiveFramePreviewIndexes = (frameCount: number) => {
-  const indexes: number[] = [];
-  const seen = new Set<number>();
-  const addIndex = (index: number) => {
-    if (index < 0 || index >= frameCount || seen.has(index)) return;
-    seen.add(index);
-    indexes.push(index);
-  };
-  const addMidpoints = (start: number, end: number) => {
-    if (end - start <= 1) return;
+const getFramePreviewCacheKey = (request: FramePreviewRequest) =>
+  [request.src, request.sourceDuration, request.pixelsPerSecond].join('\n');
+
+const getProgressiveFramePreviewIndexes = (indexes: readonly number[]) => {
+  const ordered: number[] = [];
+  const addRange = (start: number, end: number) => {
+    if (start > end) return;
+    ordered.push(indexes[start]!);
+    if (start === end) return;
+    ordered.push(indexes[end]!);
     const middle = Math.floor((start + end) / 2);
-    addIndex(middle);
-    addMidpoints(start, middle);
-    addMidpoints(middle, end);
+    if (middle !== start && middle !== end) ordered.push(indexes[middle]!);
+    addRange(start + 1, middle - 1);
+    addRange(middle + 1, end - 1);
   };
 
-  addIndex(0);
-  addIndex(frameCount - 1);
-  addMidpoints(0, frameCount - 1);
-  for (let index = 0; index < frameCount; index += 1) {
-    addIndex(index);
-  }
-  return indexes;
+  addRange(0, indexes.length - 1);
+  return [...new Set(ordered)];
 };
 
 const waitForVideoMetadata = (video: HTMLVideoElement, src: string) =>
@@ -139,29 +139,55 @@ const seekVideo = (video: HTMLVideoElement, time: number) =>
     }
   });
 
-const captureVideoFrame = (video: HTMLVideoElement) => {
+const captureVideoFrame = (
+  video: HTMLVideoElement,
+  frameWidth: number,
+) => {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   if (!context || !video.videoWidth || !video.videoHeight) {
-    throw new Error('无法读取视频帧');
+    return Promise.reject(new Error('无法读取视频帧'));
   }
 
-  canvas.width = FRAME_PREVIEW_WIDTH;
+  canvas.width = frameWidth;
   canvas.height = FRAME_PREVIEW_HEIGHT;
-  const scale = Math.max(
-    canvas.width / video.videoWidth,
-    canvas.height / video.videoHeight,
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  return new Promise<string>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('无法读取视频帧'));
+          return;
+        }
+        resolve(URL.createObjectURL(blob));
+      },
+      'image/jpeg',
+      0.72,
+    );
+  });
+};
+
+const getRangeIndexes = (
+  entry: FramePreviewCacheEntry,
+  range: FramePreviewRange,
+) => {
+  if (!entry.frameWidth || entry.totalFrames <= 0) return [];
+  const firstIndex = Math.max(
+    0,
+    Math.floor(
+      (range.rangeStart * entry.pixelsPerSecond) / entry.frameWidth,
+    ),
   );
-  const drawWidth = video.videoWidth * scale;
-  const drawHeight = video.videoHeight * scale;
-  context.drawImage(
-    video,
-    (canvas.width - drawWidth) / 2,
-    (canvas.height - drawHeight) / 2,
-    drawWidth,
-    drawHeight,
+  const lastIndex = Math.min(
+    entry.totalFrames - 1,
+    Math.ceil((range.rangeEnd * entry.pixelsPerSecond) / entry.frameWidth) - 1,
   );
-  return canvas.toDataURL('image/jpeg', 0.72);
+  if (lastIndex < firstIndex) return [];
+  return Array.from(
+    { length: lastIndex - firstIndex + 1 },
+    (_, index) => firstIndex + index,
+  );
 };
 
 export const createFramePreviewCache = (
@@ -170,6 +196,7 @@ export const createFramePreviewCache = (
 ) => {
   const entries = new Map<string, FramePreviewCacheEntry>();
   const framesBySource = new Map<string, CachedFramePreview[]>();
+  const generatedUrls = new Set<string>();
   let queue = Promise.resolve();
 
   const findCachedUrl = (
@@ -195,38 +222,46 @@ export const createFramePreviewCache = (
     return nearest?.url ?? null;
   };
 
-  const applyCachedUrls = (entry: FramePreviewCacheEntry) => {
-    let changed = false;
-    entry.frameTimes.forEach((time, index) => {
-      if (entry.urls[index]) return;
-      const url = findCachedUrl(entry.src, time, entry.reuseTolerance);
-      if (!url) return;
-      entry.urls[index] = url;
-      changed = true;
-    });
-    return changed;
+  const cacheFrame = (src: string, time: number, url: string) => {
+    const frames = framesBySource.get(src) ?? [];
+    frames.push({ time, url });
+    frames.sort((left, right) => left.time - right.time);
+    framesBySource.set(src, frames);
+  };
+
+  const getSnapshot = (
+    entry: FramePreviewCacheEntry,
+    range: FramePreviewRange,
+  ): FramePreviewStrip => {
+    if (!entry.frameWidth) return EMPTY_FRAME_PREVIEW_STRIP;
+    return {
+      frameHeight: FRAME_PREVIEW_HEIGHT,
+      frameWidth: entry.frameWidth,
+      frames: getRangeIndexes(entry, range).flatMap((index) => {
+        const url = entry.urls.get(index);
+        return url ? [{ index, url }] : [];
+      }),
+    };
   };
 
   const emit = (entry: FramePreviewCacheEntry) => {
-    const urls = [...entry.urls];
-    entry.subscribers.forEach((subscriber) => subscriber(urls));
+    entry.subscribers.forEach((range, subscriber) => {
+      subscriber(getSnapshot(entry, range));
+    });
   };
 
-  const cacheFrame = (src: string, time: number, url: string) => {
-    const frames = framesBySource.get(src) ?? [];
-    const existing = frames.find(
-      (frame) => Math.abs(frame.time - time) <= FRAME_PREVIEW_TIME_EPSILON,
-    );
-    if (existing) {
-      existing.url = url;
-    } else {
-      frames.push({ time, url });
-      frames.sort((left, right) => left.time - right.time);
-      framesBySource.set(src, frames);
-    }
-    entries.forEach((entry) => {
-      if (entry.src === src && applyCachedUrls(entry)) emit(entry);
-    });
+  const getRequestedIndexes = (entry: FramePreviewCacheEntry) => [
+    ...new Set(
+      [...entry.subscribers.values()].flatMap((range) =>
+        getRangeIndexes(entry, range),
+      ),
+    ),
+  ].sort((left, right) => left - right);
+
+  const hasMissingFrames = (entry: FramePreviewCacheEntry) => {
+    if (entry.subscribers.size === 0) return false;
+    if (!entry.frameWidth) return true;
+    return getRequestedIndexes(entry).some((index) => !entry.urls.has(index));
   };
 
   const enqueue = <T,>(task: () => Promise<T>) => {
@@ -238,42 +273,61 @@ export const createFramePreviewCache = (
     return queuedTask;
   };
 
-  const createUrls = async (
-    clip: Pick<VideoTimelineClip, 'src' | 'trimEnd' | 'trimStart'>,
-    frameCount: number,
-    entry: FramePreviewCacheEntry,
-  ) => {
+  const createFrames = async (entry: FramePreviewCacheEntry) => {
     if (isDisposed()) {
       throw new DOMException('媒体运行时已销毁', 'AbortError');
     }
-    const objectUrl = await getObjectUrl(clip.src);
+    const objectUrl = await getObjectUrl(entry.src);
     const video = document.createElement('video');
     try {
       await waitForVideoMetadata(video, objectUrl);
-      const sourceDuration =
-        Number.isFinite(video.duration) && video.duration > 0
-          ? video.duration
-          : clip.trimEnd;
-      const timing = getFramePreviewTiming(clip, frameCount, sourceDuration);
-      entry.frameTimes = timing.frameTimes;
-      entry.reuseTolerance = timing.reuseTolerance;
-      if (applyCachedUrls(entry)) emit(entry);
-      if (timing.frameTimes.length === 0) return [];
+      entry.frameWidth = Math.max(
+        1,
+        Math.round(
+          FRAME_PREVIEW_HEIGHT * (video.videoWidth / video.videoHeight),
+        ),
+      );
+      entry.totalFrames = Math.ceil(
+        (entry.sourceDuration * entry.pixelsPerSecond) / entry.frameWidth,
+      );
+      emit(entry);
 
-      const urls = new Array<string>(frameCount);
-      for (const index of getProgressiveFramePreviewIndexes(frameCount)) {
+      const indexes = getRequestedIndexes(entry);
+      const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
+      for (const index of indexes) {
+        if (entry.urls.has(index)) continue;
+        const time = Math.min(
+          Math.max(0, video.duration - 0.01),
+          (index + 0.5) * frameDuration,
+        );
+        const cachedUrl = findCachedUrl(
+          entry.src,
+          time,
+          frameDuration / 2,
+        );
+        if (cachedUrl) entry.urls.set(index, cachedUrl);
+      }
+      emit(entry);
+
+      const missingIndexes = getProgressiveFramePreviewIndexes(
+        getRequestedIndexes(entry).filter((index) => !entry.urls.has(index)),
+      );
+      for (const index of missingIndexes) {
         if (isDisposed()) {
           throw new DOMException('媒体运行时已销毁', 'AbortError');
         }
-        const time = timing.frameTimes[index];
+        const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
+        const time = Math.min(
+          Math.max(0, video.duration - 0.01),
+          (index + 0.5) * frameDuration,
+        );
         const cachedUrl = findCachedUrl(
-          clip.src,
+          entry.src,
           time,
-          timing.reuseTolerance,
+          frameDuration / 2,
         );
         if (cachedUrl) {
-          urls[index] = cachedUrl;
-          entry.urls[index] = cachedUrl;
+          entry.urls.set(index, cachedUrl);
           emit(entry);
           continue;
         }
@@ -281,13 +335,16 @@ export const createFramePreviewCache = (
         if (isDisposed()) {
           throw new DOMException('媒体运行时已销毁', 'AbortError');
         }
-        const url = captureVideoFrame(video);
-        urls[index] = url;
-        entry.urls[index] = url;
-        cacheFrame(clip.src, time, url);
+        const url = await captureVideoFrame(video, entry.frameWidth);
+        if (isDisposed()) {
+          URL.revokeObjectURL(url);
+          throw new DOMException('媒体运行时已销毁', 'AbortError');
+        }
+        generatedUrls.add(url);
+        entry.urls.set(index, url);
+        cacheFrame(entry.src, time, url);
         emit(entry);
       }
-      return urls;
     } finally {
       video.pause();
       video.removeAttribute('src');
@@ -295,41 +352,37 @@ export const createFramePreviewCache = (
     }
   };
 
-  const getEntry = (
-    clip: Pick<VideoTimelineClip, 'src' | 'trimEnd' | 'trimStart'>,
-    frameCount: number,
-  ) => {
-    const safeFrameCount = Math.max(0, Math.floor(frameCount));
-    const key = getFramePreviewCacheKey(clip, safeFrameCount);
+  const schedule = (entry: FramePreviewCacheEntry) => {
+    if (entry.task || !hasMissingFrames(entry)) return;
+    entry.task = enqueue(() => createFrames(entry))
+      .catch(() => {
+        if (entries.get(entry.key) === entry) entries.delete(entry.key);
+        entry.subscribers.clear();
+      })
+      .finally(() => {
+        entry.task = null;
+        if (entries.get(entry.key) === entry && hasMissingFrames(entry)) {
+          schedule(entry);
+        }
+      });
+  };
+
+  const getEntry = (request: FramePreviewRequest) => {
+    const key = getFramePreviewCacheKey(request);
     const cachedEntry = entries.get(key);
     if (cachedEntry) return cachedEntry;
 
-    const estimatedTiming = getFramePreviewTiming(
-      clip,
-      safeFrameCount,
-      clip.trimEnd,
-    );
     const entry: FramePreviewCacheEntry = {
-      frameTimes: estimatedTiming.frameTimes,
-      promise: Promise.resolve([]),
-      reuseTolerance: estimatedTiming.reuseTolerance,
-      src: clip.src,
-      subscribers: new Set(),
-      urls: new Array<FramePreviewUrl>(safeFrameCount).fill(null),
+      frameWidth: null,
+      key,
+      pixelsPerSecond: request.pixelsPerSecond,
+      sourceDuration: request.sourceDuration,
+      src: request.src,
+      subscribers: new Map(),
+      task: null,
+      totalFrames: 0,
+      urls: new Map(),
     };
-    applyCachedUrls(entry);
-    entry.promise = enqueue(() => createUrls(clip, safeFrameCount, entry))
-      .then((urls) => {
-        if (urls.length === safeFrameCount) entry.urls = [...urls];
-        emit(entry);
-        entry.subscribers.clear();
-        return urls;
-      })
-      .catch((error: unknown) => {
-        entry.subscribers.clear();
-        entries.delete(key);
-        throw error;
-      });
     entries.set(key, entry);
     return entry;
   };
@@ -339,35 +392,37 @@ export const createFramePreviewCache = (
       entries.forEach((entry) => entry.subscribers.clear());
       entries.clear();
       framesBySource.clear();
+      generatedUrls.forEach((url) => URL.revokeObjectURL(url));
+      generatedUrls.clear();
     },
-    getUrls: (
-      clip: Pick<VideoTimelineClip, 'src' | 'trimEnd' | 'trimStart'>,
-      frameCount: number,
-      subscriber?: FramePreviewSubscriber,
-    ) => {
-      if (!canGenerateFramePreviews()) return Promise.resolve([]);
-      if (isDisposed()) {
-        return Promise.reject(
-          new DOMException('媒体运行时已销毁', 'AbortError'),
-        );
-      }
-      const entry = getEntry(clip, frameCount);
-      if (subscriber) {
-        entry.subscribers.add(subscriber);
-        subscriber([...entry.urls]);
-      }
-      return entry.promise;
-    },
-    unsubscribe: (
-      clip: Pick<VideoTimelineClip, 'src' | 'trimEnd' | 'trimStart'>,
-      frameCount: number,
+    subscribe: (
+      rawRequest: FramePreviewRequest,
       subscriber: FramePreviewSubscriber,
     ) => {
-      const key = getFramePreviewCacheKey(
-        clip,
-        Math.max(0, Math.floor(frameCount)),
+      if (!canGenerateFramePreviews() || isDisposed()) {
+        subscriber(EMPTY_FRAME_PREVIEW_STRIP);
+        return () => undefined;
+      }
+      const request = normalizeRequest(rawRequest);
+      if (!request.src || request.rangeEnd <= request.rangeStart) {
+        subscriber(EMPTY_FRAME_PREVIEW_STRIP);
+        return () => undefined;
+      }
+      const entry = getEntry(request);
+      entry.subscribers.set(subscriber, {
+        rangeEnd: request.rangeEnd,
+        rangeStart: request.rangeStart,
+      });
+      subscriber(
+        getSnapshot(entry, {
+          rangeEnd: request.rangeEnd,
+          rangeStart: request.rangeStart,
+        }),
       );
-      entries.get(key)?.subscribers.delete(subscriber);
+      schedule(entry);
+      return () => {
+        entry.subscribers.delete(subscriber);
+      };
     },
   };
 };

@@ -17,13 +17,17 @@ import {
 } from '../components/test-helpers';
 import { TimelineViewport } from './TimelineViewport';
 
+const { useFramePreviewStripMock } = vi.hoisted(() => ({
+  useFramePreviewStripMock: vi.fn(),
+}));
+
 vi.mock('../media', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../media')>();
 
   return {
     ...actual,
     useAudioWaveformSamples: () => [0.2, 0.8, 0.4],
-    useFramePreviewUrls: () => [],
+    useFramePreviewStrip: useFramePreviewStripMock,
   };
 });
 
@@ -138,6 +142,19 @@ const doubleClickClip = (
 
 describe('TimelineViewport DOM interactions', () => {
   beforeEach(() => {
+    useFramePreviewStripMock.mockReset();
+    useFramePreviewStripMock.mockImplementation((request) =>
+      request
+        ? {
+            frameHeight: 48,
+            frameWidth: 85,
+            frames: [
+              { index: 0, url: 'blob:frame-0' },
+              { index: 1, url: 'blob:frame-1' },
+            ],
+          }
+        : null,
+    );
     resetTestTimelineStore();
     testTimelineStore.setState({
       clips: [videoClip, audioClip],
@@ -220,6 +237,63 @@ describe('TimelineViewport DOM interactions', () => {
         .getByRole('article', { name: 'audio clip: background.mp3' })
         .querySelector('.oc-timeline-clip__duration'),
     ).toHaveTextContent('00:03:00');
+  });
+
+  it('keeps source-frame geometry and extraction request stable during a start trim', () => {
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    const strip = clip.querySelector(
+      '.oc-timeline-clip__preview-strip',
+    ) as HTMLDivElement;
+    const getVideoRequest = () =>
+      useFramePreviewStripMock.mock.calls
+        .map(([request]) => request)
+        .filter((request) => request?.src === videoClip.src)
+        .at(-1);
+    const requestBeforeTrim = getVideoRequest();
+    const imageStylesBeforeTrim = [
+      ...clip.querySelectorAll<HTMLImageElement>(
+        '.oc-timeline-clip__thumbnail',
+      ),
+    ].map((image) => ({
+      height: image.style.height,
+      left: image.style.left,
+      src: image.src,
+      width: image.style.width,
+    }));
+
+    expect(strip).toHaveStyle({ transform: 'translate3d(0px, -50%, 0)' });
+    expect(imageStylesBeforeTrim).toEqual([
+      { height: '48px', left: '0px', src: 'blob:frame-0', width: '85px' },
+      { height: '48px', left: '85px', src: 'blob:frame-1', width: '85px' },
+    ]);
+
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: 'Trim start of opening.mp4' }),
+      { button: 0, clientX: 108, clientY: 50, pointerId: 40 },
+    );
+    fireEvent.pointerMove(window, {
+      clientX: 188,
+      clientY: 50,
+      pointerId: 40,
+    });
+
+    expect(getVideoRequest()).toEqual(requestBeforeTrim);
+    expect(strip).toHaveStyle({ transform: 'translate3d(-80px, -50%, 0)' });
+    expect(
+      [
+        ...clip.querySelectorAll<HTMLImageElement>(
+          '.oc-timeline-clip__thumbnail',
+        ),
+      ].map((image) => ({
+        height: image.style.height,
+        left: image.style.left,
+        src: image.src,
+        width: image.style.width,
+      })),
+    ).toEqual(imageStylesBeforeTrim);
   });
 
   it('uses the standard video label for non-main video tracks', () => {

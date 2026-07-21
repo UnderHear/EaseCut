@@ -14,13 +14,18 @@ import {
   Trash2,
 } from 'lucide-react';
 
-import { useAudioWaveformSamples, useFramePreviewUrls } from '../media';
+import {
+  FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+  useAudioWaveformSamples,
+  useFramePreviewStrip,
+  type FramePreviewRequest,
+  type FramePreviewStrip,
+} from '../media';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
 import { roundTimelineTime } from '../core/timeline-math';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
 import { formatTimelineTime } from '../util/format-timeline-time';
 
-const PREVIEW_TILE_WIDTH = 96;
 const WAVEFORM_HEIGHT = 100;
 const WAVEFORM_AMPLITUDE = 44;
 const AUDIO_VOLUME_INSET = 8;
@@ -44,7 +49,10 @@ export type TimelineClipViewProps = {
     edge: TimelineClipTrimEdge,
   ) => void;
   onVolumeStart: (event: PointerEvent<HTMLElement>, trackId: string) => void;
+  pixelsPerSecond: number;
   trackVolume: number;
+  visibleTimeEnd: number;
+  visibleTimeStart: number;
   width: number;
 };
 
@@ -81,18 +89,63 @@ const getVisibleSamples = (samples: readonly number[], clip: TimelineClip) => {
 
 const useTimelineClipPresentation = (
   clip: TimelineClip,
-  width: number,
+  pixelsPerSecond: number,
+  timelineStart: number,
   trackVolume: number,
+  visibleTimeEnd: number,
+  visibleTimeStart: number,
 ) => {
-  const previewCount = Math.max(
-    1,
-    Math.min(24, Math.ceil(Math.max(0, width) / PREVIEW_TILE_WIDTH)),
-  );
-  const generatedPreviews = useFramePreviewUrls(
-    clip,
-    previewCount,
-    clip.type === 'video',
-  );
+  const previewRequest = useMemo<FramePreviewRequest | null>(() => {
+    if (
+      clip.type !== 'video' ||
+      timelineStart >= visibleTimeEnd ||
+      timelineStart + clip.duration <= visibleTimeStart
+    ) {
+      return null;
+    }
+
+    const viewportDuration = Math.max(0, visibleTimeEnd - visibleTimeStart);
+    const sourceTimelineStart = timelineStart - clip.trimStart;
+    const rawRangeStart = Math.max(
+      0,
+      visibleTimeStart - sourceTimelineStart - viewportDuration,
+    );
+    const rawRangeEnd = Math.min(
+      clip.sourceDuration,
+      visibleTimeEnd - sourceTimelineStart + viewportDuration,
+    );
+    const rangeStart = Math.max(
+      0,
+      Math.floor(
+        rawRangeStart / FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+      ) * FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+    );
+    const rangeEnd = Math.min(
+      clip.sourceDuration,
+      Math.ceil(rawRangeEnd / FRAME_PREVIEW_CHUNK_DURATION_SECONDS) *
+        FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+    );
+    if (rangeEnd <= rangeStart) return null;
+
+    return {
+      pixelsPerSecond,
+      rangeEnd,
+      rangeStart,
+      sourceDuration: clip.sourceDuration,
+      src: clip.src,
+    };
+  }, [
+    clip.duration,
+    clip.sourceDuration,
+    clip.src,
+    clip.trimStart,
+    clip.type,
+    pixelsPerSecond,
+    timelineStart,
+    visibleTimeEnd,
+    visibleTimeStart,
+  ]);
+  const previewStrip = useFramePreviewStrip(previewRequest);
   const waveformSamples = useAudioWaveformSamples(
     clip.waveformSrc ?? clip.src,
     clip.type === 'audio',
@@ -103,7 +156,8 @@ const useTimelineClipPresentation = (
   );
 
   return {
-    previews: generatedPreviews,
+    previewOffset: clip.trimStart * pixelsPerSecond,
+    previewStrip,
     volume: clampUnit(trackVolume),
     waveformPath,
   };
@@ -111,32 +165,41 @@ const useTimelineClipPresentation = (
 
 type TimelineClipVisualProps = {
   clip: TimelineClip;
-  previews: readonly (string | null)[];
+  previewOffset: number;
+  previewStrip: FramePreviewStrip | null;
   waveformPath: string;
 };
 
 function TimelineClipVisual({
   clip,
-  previews,
+  previewOffset,
+  previewStrip,
   waveformPath,
 }: TimelineClipVisualProps) {
   return (
     <>
       <div className='oc-timeline-clip__media'>
         {clip.type === 'video' ? (
-          <div className='oc-timeline-clip__preview-strip' aria-hidden='true'>
-            {previews.map((url, index) =>
-              url ? (
-                <img
-                  alt=''
-                  className='oc-timeline-clip__thumbnail'
-                  decoding='async'
-                  draggable={false}
-                  key={`${url}-${index}`}
-                  src={url}
-                />
-              ) : null,
-            )}
+          <div
+            className='oc-timeline-clip__preview-strip'
+            aria-hidden='true'
+            style={{ transform: `translate3d(${-previewOffset}px, -50%, 0)` }}
+          >
+            {previewStrip?.frames.map((frame) => (
+              <img
+                alt=''
+                className='oc-timeline-clip__thumbnail'
+                decoding='async'
+                draggable={false}
+                key={frame.index}
+                src={frame.url}
+                style={{
+                  height: previewStrip.frameHeight,
+                  left: frame.index * previewStrip.frameWidth,
+                  width: previewStrip.frameWidth,
+                }}
+              />
+            ))}
           </div>
         ) : (
           <svg
@@ -180,15 +243,22 @@ export function TimelineClipView({
   onSplit,
   onTrimStart,
   onVolumeStart,
+  pixelsPerSecond,
   trackVolume,
+  visibleTimeEnd,
+  visibleTimeStart,
   width,
 }: TimelineClipViewProps) {
   const [contextMenuTime, setContextMenuTime] = useState(clip.start);
-  const { previews, volume, waveformPath } = useTimelineClipPresentation(
-    clip,
-    width,
-    trackVolume,
-  );
+  const { previewOffset, previewStrip, volume, waveformPath } =
+    useTimelineClipPresentation(
+      clip,
+      pixelsPerSecond,
+      clip.start,
+      trackVolume,
+      visibleTimeEnd,
+      visibleTimeStart,
+    );
   const style = {
     '--oc-timeline-clip-volume-y': `${
       AUDIO_VOLUME_INSET +
@@ -240,7 +310,8 @@ export function TimelineClipView({
         >
           <TimelineClipVisual
             clip={clip}
-            previews={previews}
+            previewOffset={previewOffset}
+            previewStrip={previewStrip}
             waveformPath={waveformPath}
           />
 
@@ -330,8 +401,12 @@ type TimelineClipDragOverlayProps = {
   clip: TimelineClip;
   height: number;
   left: number;
+  pixelsPerSecond: number;
+  timelineStart: number;
   top: number;
   trackVolume: number;
+  visibleTimeEnd: number;
+  visibleTimeStart: number;
   width: number;
 };
 
@@ -339,15 +414,23 @@ export function TimelineClipDragOverlay({
   clip,
   height,
   left,
+  pixelsPerSecond,
+  timelineStart,
   top,
   trackVolume,
+  visibleTimeEnd,
+  visibleTimeStart,
   width,
 }: TimelineClipDragOverlayProps) {
-  const { previews, volume, waveformPath } = useTimelineClipPresentation(
-    clip,
-    width,
-    trackVolume,
-  );
+  const { previewOffset, previewStrip, volume, waveformPath } =
+    useTimelineClipPresentation(
+      clip,
+      pixelsPerSecond,
+      timelineStart,
+      trackVolume,
+      visibleTimeEnd,
+      visibleTimeStart,
+    );
   const style = {
     '--oc-timeline-clip-volume-y': `${
       AUDIO_VOLUME_INSET +
@@ -369,7 +452,8 @@ export function TimelineClipDragOverlay({
     >
       <TimelineClipVisual
         clip={clip}
-        previews={previews}
+        previewOffset={previewOffset}
+        previewStrip={previewStrip}
         waveformPath={waveformPath}
       />
     </div>

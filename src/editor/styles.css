@@ -1177,7 +1177,6 @@
 }
 
 .oc-timeline-clip__media,
-.oc-timeline-clip__preview-strip,
 .oc-timeline-clip__waveform {
   position: absolute;
   inset: 0;
@@ -1185,16 +1184,25 @@
   height: 100%;
 }
 
-.oc-timeline-clip__preview-strip {
-  display: flex;
+.oc-timeline-clip__media {
   overflow: hidden;
 }
 
+.oc-timeline-clip__preview-strip {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 48px;
+  pointer-events: none;
+  will-change: transform;
+}
+
 .oc-timeline-clip__thumbnail {
-  min-width: 42px;
-  flex: 1 0 76px;
-  object-fit: cover;
-  opacity: 0.78;
+  position: absolute;
+  top: 0;
+  display: block;
+  max-width: none;
+  object-fit: contain;
   pointer-events: none;
 }
 

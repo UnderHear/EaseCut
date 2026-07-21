@@ -1,17 +1,42 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createFramePreviewCache } from './frame-preview';
+import {
+  FRAME_PREVIEW_HEIGHT,
+  createFramePreviewCache,
+  type FramePreviewRequest,
+  type FramePreviewStrip,
+} from './frame-preview';
+
+const createRequest = (
+  patch: Partial<FramePreviewRequest> = {},
+): FramePreviewRequest => ({
+  pixelsPerSecond: 80,
+  rangeEnd: 3,
+  rangeStart: 0,
+  sourceDuration: 10,
+  src: '/video.mp4',
+  ...patch,
+});
 
 const installMediaElementMocks = () => {
   let frameIndex = 0;
+  const drawImage = vi.fn();
   const originalCreateElement = document.createElement.bind(document);
+  const createObjectUrl = vi.fn(
+    () => `blob:frame-${(frameIndex += 1)}`,
+  );
+  const revokeObjectUrl = vi.fn();
+  vi.stubGlobal('URL', {
+    createObjectURL: createObjectUrl,
+    revokeObjectURL: revokeObjectUrl,
+  });
   vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
     if (tagName === 'canvas') {
       return {
-        getContext: vi.fn(() => ({ drawImage: vi.fn() })),
+        getContext: vi.fn(() => ({ drawImage })),
         height: 0,
-        toDataURL: vi.fn(
-          () => `data:image/jpeg;base64,frame-${(frameIndex += 1)}`,
+        toBlob: vi.fn((callback: BlobCallback) =>
+          callback(new Blob(['frame'], { type: 'image/jpeg' })),
         ),
         width: 0,
       } as unknown as HTMLCanvasElement;
@@ -58,6 +83,8 @@ const installMediaElementMocks = () => {
     }
     return originalCreateElement(tagName);
   });
+
+  return { createObjectUrl, drawImage, revokeObjectUrl };
 };
 
 afterEach(() => {
@@ -66,25 +93,39 @@ afterEach(() => {
 });
 
 describe('frame preview cache', () => {
-  it('deduplicates an extraction and publishes progressive results', async () => {
+  it('deduplicates source-range extraction and publishes fixed frames progressively', async () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
-    installMediaElementMocks();
+    const { createObjectUrl, drawImage } = installMediaElementMocks();
     const getObjectUrl = vi.fn().mockResolvedValue('blob:video');
     const cache = createFramePreviewCache(getObjectUrl, () => false);
-    const clip = { src: '/video.mp4', trimEnd: 5, trimStart: 0 };
-    const updates: Array<Array<string | null>> = [];
+    const firstUpdates: FramePreviewStrip[] = [];
+    const secondUpdates: FramePreviewStrip[] = [];
 
-    const first = cache.getUrls(clip, 3, (urls) => updates.push(urls));
-    const duplicate = cache.getUrls(clip, 3);
+    cache.subscribe(createRequest(), (strip) => firstUpdates.push(strip));
+    cache.subscribe(createRequest(), (strip) => secondUpdates.push(strip));
 
-    expect(duplicate).toBe(first);
-    await expect(first).resolves.toEqual([
-      'data:image/jpeg;base64,frame-1',
-      'data:image/jpeg;base64,frame-3',
-      'data:image/jpeg;base64,frame-2',
-    ]);
+    await vi.waitFor(() => {
+      expect(firstUpdates.at(-1)?.frames).toHaveLength(3);
+      expect(secondUpdates.at(-1)?.frames).toHaveLength(3);
+    });
     expect(getObjectUrl).toHaveBeenCalledTimes(1);
-    expect(updates.some((urls) => urls.some(Boolean))).toBe(true);
+    expect(createObjectUrl).toHaveBeenCalledTimes(3);
+    expect(firstUpdates.at(-1)).toEqual({
+      frameHeight: FRAME_PREVIEW_HEIGHT,
+      frameWidth: 85,
+      frames: [
+        { index: 0, url: 'blob:frame-1' },
+        { index: 1, url: 'blob:frame-3' },
+        { index: 2, url: 'blob:frame-2' },
+      ],
+    });
+    expect(drawImage).toHaveBeenCalledWith(
+      expect.anything(),
+      0,
+      0,
+      85,
+      FRAME_PREVIEW_HEIGHT,
+    );
   });
 
   it('keeps frame caches isolated between runtime instances', async () => {
@@ -93,34 +134,103 @@ describe('frame preview cache', () => {
     const getObjectUrl = vi.fn().mockResolvedValue('blob:video');
     const first = createFramePreviewCache(getObjectUrl, () => false);
     const second = createFramePreviewCache(getObjectUrl, () => false);
-    const clip = { src: '/video.mp4', trimEnd: 5, trimStart: 0 };
+    const firstSubscriber = vi.fn();
+    const secondSubscriber = vi.fn();
 
-    await first.getUrls(clip, 1);
-    await second.getUrls(clip, 1);
+    first.subscribe(createRequest({ rangeEnd: 1 }), firstSubscriber);
+    second.subscribe(createRequest({ rangeEnd: 1 }), secondSubscriber);
 
+    await vi.waitFor(() => {
+      expect(firstSubscriber).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          frames: [expect.objectContaining({ index: 0 })],
+        }),
+      );
+      expect(secondSubscriber).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          frames: [expect.objectContaining({ index: 0 })],
+        }),
+      );
+    });
     expect(getObjectUrl).toHaveBeenCalledTimes(2);
   });
 
-  it('drops a failed extraction entry so a later request can retry', async () => {
+  it('loads later source chunks without regenerating cached frame indexes', async () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
-    installMediaElementMocks();
-    const getObjectUrl = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('temporary failure'))
-      .mockResolvedValueOnce('blob:video');
+    const { createObjectUrl } = installMediaElementMocks();
+    const getObjectUrl = vi.fn().mockResolvedValue('blob:video');
     const cache = createFramePreviewCache(getObjectUrl, () => false);
-    const clip = { src: '/video.mp4', trimEnd: 5, trimStart: 0 };
+    const firstSubscriber = vi.fn();
+    const unsubscribe = cache.subscribe(
+      createRequest({ rangeEnd: 3 }),
+      firstSubscriber,
+    );
 
-    await expect(cache.getUrls(clip, 1)).rejects.toThrow('temporary failure');
-    await expect(cache.getUrls(clip, 1)).resolves.toEqual([
-      'data:image/jpeg;base64,frame-1',
-    ]);
-    expect(getObjectUrl).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() =>
+      expect(firstSubscriber).toHaveBeenLastCalledWith(
+        expect.objectContaining({ frames: expect.any(Array) }),
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(
+        (firstSubscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(3),
+    );
+    const cachedUrls = (
+      firstSubscriber.mock.lastCall?.[0] as FramePreviewStrip
+    ).frames.map((frame) => frame.url);
+    unsubscribe();
+
+    const secondSubscriber = vi.fn();
+    cache.subscribe(
+      createRequest({ rangeEnd: 6, rangeStart: 2 }),
+      secondSubscriber,
+    );
+    await vi.waitFor(() =>
+      expect(
+        (secondSubscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(5),
+    );
+
+    expect(createObjectUrl).toHaveBeenCalledTimes(6);
+    expect(
+      (secondSubscriber.mock.lastCall?.[0] as FramePreviewStrip).frames[0],
+    ).toEqual({ index: 1, url: cachedUrls[1] });
   });
 
-  it('stops publishing progressive frames after a subscriber is removed', async () => {
+  it('reuses denser cached source frames after zooming out', async () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
-    installMediaElementMocks();
+    const { createObjectUrl } = installMediaElementMocks();
+    const cache = createFramePreviewCache(
+      vi.fn().mockResolvedValue('blob:video'),
+      () => false,
+    );
+    const denseSubscriber = vi.fn();
+    const unsubscribe = cache.subscribe(
+      createRequest({ pixelsPerSecond: 160 }),
+      denseSubscriber,
+    );
+    await vi.waitFor(() =>
+      expect(
+        (denseSubscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(6),
+    );
+    unsubscribe();
+
+    const sparseSubscriber = vi.fn();
+    cache.subscribe(createRequest(), sparseSubscriber);
+    await vi.waitFor(() =>
+      expect(
+        (sparseSubscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(3),
+    );
+
+    expect(createObjectUrl).toHaveBeenCalledTimes(6);
+  });
+
+  it('stops extracting a pending range after its subscriber is removed', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    const { createObjectUrl } = installMediaElementMocks();
     let resolveObjectUrl!: (url: string) => void;
     const getObjectUrl = vi.fn(
       () =>
@@ -129,18 +239,41 @@ describe('frame preview cache', () => {
         }),
     );
     const cache = createFramePreviewCache(getObjectUrl, () => false);
-    const clip = { src: '/video.mp4', trimEnd: 5, trimStart: 0 };
     const subscriber = vi.fn();
-    const request = cache.getUrls(clip, 1, subscriber);
-    cache.unsubscribe(clip, 1, subscriber);
+    const unsubscribe = cache.subscribe(createRequest(), subscriber);
+    await vi.waitFor(() => expect(getObjectUrl).toHaveBeenCalledOnce());
+    unsubscribe();
+
+    resolveObjectUrl('blob:video');
     await Promise.resolve();
     await Promise.resolve();
 
-    resolveObjectUrl('blob:video');
-    await expect(request).resolves.toEqual([
-      'data:image/jpeg;base64,frame-1',
-    ]);
     expect(subscriber).toHaveBeenCalledOnce();
-    expect(subscriber).toHaveBeenCalledWith([null]);
+    expect(subscriber).toHaveBeenCalledWith({
+      frameHeight: FRAME_PREVIEW_HEIGHT,
+      frameWidth: 0,
+      frames: [],
+    });
+    expect(createObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it('revokes generated frame URLs when the cache is cleared', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    const { revokeObjectUrl } = installMediaElementMocks();
+    const cache = createFramePreviewCache(
+      vi.fn().mockResolvedValue('blob:video'),
+      () => false,
+    );
+    const subscriber = vi.fn();
+    cache.subscribe(createRequest({ rangeEnd: 1 }), subscriber);
+    await vi.waitFor(() =>
+      expect(
+        (subscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(1),
+    );
+
+    cache.clear();
+
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:frame-1');
   });
 });

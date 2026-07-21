@@ -63,6 +63,7 @@ export function TimelineViewport({
   const selectClip = useTimelineStore((state) => state.selectClip);
   const toggleTrackMute = useTimelineStore((state) => state.toggleTrackMute);
   const store = useTimelineStoreApi();
+  const [scrollLeft, setScrollLeft] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(900);
   const [viewportHeight, setViewportHeight] = useState(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -109,6 +110,15 @@ export function TimelineViewport({
     0,
     viewportWidth - TIMELINE_TRACK_HEADER_WIDTH,
   );
+  const visibleTimeStart = Math.max(
+    0,
+    (scrollLeft - TIMELINE_CONTENT_PADDING_X) / pixelsPerSecond,
+  );
+  const visibleTimeEnd = Math.max(
+    visibleTimeStart,
+    (scrollLeft + laneViewportWidth - TIMELINE_CONTENT_PADDING_X) /
+      pixelsPerSecond,
+  );
   const laneWidth = Math.max(
     laneViewportWidth,
     durationToWidth(contentDuration, pixelsPerSecond) +
@@ -152,6 +162,12 @@ export function TimelineViewport({
 
     playhead.style.left = `${playheadLeft - viewport.scrollLeft}px`;
   }, [playheadLeft]);
+  const handleViewportScroll = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    setScrollLeft(viewport.scrollLeft);
+    syncPlayheadHorizontalPosition();
+  }, [syncPlayheadHorizontalPosition]);
 
   useLayoutEffect(() => {
     const element = viewportRef.current;
@@ -178,6 +194,7 @@ export function TimelineViewport({
 
     if (element && pendingZoom?.pixelsPerSecond === pixelsPerSecond) {
       element.scrollLeft = pendingZoom.scrollLeft;
+      setScrollLeft(pendingZoom.scrollLeft);
       pendingZoomRef.current = null;
     }
     syncPlayheadHorizontalPosition();
@@ -271,7 +288,7 @@ export function TimelineViewport({
         className='oc-timeline-viewport oc-scrollbar'
         data-interacting={controller.isInteracting}
         data-scrubbing={controller.isScrubbing}
-        onScroll={syncPlayheadHorizontalPosition}
+        onScroll={handleViewportScroll}
         ref={viewportRef}
       >
         <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
@@ -401,7 +418,10 @@ export function TimelineViewport({
                         }
                         onTrimStart={controller.beginTrim}
                         onVolumeStart={controller.beginVolume}
+                        pixelsPerSecond={pixelsPerSecond}
                         trackVolume={track.volume}
+                        visibleTimeEnd={visibleTimeEnd}
+                        visibleTimeStart={visibleTimeStart}
                         width={durationToWidth(
                           clip.duration,
                           pixelsPerSecond,
@@ -443,8 +463,12 @@ export function TimelineViewport({
                 TIMELINE_CONTENT_PADDING_X +
                 timeToX(dropPreview.rawStart, pixelsPerSecond)
               }
+              pixelsPerSecond={pixelsPerSecond}
+              timelineStart={dropPreview.rawStart}
               top={dropPreview.dragTop}
               trackVolume={draggedTrackVolume}
+              visibleTimeEnd={visibleTimeEnd}
+              visibleTimeStart={visibleTimeStart}
               width={dragWidth}
             />
           )}

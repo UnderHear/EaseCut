@@ -2,8 +2,7 @@ export {
   MediaRuntimeProvider,
   createMediaRuntime,
   useAudioWaveformSamples,
-  useFramePreviewUrls,
-  useGeneratedFramePreviewUrls,
+  useFramePreviewStrip,
   useMediaMetadata,
   useMediaObjectUrl,
   useMediaRuntime,
@@ -12,9 +11,11 @@ export {
 } from './media-runtime';
 export {
   canGenerateFramePreviews,
+  FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
   FRAME_PREVIEW_HEIGHT,
-  FRAME_PREVIEW_WIDTH,
-  type FramePreviewUrl,
+  type FramePreviewFrame,
+  type FramePreviewRequest,
+  type FramePreviewStrip,
 } from './frame-preview';
 export { sampleAudioBuffer } from './audio-waveform';
 
