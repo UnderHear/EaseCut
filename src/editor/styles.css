@@ -789,60 +789,53 @@
 
 .oc-timeline-shell {
   position: relative;
-  display: flex;
+  display: grid;
   min-width: 0;
   min-height: 0;
   flex: 1;
+  grid-template-columns:
+    var(--oc-timeline-header-width)
+    minmax(0, 1fr);
+  grid-template-rows:
+    var(--oc-timeline-ruler-height)
+    minmax(0, 1fr);
+  background: #1c1c1c;
 }
 
 .oc-timeline-viewport {
   position: relative;
   min-width: 0;
   min-height: 0;
-  flex: 1;
+  grid-column: 2;
+  grid-row: 2;
   overflow: auto;
   overscroll-behavior: contain;
   background: #1c1c1c;
 }
 
-.oc-timeline-viewport[data-scrubbing="true"],
-.oc-timeline-viewport[data-scrubbing="true"] * {
+.oc-timeline-shell[data-scrubbing="true"],
+.oc-timeline-shell[data-scrubbing="true"] * {
   cursor: col-resize !important;
 }
 
 .oc-timeline-grid {
   position: relative;
-  display: grid;
-  width: max(
-    100%,
-    calc(var(--oc-timeline-header-width) + var(--oc-timeline-lane-width))
-  );
-  grid-template-columns:
-    var(--oc-timeline-header-width)
-    minmax(var(--oc-timeline-lane-width), 1fr);
-  grid-template-rows: var(--oc-timeline-ruler-height) auto;
+  display: flex;
+  width: max(100%, var(--oc-timeline-lane-width));
   min-height: 100%;
-  align-content: stretch;
+  flex-direction: column;
   color: var(--oc-text-muted);
   user-select: none;
 }
 
-.oc-timeline-corner,
-.oc-timeline-ruler {
-  position: sticky;
-  top: 0;
-  z-index: 12;
-  background-color: #1c1c1c;
-}
-
 .oc-timeline-corner {
-  left: 0;
   z-index: 16;
   display: flex;
   align-items: center;
   justify-content: center;
   grid-column: 1;
   grid-row: 1;
+  background-color: #1c1c1c;
 }
 
 .oc-timeline-gap-status {
@@ -852,9 +845,26 @@
   pointer-events: none;
 }
 
-.oc-timeline-ruler {
+.oc-timeline-ruler-viewport {
+  z-index: 12;
+  min-width: 0;
   grid-column: 2;
   grid-row: 1;
+  overflow: hidden;
+  background-color: #1c1c1c;
+}
+
+.oc-timeline-ruler-canvas {
+  position: relative;
+  height: 100%;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.oc-timeline-ruler {
+  position: relative;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   cursor: col-resize;
   touch-action: none;
@@ -911,10 +921,12 @@
 
 .oc-timeline-playhead-layer {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--oc-timeline-header-width);
   z-index: 13;
   overflow: hidden;
-  clip-path: inset(0 0 0 var(--oc-timeline-header-width));
   pointer-events: none;
 }
 
@@ -955,39 +967,48 @@
   transform: translateX(-50%);
 }
 
+.oc-timeline-controls-viewport {
+  min-height: 0;
+  grid-column: 1;
+  grid-row: 2;
+  overflow: hidden;
+}
+
+.oc-timeline-controls-stack,
 .oc-timeline-track-stack {
   display: flex;
   min-width: 0;
-  min-height: 72px;
+  min-height: 100%;
   flex-direction: column;
-  grid-column: 1 / -1;
-  grid-row: 2;
   gap: var(--oc-timeline-track-gap);
 }
 
-.oc-timeline-track,
-.oc-timeline-tail-row {
-  display: grid;
+.oc-timeline-controls-stack {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.oc-timeline-track {
   min-width: 0;
   flex: none;
-  grid-template-columns:
-    var(--oc-timeline-header-width)
-    minmax(var(--oc-timeline-lane-width), 1fr);
+}
+
+.oc-timeline-track-stack {
+  flex: 1 0 auto;
 }
 
 .oc-timeline-tail-row {
+  min-width: 0;
   min-height: 72px;
   flex: 1 0 72px;
 }
 
 .oc-timeline-track__control {
-  position: sticky;
-  left: 0;
-  z-index: 10;
   display: flex;
+  min-width: 0;
+  flex: none;
   align-items: center;
   justify-content: center;
-  grid-column: 1;
   gap: 12px;
   padding: 0 7px 0 8px;
   background: #1c1c1c;
@@ -1025,7 +1046,8 @@
 .oc-timeline-track__lane,
 .oc-timeline-tail {
   position: relative;
-  grid-column: 2;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   touch-action: none;
   background-color: #262626;
@@ -1048,6 +1070,11 @@
   letter-spacing: 0.01em;
 }
 
+.oc-timeline-track__control--tail {
+  min-height: 72px;
+  flex: 1 0 72px;
+}
+
 .oc-timeline-track__control--tail,
 .oc-timeline-tail {
   background-color: #1c1c1c;
@@ -1056,7 +1083,7 @@
 .oc-timeline-track-insert-line {
   position: absolute;
   right: 0;
-  left: var(--oc-timeline-header-width);
+  left: 0;
   z-index: 8;
   height: 2px;
   background: var(--oc-accent);
@@ -1064,9 +1091,13 @@
   pointer-events: none;
 }
 
+.oc-timeline-track-insert-line[data-leading="true"] {
+  transform: none;
+}
+
 .oc-timeline-snap-line {
   position: absolute;
-  top: var(--oc-timeline-ruler-height);
+  top: 0;
   bottom: 0;
   width: 1px;
   pointer-events: none;

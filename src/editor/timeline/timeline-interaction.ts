@@ -9,7 +9,6 @@ import {
 import {
   TIMELINE_CONTENT_PADDING_X,
   TIMELINE_RULER_HEIGHT,
-  TIMELINE_TRACK_HEADER_WIDTH,
   getTimelineTrackInsertY,
   getTimelineTrackLayouts,
   getTimelineTracksHeight,
@@ -106,29 +105,26 @@ export const TRACK_INSERT_ACQUIRE_DISTANCE = 4;
 export const TRACK_INSERT_RELEASE_DISTANCE = 6;
 
 export const getContentPoint = (
-  grid: HTMLDivElement | null,
+  viewport: HTMLDivElement | null,
   clientX: number,
   clientY: number,
 ): ContentPoint | null => {
-  if (!grid) return null;
-  const rect = grid.getBoundingClientRect();
-  const viewportRect = grid.parentElement?.getBoundingClientRect();
-  const viewportY = viewportRect ? clientY - viewportRect.top : null;
+  if (!viewport) return null;
+  const rect = viewport.getBoundingClientRect();
+  const localY = clientY - rect.top;
 
   return {
     x: Math.max(
       0,
       clientX -
-        rect.left -
-        TIMELINE_TRACK_HEADER_WIDTH -
+        rect.left +
+        viewport.scrollLeft -
         TIMELINE_CONTENT_PADDING_X,
     ),
     y:
-      viewportY !== null &&
-      viewportY >= 0 &&
-      viewportY < TIMELINE_RULER_HEIGHT
-        ? viewportY
-        : clientY - rect.top,
+      localY < 0
+        ? Math.max(0, localY + TIMELINE_RULER_HEIGHT)
+        : TIMELINE_RULER_HEIGHT + localY + viewport.scrollTop,
   };
 };
 

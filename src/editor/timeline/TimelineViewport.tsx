@@ -65,8 +65,11 @@ export function TimelineViewport({
   const store = useTimelineStoreApi();
   const [scrollLeft, setScrollLeft] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(900);
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const controlsStackRef = useRef<HTMLDivElement | null>(null);
+  const rulerCanvasRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
   const pendingZoomRef = useRef<{
     pixelsPerSecond: number;
@@ -79,6 +82,7 @@ export function TimelineViewport({
   const controller = useTimelineController({
     gridRef,
     onClipTimingPreviewChange,
+    viewportRef,
   });
   const { displayClips } = controller;
   const dropPreview = controller.dropPreview;
@@ -105,10 +109,7 @@ export function TimelineViewport({
       ? dropPreview.rawStart + draggedClip.duration + 2
       : 0,
   );
-  const laneViewportWidth = Math.max(
-    0,
-    viewportWidth - TIMELINE_TRACK_HEADER_WIDTH,
-  );
+  const laneViewportWidth = Math.max(0, viewportWidth);
   const visibleTimeStart = Math.max(
     0,
     (scrollLeft - TIMELINE_CONTENT_PADDING_X) / pixelsPerSecond,
@@ -136,20 +137,18 @@ export function TimelineViewport({
     });
     return grouped;
   }, [displayClips]);
-  const gridStyle = {
+  const shellStyle = {
     '--oc-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
-    '--oc-timeline-lane-width': `${contentLaneWidth}px`,
     '--oc-timeline-ruler-height': `${TIMELINE_RULER_HEIGHT}px`,
     '--oc-timeline-track-gap': `${TIMELINE_TRACK_GAP}px`,
+  } as CSSProperties;
+  const gridStyle = {
+    '--oc-timeline-lane-width': `${contentLaneWidth}px`,
     '--oc-timeline-grid-step': `${majorInterval * pixelsPerSecond}px`,
   } as CSSProperties;
   const playheadLeft =
-    TIMELINE_TRACK_HEADER_WIDTH +
     TIMELINE_CONTENT_PADDING_X +
     timeToX(currentTime, pixelsPerSecond);
-  const playheadLayerStyle = {
-    '--oc-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
-  } as CSSProperties;
   const syncPlayheadHorizontalPosition = useCallback(() => {
     const viewport = viewportRef.current;
     const playhead = playheadRef.current;
@@ -157,12 +156,26 @@ export function TimelineViewport({
 
     playhead.style.left = `${playheadLeft - viewport.scrollLeft}px`;
   }, [playheadLeft]);
+  const syncScrollLayers = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    if (rulerCanvasRef.current) {
+      rulerCanvasRef.current.style.transform =
+        `translate3d(${-viewport.scrollLeft}px, 0, 0)`;
+    }
+    if (controlsStackRef.current) {
+      controlsStackRef.current.style.transform =
+        `translate3d(0, ${-viewport.scrollTop}px, 0)`;
+    }
+    syncPlayheadHorizontalPosition();
+  }, [syncPlayheadHorizontalPosition]);
   const handleViewportScroll = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     setScrollLeft(viewport.scrollLeft);
-    syncPlayheadHorizontalPosition();
-  }, [syncPlayheadHorizontalPosition]);
+    syncScrollLayers();
+  }, [syncScrollLayers]);
 
   useLayoutEffect(() => {
     const element = viewportRef.current;
@@ -191,12 +204,13 @@ export function TimelineViewport({
       setScrollLeft(pendingZoom.scrollLeft);
       pendingZoomRef.current = null;
     }
-    syncPlayheadHorizontalPosition();
-  }, [pixelsPerSecond, syncPlayheadHorizontalPosition]);
+    syncScrollLayers();
+  }, [pixelsPerSecond, syncScrollLayers]);
 
   useEffect(() => {
+    const shell = shellRef.current;
     const element = viewportRef.current;
-    if (!element) return undefined;
+    if (!shell || !element) return undefined;
 
     const handleWheel = (event: WheelEvent) => {
       if (controller.isInteracting) {
@@ -224,12 +238,14 @@ export function TimelineViewport({
         if (nextZoom === baseZoom.pixelsPerSecond) return;
 
         const rect = element.getBoundingClientRect();
-        const pointerX = event.clientX - rect.left;
+        const pointerX = Math.min(
+          element.clientWidth,
+          Math.max(0, event.clientX - rect.left),
+        );
         const timelineX = Math.max(
           0,
           baseZoom.scrollLeft +
             pointerX -
-            TIMELINE_TRACK_HEADER_WIDTH -
             TIMELINE_CONTENT_PADDING_X,
         );
         const anchorTime = timelineX / baseZoom.pixelsPerSecond;
@@ -237,8 +253,7 @@ export function TimelineViewport({
           pixelsPerSecond: nextZoom,
           scrollLeft: Math.max(
             0,
-            TIMELINE_TRACK_HEADER_WIDTH +
-              TIMELINE_CONTENT_PADDING_X +
+            TIMELINE_CONTENT_PADDING_X +
               anchorTime * nextZoom -
               pointerX,
           ),
@@ -250,12 +265,22 @@ export function TimelineViewport({
       if (event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
         event.preventDefault();
         element.scrollLeft += event.deltaY;
+        return;
+      }
+
+      if (
+        event.target instanceof Node &&
+        !element.contains(event.target)
+      ) {
+        event.preventDefault();
+        element.scrollLeft += event.deltaX;
+        element.scrollTop += event.deltaY;
       }
     };
 
-    element.addEventListener('wheel', handleWheel, { passive: false });
+    shell.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
-      element.removeEventListener('wheel', handleWheel);
+      shell.removeEventListener('wheel', handleWheel);
       pendingZoomRef.current = null;
     };
   }, [controller.isInteracting, store]);
@@ -265,32 +290,89 @@ export function TimelineViewport({
     const element = viewportRef.current;
     if (!element) return;
     const left = playheadLeft;
-    const viewportLeft = element.scrollLeft + TIMELINE_TRACK_HEADER_WIDTH;
+    const viewportLeft = element.scrollLeft;
     const viewportRight = element.scrollLeft + element.clientWidth;
 
     if (left > viewportRight - 56) {
       element.scrollLeft = Math.max(0, left - element.clientWidth + 112);
     } else if (left < viewportLeft + 20) {
-      element.scrollLeft = Math.max(0, left - TIMELINE_TRACK_HEADER_WIDTH - 48);
+      element.scrollLeft = Math.max(0, left - 48);
     }
   }, [controller.isInteracting, isPlaying, playheadLeft]);
 
   return (
-    <div className='oc-timeline-shell'>
-      <div
-        aria-label='时间线轨道区域'
-        className='oc-timeline-viewport oc-scrollbar'
-        data-interacting={controller.isInteracting}
-        data-scrubbing={controller.isScrubbing}
-        onScroll={handleViewportScroll}
-        ref={viewportRef}
-      >
-        <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
-          <div className='oc-timeline-corner'>
-            {videoGaps.length > 0 && (
-              <span className='oc-timeline-gap-status'>有视频空隙</span>
-            )}
-          </div>
+    <div
+      className='oc-timeline-shell'
+      data-interacting={controller.isInteracting}
+      data-scrubbing={controller.isScrubbing}
+      ref={shellRef}
+      style={shellStyle}
+    >
+      <div className='oc-timeline-corner'>
+        {videoGaps.length > 0 && (
+          <span className='oc-timeline-gap-status'>有视频空隙</span>
+        )}
+      </div>
+
+      <div className='oc-timeline-controls-viewport'>
+        <div className='oc-timeline-controls-stack' ref={controlsStackRef}>
+          {trackLayouts.map(({ height, track }) => {
+            const isMainVideoTrack = track.id === MAIN_VIDEO_TRACK_ID;
+            const muted = track.volume === 0;
+            const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
+            const trackLabel =
+              isMainVideoTrack
+                ? '主视频轨道'
+                : track.type === 'video'
+                  ? '视频轨道'
+                  : track.name;
+
+            return (
+              <div
+                className='oc-timeline-track__control'
+                data-control-track-id={track.id}
+                data-main-track={isMainVideoTrack ? 'true' : undefined}
+                data-type={track.type}
+                key={track.id}
+                style={{ height }}
+              >
+                <span
+                  className='oc-timeline-track__icon'
+                  title={trackLabel}
+                >
+                  <TrackIcon aria-hidden='true' />
+                </span>
+                <button
+                  aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
+                  aria-pressed={muted}
+                  className='oc-timeline-track__mute'
+                  onClick={() => toggleTrackMute(track.id)}
+                  title={muted ? '取消静音' : '静音'}
+                  type='button'
+                >
+                  {muted ? (
+                    <VolumeX aria-hidden='true' />
+                  ) : (
+                    <Volume2 aria-hidden='true' />
+                  )}
+                </button>
+              </div>
+            );
+          })}
+
+          <div
+            aria-hidden='true'
+            className='oc-timeline-track__control oc-timeline-track__control--tail'
+          />
+        </div>
+      </div>
+
+      <div className='oc-timeline-ruler-viewport'>
+        <div
+          className='oc-timeline-ruler-canvas'
+          ref={rulerCanvasRef}
+          style={{ width: rulerWidth }}
+        >
           <TimelineRuler
             currentTime={currentTime}
             duration={rulerDuration}
@@ -298,23 +380,24 @@ export function TimelineViewport({
             onPointerDown={controller.beginScrub}
             pixelsPerSecond={pixelsPerSecond}
           />
+        </div>
+      </div>
 
+      <div
+        aria-label='时间线轨道区域'
+        className='oc-timeline-viewport oc-scrollbar'
+        onScroll={handleViewportScroll}
+        ref={viewportRef}
+      >
+        <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
           <div className='oc-timeline-track-stack'>
             {trackLayouts.map(({ height, track }) => {
               const trackClips = clipsByTrack.get(track.id) ?? [];
               const isMainVideoTrack = track.id === MAIN_VIDEO_TRACK_ID;
-              const muted = track.volume === 0;
               const isDropSource = dropPreview?.originTrackId === track.id;
               const isDropTarget =
                 dropPreview?.target?.kind === 'existing' &&
                 dropPreview.target.trackId === track.id;
-              const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
-              const trackLabel =
-                isMainVideoTrack
-                  ? '主视频轨道'
-                  : track.type === 'video'
-                    ? '视频轨道'
-                    : track.name;
 
               return (
                 <div
@@ -324,28 +407,6 @@ export function TimelineViewport({
                   key={track.id}
                   style={{ height }}
                 >
-                  <div className='oc-timeline-track__control'>
-                    <span
-                      className='oc-timeline-track__icon'
-                      title={trackLabel}
-                    >
-                      <TrackIcon aria-hidden='true' />
-                    </span>
-                    <button
-                      aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
-                      aria-pressed={muted}
-                      className='oc-timeline-track__mute'
-                      onClick={() => toggleTrackMute(track.id)}
-                      title={muted ? '取消静音' : '静音'}
-                      type='button'
-                    >
-                      {muted ? (
-                        <VolumeX aria-hidden='true' />
-                      ) : (
-                        <Volume2 aria-hidden='true' />
-                      )}
-                    </button>
-                  </div>
                   <div
                     className='oc-timeline-track__lane'
                     data-drop-source={isDropSource}
@@ -428,10 +489,6 @@ export function TimelineViewport({
 
             <div className='oc-timeline-tail-row'>
               <div
-                aria-hidden='true'
-                className='oc-timeline-track__control oc-timeline-track__control--tail'
-              />
-              <div
                 className='oc-timeline-tail'
                 onPointerDown={controller.beginScrub}
               />
@@ -443,7 +500,12 @@ export function TimelineViewport({
               <div
                 aria-hidden='true'
                 className='oc-timeline-track-insert-line'
-                style={{ top: dropPreview.insertLineY }}
+                data-leading={
+                  dropPreview.insertLineY === TIMELINE_RULER_HEIGHT
+                }
+                style={{
+                  top: dropPreview.insertLineY - TIMELINE_RULER_HEIGHT,
+                }}
               />
             )}
 
@@ -452,13 +514,12 @@ export function TimelineViewport({
               clip={draggedClip}
               height={getTimelineClipHeight(draggedClip.type)}
               left={
-                TIMELINE_TRACK_HEADER_WIDTH +
                 TIMELINE_CONTENT_PADDING_X +
                 timeToX(dropPreview.rawStart, pixelsPerSecond)
               }
               pixelsPerSecond={pixelsPerSecond}
               timelineStart={dropPreview.rawStart}
-              top={dropPreview.dragTop}
+              top={dropPreview.dragTop - TIMELINE_RULER_HEIGHT}
               trackVolume={draggedTrackVolume}
               visibleTimeEnd={visibleTimeEnd}
               visibleTimeStart={visibleTimeStart}
@@ -473,7 +534,6 @@ export function TimelineViewport({
                 className='oc-timeline-snap-line'
                 style={{
                   left:
-                    TIMELINE_TRACK_HEADER_WIDTH +
                     TIMELINE_CONTENT_PADDING_X +
                     timeToX(dropPreview.snapTime, pixelsPerSecond),
                 }}
@@ -484,7 +544,6 @@ export function TimelineViewport({
       <div
         aria-hidden='true'
         className='oc-timeline-playhead-layer'
-        style={playheadLayerStyle}
       >
         <div
           className='oc-timeline-playhead'

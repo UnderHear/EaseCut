@@ -49,6 +49,7 @@ type TimelineControllerOptions = {
   onClipTimingPreviewChange?: (
     preview: TimelineClipTimingPreview | null,
   ) => void;
+  viewportRef: RefObject<HTMLDivElement | null>;
 };
 
 const DOUBLE_CLICK_INTERVAL_MS = 500;
@@ -61,6 +62,7 @@ type CompletedClipClick = {
 export function useTimelineController({
   gridRef,
   onClipTimingPreviewChange,
+  viewportRef,
 }: TimelineControllerOptions) {
   const clips = useTimelineStore((state) => state.clips);
   const currentTime = useTimelineStore((state) => state.currentTime);
@@ -99,7 +101,7 @@ export function useTimelineController({
 
     const updateScrub = (clientX: number, clientY: number) => {
       if (gesture.kind !== 'scrub') return;
-      const point = getContentPoint(gridRef.current, clientX, clientY);
+      const point = getContentPoint(viewportRef.current, clientX, clientY);
       if (!point) return;
       const candidate = xToTime(point.x, gesture.pixelsPerSecond);
       const { snappedTime } = gesture.snappingEnabled
@@ -124,7 +126,7 @@ export function useTimelineController({
         return;
       }
       moveActivatedRef.current = true;
-      const point = getContentPoint(gridRef.current, clientX, clientY);
+      const point = getContentPoint(viewportRef.current, clientX, clientY);
       if (!point) return;
       const next = planClipDrop(gesture, point, dropPreviewRef.current);
       dropPreviewRef.current = next;
@@ -137,7 +139,7 @@ export function useTimelineController({
     };
     const updateTrim = (clientX: number, clientY: number) => {
       if (gesture.kind !== 'trim') return;
-      const point = getContentPoint(gridRef.current, clientX, clientY);
+      const point = getContentPoint(viewportRef.current, clientX, clientY);
       if (!point) return;
       const delta = roundTimelineTime(
         xToTime(point.x, gesture.pixelsPerSecond) -
@@ -265,7 +267,14 @@ export function useTimelineController({
       window.removeEventListener('blur', handleWindowBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [clips, gesture, gridRef, onClipTimingPreviewChange, store]);
+  }, [
+    clips,
+    gesture,
+    gridRef,
+    onClipTimingPreviewChange,
+    store,
+    viewportRef,
+  ]);
 
   const beginMove = (
     event: ReactPointerEvent<HTMLElement>,
@@ -273,7 +282,7 @@ export function useTimelineController({
   ) => {
     if (event.button !== 0) return;
     const point = getContentPoint(
-      gridRef.current,
+      viewportRef.current,
       event.clientX,
       event.clientY,
     );
@@ -336,7 +345,7 @@ export function useTimelineController({
     if (event.button !== 0) return;
     lastCompletedClipClickRef.current = null;
     const point = getContentPoint(
-      gridRef.current,
+      viewportRef.current,
       event.clientX,
       event.clientY,
     );
@@ -363,7 +372,7 @@ export function useTimelineController({
     if (event.button !== 0) return;
     lastCompletedClipClickRef.current = null;
     const point = getContentPoint(
-      gridRef.current,
+      viewportRef.current,
       event.clientX,
       event.clientY,
     );

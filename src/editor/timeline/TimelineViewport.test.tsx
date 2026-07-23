@@ -108,26 +108,40 @@ const renderTimeline = (
   props: Parameters<typeof TimelineViewport>[0] = {},
 ) => {
   const result = renderWithEditorProviders(<TimelineViewport {...props} />);
+  const shell = document.querySelector('.oc-timeline-shell') as HTMLDivElement;
+  const controlsViewport = document.querySelector(
+    '.oc-timeline-controls-viewport',
+  ) as HTMLDivElement;
+  const rulerCanvas = document.querySelector(
+    '.oc-timeline-ruler-canvas',
+  ) as HTMLDivElement;
   const viewport = screen.getByLabelText('时间线轨道区域');
-  const grid = viewport.firstElementChild as HTMLDivElement;
+  const grid = viewport.querySelector('.oc-timeline-grid') as HTMLDivElement;
 
   Object.defineProperty(viewport, 'clientWidth', {
     configurable: true,
-    value: 800,
+    value: 704,
   });
   Object.defineProperty(viewport, 'clientHeight', {
     configurable: true,
-    value: 240,
+    value: 208,
   });
   vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(
-    createRect({ height: 240, width: 800 }),
+    createRect({ height: 208, left: 96, top: 32, width: 704 }),
   );
   vi.spyOn(grid, 'getBoundingClientRect').mockReturnValue(
-    createRect({ height: 240, width: 1_200 }),
+    createRect({ height: 208, left: 96, top: 32, width: 1_200 }),
   );
   fireEvent(window, new Event('resize'));
 
-  return { ...result, grid, viewport };
+  return {
+    ...result,
+    controlsViewport,
+    grid,
+    rulerCanvas,
+    shell,
+    viewport,
+  };
 };
 
 const doubleClickClip = (
@@ -174,7 +188,41 @@ describe('TimelineViewport DOM interactions', () => {
     vi.unstubAllGlobals();
   });
 
-  it('identifies the main video track in sticky controls and semantic clips', () => {
+  it('partitions fixed controls and ruler from the only scrollable tracks region', () => {
+    const { grid, shell, viewport } = renderTimeline();
+    const corner = shell.querySelector(':scope > .oc-timeline-corner');
+    const controlsViewport = shell.querySelector(
+      ':scope > .oc-timeline-controls-viewport',
+    );
+    const rulerViewport = shell.querySelector(
+      ':scope > .oc-timeline-ruler-viewport',
+    );
+    const playheadLayer = shell.querySelector(
+      ':scope > .oc-timeline-playhead-layer',
+    );
+
+    expect([...shell.children]).toEqual([
+      corner,
+      controlsViewport,
+      rulerViewport,
+      viewport,
+      playheadLayer,
+    ]);
+    expect(shell.querySelectorAll('.oc-scrollbar')).toHaveLength(1);
+    expect(viewport).toHaveClass('oc-timeline-viewport', 'oc-scrollbar');
+    expect(viewport).toContainElement(grid);
+    expect(rulerViewport).toContainElement(
+      screen.getByRole('slider', { name: '时间标尺' }),
+    );
+    expect(controlsViewport).toContainElement(
+      document.querySelector('.oc-timeline-controls-stack'),
+    );
+    expect(viewport).not.toContainElement(
+      screen.getByRole('button', { name: '主视频轨道静音' }),
+    );
+  });
+
+  it('keeps fixed controls aligned with semantic track lanes', () => {
     renderTimeline();
 
     const videoMuteButton = screen.getByRole('button', {
@@ -189,19 +237,39 @@ describe('TimelineViewport DOM interactions', () => {
     expect(audioHeader).not.toBeNull();
     expect(videoHeader).toHaveClass('oc-timeline-track__control');
     expect(audioHeader).toHaveClass('oc-timeline-track__control');
-    expect(videoHeader?.parentElement).toHaveClass('oc-timeline-track');
-    expect(videoHeader?.parentElement).toHaveStyle({ height: '56px' });
-    expect(audioHeader?.parentElement).toHaveClass('oc-timeline-track');
-    expect(audioHeader?.parentElement).toHaveStyle({ height: '40px' });
+    expect(videoHeader).toHaveAttribute(
+      'data-control-track-id',
+      MAIN_VIDEO_TRACK_ID,
+    );
+    expect(audioHeader).toHaveAttribute(
+      'data-control-track-id',
+      audioTrack.id,
+    );
+    expect(videoHeader).toHaveStyle({ height: '56px' });
+    expect(audioHeader).toHaveStyle({ height: '40px' });
     expect(videoHeader).not.toHaveStyle({ gridRow: '2' });
+    expect(document.querySelector('.oc-timeline-controls-stack')).toContainElement(
+      videoHeader,
+    );
+    expect(document.querySelector('.oc-timeline-controls-stack')).toContainElement(
+      document.querySelector('.oc-timeline-track__control--tail'),
+    );
     expect(document.querySelector('.oc-timeline-track-stack')).toContainElement(
       document.querySelector('.oc-timeline-tail-row'),
     );
-    expect(videoHeader?.parentElement).toHaveAttribute(
+    const videoLane = document.querySelector(
+      `[data-track-id="${MAIN_VIDEO_TRACK_ID}"]`,
+    );
+    const audioLane = document.querySelector(
+      `[data-track-id="${audioTrack.id}"]`,
+    );
+    expect(videoLane?.parentElement).toHaveStyle({ height: '56px' });
+    expect(audioLane?.parentElement).toHaveStyle({ height: '40px' });
+    expect(videoLane?.parentElement).toHaveAttribute(
       'data-main-track',
       'true',
     );
-    expect(audioHeader?.parentElement).not.toHaveAttribute('data-main-track');
+    expect(audioLane?.parentElement).not.toHaveAttribute('data-main-track');
     expect(screen.getByTitle('主视频轨道')).toHaveClass(
       'oc-timeline-track__icon',
     );
@@ -300,7 +368,7 @@ describe('TimelineViewport DOM interactions', () => {
     renderTimeline();
 
     const overlayIcon = screen.getByTitle('视频轨道');
-    expect(overlayIcon.closest('.oc-timeline-track')).not.toHaveAttribute(
+    expect(overlayIcon.closest('.oc-timeline-track__control')).not.toHaveAttribute(
       'data-main-track',
     );
     expect(
@@ -510,7 +578,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
     expect(testTimelineStore.getState().currentTime).toBe(2.5);
     expect(testTimelineStore.getState().selectedClipId).toBeNull();
-    expect(screen.getByLabelText('时间线轨道区域')).toHaveAttribute(
+    expect(document.querySelector('.oc-timeline-shell')).toHaveAttribute(
       'data-scrubbing',
       'true',
     );
@@ -519,7 +587,7 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 10,
       pointerId: 1,
     });
-    expect(screen.getByLabelText('时间线轨道区域')).toHaveAttribute(
+    expect(document.querySelector('.oc-timeline-shell')).toHaveAttribute(
       'data-scrubbing',
       'false',
     );
@@ -537,7 +605,7 @@ describe('TimelineViewport DOM interactions', () => {
 
     expect(testTimelineStore.getState().currentTime).toBe(4);
     const playhead = document.querySelector('.oc-timeline-playhead');
-    expect(playhead).toHaveStyle({ left: '428px' });
+    expect(playhead).toHaveStyle({ left: '332px' });
     expect(playhead?.children).toHaveLength(2);
     expect(playhead?.children[0]).toHaveClass(
       'oc-timeline-playhead__handle',
@@ -567,21 +635,53 @@ describe('TimelineViewport DOM interactions', () => {
     });
   });
 
-  it('keeps the playhead in the viewport overlay while syncing only horizontal scroll', () => {
-    const { viewport } = renderTimeline();
+  it('syncs the ruler, controls, and playhead from the tracks viewport', () => {
+    const { controlsViewport, rulerCanvas, shell, viewport } = renderTimeline();
     const playhead = document.querySelector('.oc-timeline-playhead');
 
     expect(playhead?.parentElement).toHaveClass('oc-timeline-playhead-layer');
-    expect(playhead?.parentElement?.previousElementSibling).toBe(viewport);
-    expect(playhead).toHaveStyle({ left: '108px' });
+    expect(playhead?.parentElement?.parentElement).toBe(shell);
+    expect(playhead).toHaveStyle({ left: '12px' });
 
     viewport.scrollLeft = 48;
     viewport.scrollTop = 120;
     fireEvent.scroll(viewport);
 
-    expect(playhead).toHaveStyle({ left: '60px' });
+    expect(rulerCanvas).toHaveStyle({
+      transform: 'translate3d(-48px, 0, 0)',
+    });
+    expect(controlsViewport.firstElementChild).toHaveStyle({
+      transform: 'translate3d(0, -120px, 0)',
+    });
+    expect(playhead).toHaveStyle({ left: '-36px' });
     expect((playhead?.parentElement as HTMLElement).style.height).toBe('');
     expect((playhead?.parentElement as HTMLElement).style.width).toBe('');
+  });
+
+  it('forwards wheel scrolling from the fixed controls to the tracks viewport', () => {
+    const { controlsViewport, viewport } = renderTimeline();
+    const controlsStack = controlsViewport.firstElementChild;
+
+    fireEvent.wheel(controlsViewport, { deltaY: 48 });
+
+    expect(viewport.scrollTop).toBe(48);
+    fireEvent.scroll(viewport);
+    expect(controlsStack).toHaveStyle({
+      transform: 'translate3d(0, -48px, 0)',
+    });
+
+    fireEvent.wheel(controlsViewport, {
+      deltaY: 32,
+      shiftKey: true,
+    });
+
+    expect(viewport.scrollLeft).toBe(32);
+    fireEvent.scroll(viewport);
+    expect(
+      document.querySelector('.oc-timeline-ruler-canvas'),
+    ).toHaveStyle({
+      transform: 'translate3d(-32px, 0, 0)',
+    });
   });
 
   it('keeps short timeline content width independent from viewport resize state', () => {
@@ -640,7 +740,7 @@ describe('TimelineViewport DOM interactions', () => {
     const { viewport } = renderTimeline();
     const playhead = document.querySelector('.oc-timeline-playhead');
 
-    expect(playhead).toHaveStyle({ left: '300px' });
+    expect(playhead).toHaveStyle({ left: '204px' });
 
     fireEvent.wheel(viewport, {
       clientX: 300,
@@ -649,12 +749,25 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(viewport.scrollLeft).toBeCloseTo(24);
-    expect(playhead).toHaveStyle({ left: '300px' });
+    expect(playhead).toHaveStyle({ left: '204px' });
+  });
+
+  it('automatically follows the playhead inside the tracks viewport during playback', () => {
+    const { viewport } = renderTimeline();
+
+    act(() => {
+      testTimelineStore.setState({
+        currentTime: 9,
+        isPlaying: true,
+      });
+    });
+
+    expect(viewport.scrollLeft).toBe(140);
   });
 
   it('commits a same-track clip move on pointer release', () => {
     const onClipTimingPreviewChange = vi.fn();
-    const { viewport } = renderTimeline({ onClipTimingPreviewChange });
+    const { shell } = renderTimeline({ onClipTimingPreviewChange });
     const clip = screen.getByRole('article', {
       name: 'audio clip: background.mp3',
     });
@@ -665,7 +778,7 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 100,
       pointerId: 7,
     });
-    expect(viewport).toHaveAttribute('data-interacting', 'true');
+    expect(shell).toHaveAttribute('data-interacting', 'true');
 
     fireEvent.pointerMove(window, {
       clientX: 528,
@@ -681,8 +794,8 @@ describe('TimelineViewport DOM interactions', () => {
     ).toBeInTheDocument();
     expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toHaveStyle({
       height: '40px',
-      left: '508px',
-      top: '92px',
+      left: '412px',
+      top: '60px',
       width: '240px',
     });
     expect(
@@ -729,8 +842,8 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toHaveStyle({
-      left: '508px',
-      top: '32px',
+      left: '412px',
+      top: '0px',
     });
     expect(document.querySelector('.oc-timeline-drag-ghost')).toHaveStyle({
       left: '12px',
@@ -768,7 +881,7 @@ describe('TimelineViewport DOM interactions', () => {
       'true',
     );
     expect(document.querySelector('.oc-timeline-snap-line')).toHaveStyle({
-      left: '428px',
+      left: '332px',
     });
 
     fireEvent.pointerCancel(window, { pointerId: 16 });
@@ -981,7 +1094,7 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 14,
     });
     expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
-      top: '134px',
+      top: '102px',
     });
     expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(2);
 
@@ -1025,7 +1138,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     const insertLine = document.querySelector('.oc-timeline-track-insert-line');
-    expect(insertLine).toHaveStyle({ top: '134px' });
+    expect(insertLine).toHaveStyle({ top: '102px' });
     expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(2);
 
     fireEvent.pointerMove(window, {
@@ -1034,7 +1147,7 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 17,
     });
 
-    expect(insertLine).toHaveStyle({ top: '134px' });
+    expect(insertLine).toHaveStyle({ top: '102px' });
     expect(
       document.querySelector(`[data-track-id="${audioTrack.id}"]`),
     ).toHaveAttribute('data-drop-target', 'false');
@@ -1074,11 +1187,14 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 24,
     });
 
+    expect(
+      document.querySelector('.oc-timeline-track-insert-line'),
+    ).toHaveAttribute('data-leading', 'true');
     expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
-      top: '32px',
+      top: '0px',
     });
     expect(document.querySelector('.oc-timeline-clip--drag-overlay')).toHaveStyle({
-      top: '32px',
+      top: '0px',
     });
     expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(2);
 
@@ -1127,7 +1243,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
-      top: '90px',
+      top: '58px',
     });
 
     fireEvent.pointerUp(window, {
@@ -1181,7 +1297,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
-      top: '90px',
+      top: '58px',
     });
     expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(3);
 
@@ -1250,7 +1366,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(document.querySelector('.oc-timeline-track-insert-line')).toHaveStyle({
-      top: '134px',
+      top: '102px',
     });
     expect(document.querySelectorAll('.oc-timeline-track')).toHaveLength(3);
 
