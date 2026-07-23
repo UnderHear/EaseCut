@@ -1,31 +1,195 @@
-# Repository Guidelines
+# OpenCut 工程规范
 
-## Project Structure & Module Organization
+## 项目目标
 
-OpenCut React is a React 19 and TypeScript video-timeline component library. Public exports live in `src/index.ts` and `src/library-entry.ts`. The editor implementation is under `src/editor/`: UI components are in `components/`, timeline interactions in `timeline/`, state management in `store/`, media loading in `media/`, and pure timeline logic in `core/`. The runnable Vite example is in `src/demo/`, shared test setup is in `src/test/`, and documentation images are stored in `doc-image/`. Tests are colocated as `*.test.ts` or `*.test.tsx`. Treat `dist/` and `demo-dist/` as generated output.
+OpenCut 是一个基于 React 19、TypeScript 和现代浏览器能力构建的纯前端 Web 视频编辑器。媒体导入、时间线编辑、预览、音频处理、项目持久化和成片导出都必须在浏览器中完成；除静态资源分发外，核心功能不得依赖服务端转码、渲染或状态存储。
 
-## Build, Test, and Development Commands
+实现应优先采用已在生产环境验证、维护活跃且符合 Web 标准的方案。不要为了追求新颖而引入不稳定抽象，也不要以临时代码、演示级实现或不可控的第三方黑盒代替关键能力。使用具有浏览器差异的 API 前，必须检查能力、失败路径和资源释放行为。
 
-Use Node.js `^20.19.0` or `>=22.12.0` (Node 22 is recommended).
+## 不可妥协的原则
 
-- `npm ci` installs the exact locked dependencies.
-- `npm run dev` starts the Vite demo development server.
-- `npm run lint` checks TypeScript and React rules with ESLint.
-- `npm run typecheck` runs strict TypeScript checks without emitting files.
-- `npm run test` runs the Vitest suite once; `npm run test:watch` is for local iteration.
-- `npm run build` validates types and builds both the library and demo.
-- `npm run preview` serves the generated demo from `demo-dist/`.
+- 修改代码或增加功能时，不考虑旧实现、旧 API、旧数据结构、旧样式或旧行为的兼容性。允许直接进行破坏性变更和彻底重构。
+- 重构必须删除被替代的代码、兼容层、废弃导出、过渡适配器和失效测试，并同步更新所有调用方。不要同时维护新旧两套实现。
+- “不考虑旧兼容”不等于忽略当前目标浏览器的能力差异。对必需的现代浏览器 API 仍应进行特性检测，并提供明确的不可用提示或架构内定义的替代后端。
+- 所有核心功能必须保持纯前端、本地优先。未经产品明确要求，不上传用户媒体、项目数据、文件名、缩略图或分析结果。
+- 不得使用 Playwright 进行验证，不得新增 Playwright 依赖、配置、脚本或测试。浏览器行为使用 Vitest、jsdom、React Testing Library、可控的 API 适配器测试和人工浏览器验收覆盖。
+- 不得手动修改 `dist/`、`demo-dist/` 等生成产物，也不要提交与当前任务无关的生成文件。
+- 禁止用 `any`、静默异常、任意延时、全局可变状态或强制类型断言掩盖设计问题。
 
-Before opening a pull request, run the same verification sequence as CI: lint, typecheck, test, then build.
+## 目标能力
 
-## Coding Style & Naming Conventions
+成熟的纯前端视频编辑器至少应在架构上支持以下能力：
 
-Follow existing TypeScript/TSX style: two-space indentation, single quotes, semicolons, trailing commas, named exports, and strict typing. Use `PascalCase` for React components and types, `camelCase` for functions and values, and kebab-case utility filenames such as `timeline-layout.ts`. Keep CSS selectors within the existing `oc-` namespace. Make focused changes and avoid compatibility layers when a clean replacement is requested. Do not hand-edit generated bundles.
+- 导入并管理本地视频、音频和图片素材，读取元数据，生成缩略图和音频波形。
+- 多轨时间线、轨道排序和可见性控制，以及片段选择、移动、裁剪、分割、复制、删除和吸附。
+- 帧级定位、缩放、滚动、播放头、范围选择，以及稳定的像素与时间换算。
+- 实时预览视频画面、图片、变换、透明度和多轨音频，正确处理播放、暂停、跳转和循环。
+- 音量、淡入淡出、静音和基础混音；音频与视频在长时间播放及导出时不发生累计漂移。
+- 可撤销、可重做的编辑命令，手势期间提供临时预览，并在一次手势结束时形成一个历史记录。
+- 自动保存、异常恢复、项目重新打开，以及素材失效后的重新关联。
+- 在浏览器内执行可取消、可报告进度的导出，并明确展示编解码器、分辨率、帧率或内存限制。
+- 完整的键盘操作、焦点管理、无障碍名称、状态反馈和错误恢复。
 
-## Testing Guidelines
+实现单个需求时不必一次完成全部能力，但不得采用会阻断这些能力的局部设计。
 
-Tests use Vitest, jsdom, React Testing Library, `user-event`, and `jest-dom`. Place tests beside the behavior they cover and describe outcomes rather than implementation details. Prefer accessible queries (`getByRole`, `getByLabelText`) and user-visible assertions. Add regression coverage for timeline math, store transitions, media behavior, and editor interactions affected by a change.
+## 分层架构
 
-## Commit & Pull Request Guidelines
+公共导出位于 `src/index.ts` 和 `src/library-entry.ts`。编辑器代码放在 `src/editor/` 下，并遵循以下边界：
 
-Recent commits use short, descriptive Chinese summaries without Conventional Commit prefixes; keep each commit scoped to one behavior. Pull requests should explain the user-visible result, identify risky timeline or media changes, link relevant issues, and include screenshots or recordings for visual changes. Confirm all CI commands pass and avoid committing unrelated generated artifacts.
+- `core/`：领域模型、时间换算、轨道约束、碰撞、吸附、布局和编辑命令等纯逻辑。不得依赖 React、Zustand、DOM、媒体元素或浏览器全局对象。
+- `store/`：项目状态、编辑命令、事务、历史记录和派生选择器。它协调领域逻辑，但不直接操作 DOM 或持有媒体运行时对象。
+- `media/`：素材注册、元数据探测、解码、缩略图、波形、对象 URL、缓存和浏览器媒体 API 适配器。
+- `timeline/`：时间线视口、坐标变换、指针手势、键盘交互和虚拟化。领域决策必须委托给 `core/` 或 store 命令。
+- `components/`：编辑器界面和通用 UI。组件负责呈现与事件转发，不复制领域规则。
+- `workers/`：适合移出主线程的解码、分析、合成和导出任务。只有实际需要时创建，并定义类型安全的消息协议。
+- `demo/`：可运行的集成示例和人工验收入口，不承载组件库内部逻辑。
+- `test/`：共享测试环境和测试工具；具体测试仍应与被测代码就近放置。
+
+依赖方向应从 UI 和运行时层指向应用层及纯领域层。`core/` 永远位于依赖图底部。跨层通信使用明确的类型、命令和接口，禁止循环依赖，也禁止创建无边界的 `utils` 目录。
+
+## 领域模型与时间基准
+
+- 项目文档与运行时资源必须分离。项目文档只包含可序列化数据；`File`、`Blob`、媒体元素、`AudioNode`、`VideoFrame`、对象 URL、Worker 和缓存句柄不得进入 store 或持久化数据。
+- 素材、轨道、片段、效果和导出任务使用稳定且唯一的 ID。业务关系通过 ID 表达，不保存容易失效的对象引用。
+- 时间线中的持久化时间统一使用整数微秒。禁止存储浮点秒数，禁止在多个模块中自行进行时间换算。
+- 帧率使用有理数表示，例如 `30000/1001`，不得将 `29.97` 当作精确帧率。帧、微秒、像素和媒体时间之间的转换集中在 `core/`，并明确取整方向。
+- 不通过逐帧累加浮点数计算时间。定位和导出根据绝对帧序号计算时间戳，以避免累计漂移。
+- 每次提交后都必须满足领域不变量：片段时长为正、素材入点和出点合法、轨道引用有效、顺序确定、数值有限、时间不为负。
+- 所有编辑操作都应是确定性的纯命令。相同输入必须得到相同结果，且不读取当前系统时间或随机全局状态。
+
+## 状态管理与编辑历史
+
+- Zustand store 只保存权威项目状态、编辑会话状态和必要的 UI 状态。高频媒体帧、波形数据和大型二进制缓存放在独立运行时服务中。
+- 状态只能通过命名清晰的命令修改，例如移动、裁剪、分割或删除片段。组件不得拼接部分对象后直接写入 store。
+- 派生数据通过纯选择器计算；不要在多个位置保存可由权威状态推导的副本。
+- 指针拖动分为“预览”和“提交”两个阶段。移动期间可以维护轻量草稿，但只在结束时提交一个可撤销事务。
+- 撤销和重做记录领域变更，不记录 hover、滚动位置、临时选框等瞬态 UI 状态。连续滑动或拖动应合并为单个历史项。
+- 命令失败必须保持原状态不变，并返回可识别的错误，不能产生半提交状态。
+
+## 时间线交互规范
+
+- 坐标换算只依赖统一的视口模型：时间原点、缩放比例、滚动偏移和容器位置。禁止在组件中散落 `clientX` 到时间值的重复计算。
+- 缩放应围绕指针位置或播放头保持锚点不变；滚动、拖动和缩放后不得出现跳变。
+- 吸附候选、优先级和并列规则必须确定。吸附阈值以屏幕像素定义，再通过当前缩放比例换算为时间。
+- 指针手势优先使用 Pointer Events 和 pointer capture，并正确处理取消、失焦、组件卸载及多指输入。
+- 碰撞策略、覆盖策略、联动移动和空隙处理属于领域规则，不得由 CSS 布局或视图层偶然决定。
+- 长时间线和大量片段必须采用可见区域裁剪或虚拟化。不可为不可见片段持续渲染缩略图、波形或昂贵组件。
+- 所有鼠标操作应具备等价的键盘路径；选中、裁剪和播放头状态需要可见焦点及可访问反馈。
+
+## 媒体管线
+
+- 媒体 API 必须封装为明确的适配器，业务组件不得直接散布 `HTMLVideoElement`、Web Audio、WebCodecs 或对象 URL 生命周期逻辑。
+- 导入流程至少包括类型判断、元数据探测、时长和尺寸校验、错误分类及可取消处理。文件扩展名不能作为唯一可信依据。
+- 对象 URL 必须集中管理并按引用计数释放；任务取消、素材删除、项目关闭和组件卸载时都要清理资源。
+- 缩略图、波形和解码结果使用有上限的缓存策略。缓存键必须包含素材身份和影响结果的参数，淘汰时释放 `ImageBitmap`、`VideoFrame` 等底层资源。
+- 昂贵分析、解码和导出优先放入 Worker；主线程只负责交互、轻量状态协调和绘制调度。
+- 所有异步任务必须支持取消或过期结果丢弃。较早请求不得覆盖较新选择或定位产生的结果。
+- 对远程素材必须显式处理 CORS 和画布污染。无法安全读取像素或导出时，尽早给出具体错误。
+- 对浏览器不支持的容器、编解码器或 API，展示可操作的能力提示，不得静默失败或无限等待。
+
+## 预览、播放与音频
+
+- 预览与导出共享同一份合成语义和参数模型，不能各自实现一套裁剪、变换或效果规则。
+- 播放由单一时钟驱动。存在音频时优先以音频时钟为基准；画面按目标时间选择帧，不使用 `setInterval` 逐步累加播放时间。
+- 浏览器提供时应使用 `requestVideoFrameCallback` 协调视频帧；界面绘制使用 `requestAnimationFrame`，两者职责不可混淆。
+- seek、快速拖动和播放切换必须避免竞态。只有与当前请求 token 匹配的解码结果才能呈现。
+- 音频图必须复用，不能在每次播放时重复创建节点。暂停、定位、轨道静音和销毁时正确断开连接。
+- 预览允许在明确策略下降低渲染质量以保证交互，但不得改变时间、布局和合成结果。
+
+## 纯前端导出
+
+- 导出以项目快照为输入，开始后不受后续编辑影响。输出参数必须完整记录分辨率、帧率、时长、编解码器和音频配置。
+- 优先使用稳定可用的 WebCodecs、Canvas/OffscreenCanvas、Web Audio 和受控的封装器组合；每项能力都必须先检测支持情况。
+- 编码帧时间戳由绝对帧序号和有理帧率计算，保持严格单调。音频按样本率和绝对采样位置混合。
+- 导出过程必须可取消、可报告进度、可释放资源，并对编码失败、内存不足、素材缺失和浏览器限制提供明确错误。
+- 不得一次性将整段长视频的全部帧保存在内存中。使用有界队列和背压，在编码器消费后及时关闭帧。
+- 预览成功不代表导出正确。导出逻辑需要独立验证首帧、末帧、时长、帧数、音画同步和资源清理。
+
+## 性能与资源管理
+
+- 交互热路径不得频繁克隆完整项目、扫描所有素材或触发整个编辑器重渲染。
+- Zustand 订阅应选择最小状态切片并保持引用稳定；昂贵派生结果使用有依据的缓存，而非无差别 `useMemo`。
+- 指针移动、播放头和滚动更新应按动画帧合并。不要用 React state 承载每个解码帧或音频采样。
+- 对缩略图密度、波形精度、并发解码数、缓存体积和 Worker 队列设置明确上限。
+- 创建媒体元素、事件监听器、对象 URL、定时器、动画帧、音频节点、Worker 或 WebCodecs 对象的代码，必须在同一抽象中提供对称清理。
+- 性能优化必须基于浏览器性能面板、内存快照或可复现基准。不要以牺牲正确性和可维护性换取未经测量的微优化。
+
+## 持久化、恢复与隐私
+
+- 项目文档应具有明确的当前 schema 版本，并在保存前校验。因为本项目不维护旧兼容，遇到旧 schema 时应明确拒绝或由用户显式重建，不能暗中猜测迁移。
+- 自动保存采用防抖和原子写入，避免高频阻塞主线程。保存失败必须可见，不能让用户误以为数据已持久化。
+- 结构化项目数据优先存入 IndexedDB；大媒体文件根据产品策略使用用户文件句柄、OPFS 或重新关联，避免无边界复制。
+- 崩溃恢复数据与正式项目数据分离，成功加载后校验素材引用，并允许用户重新选择缺失文件。
+- 日志和错误信息不得包含用户媒体内容、完整本地路径或不必要的个人信息。
+
+## UI、可访问性与设计系统
+
+- React 组件保持职责单一，优先组合而非超大组件。领域逻辑放入纯函数或命令，媒体生命周期放入专用 hook 或服务。
+- 通用视觉值使用设计 token，CSS 选择器保持在 `oc-` 命名空间。状态颜色不能是唯一提示方式。
+- 按钮、菜单、对话框、滑块和输入框必须具备正确语义、可访问名称、键盘行为和焦点管理。
+- 快捷键在可编辑输入中不得误触发；全局快捷键应集中注册，并在卸载时清理。
+- 危险操作提供撤销或确认；耗时操作提供进度、取消入口和完成或失败反馈。
+- 面板尺寸、时间线密度和浮层位置应适应不同容器尺寸，组件库不得假定占满整个窗口。
+
+## 错误处理与可观测性
+
+- 对预期失败使用结构化错误类型，区分不支持、无效媒体、解码失败、资源不足、任务取消和内部错误。
+- UI 层将错误转换为用户可理解且可操作的提示；底层保留足够上下文供诊断，但不泄露隐私。
+- 禁止空 `catch`、只打印日志后继续执行，或在不变量被破坏时返回看似成功的结果。
+- 异步流程必须覆盖 loading、success、empty、cancelled 和 error 状态，不能依赖永久 spinner。
+
+## 编码规范
+
+- 使用严格 TypeScript：两空格缩进、单引号、分号、尾随逗号和命名导出。
+- React 组件和类型使用 `PascalCase`，函数和值使用 `camelCase`，工具文件使用 kebab-case。
+- 优先使用可辨识联合、不可变数据和穷尽检查。类型断言只允许出现在经过运行时校验的边界。
+- 函数应表达单一领域动作。注释解释原因、约束和浏览器行为，不复述代码表面含义。
+- 不引入仅为少量逻辑服务的依赖。新增依赖前检查维护状态、包体积、浏览器兼容性、许可证和是否真正需要。
+- 公共 API 从入口文件显式导出，内部模块不得依赖公共 barrel 形成循环引用。
+
+## 测试与验证
+
+测试使用 Vitest、jsdom、React Testing Library、`user-event` 和 `jest-dom`，并与被测模块就近放置为 `*.test.ts` 或 `*.test.tsx`。
+
+- `core/`：覆盖边界值、属性不变量、帧率换算、碰撞、吸附、裁剪、分割和长时间线精度。
+- `store/`：覆盖命令事务、撤销重做、失败原子性、选择器和连续手势合并。
+- UI：优先使用 `getByRole`、`getByLabelText` 等无障碍查询，并断言用户可见行为。
+- media：通过小型确定性 fixture 和可注入适配器测试成功、失败、取消、竞态及资源释放。
+- Worker：分别测试纯处理函数和消息协议，不把算法逻辑隐藏在不可测试的事件回调中。
+- 回归测试必须先证明旧实现存在问题，并明确覆盖修复后的用户结果。
+- 测试不得依赖真实网络、随机时序或机器性能；涉及时间时使用可控时钟。
+- 不使用 Playwright。jsdom 无法真实覆盖的解码、播放、Canvas、WebCodecs 和导出行为，应通过浏览器能力适配器测试加 Vite demo 人工验收，并记录验证范围。
+
+不得为了让测试通过而降低断言、跳过用例、扩大等待时间或将生产行为特判到测试环境。
+
+## 开发与验收命令
+
+使用 Node.js `^20.19.0` 或 `>=22.12.0`，推荐 Node 22。
+
+- `npm ci`：安装 lock 文件锁定的依赖。
+- `npm run dev`：启动 Vite demo。
+- `npm run lint`：运行 ESLint。
+- `npm run typecheck`：执行严格 TypeScript 检查。
+- `npm run test`：单次运行 Vitest。
+- `npm run test:watch`：本地监听测试。
+- `npm run build`：类型检查并构建组件库和 demo。
+- `npm run preview`：预览 `demo-dist/`。
+
+完成修改后按顺序运行 `npm run lint`、`npm run typecheck`、`npm run test`、`npm run build`。如果某项无法运行，必须说明具体原因、未验证范围和风险。
+
+## 变更流程与完成标准
+
+开始实现前先确认需求对应的领域模型、状态所有者、异步边界和资源生命周期。发现现有架构阻碍正确实现时，直接重构相关路径，不叠加补丁式兼容逻辑。
+
+一项变更只有同时满足以下条件才算完成：
+
+- 用户行为完整，空状态、错误、取消和边界条件均已处理。
+- 领域不变量、时间精度、撤销重做和资源清理得到验证。
+- 交互不会产生明显主线程阻塞或无边界内存增长。
+- 新增或更新了与风险相称的自动化测试。
+- lint、typecheck、test 和 build 全部通过。
+- 涉及真实浏览器媒体能力时，已在 demo 中完成不使用 Playwright 的人工验收。
+- 被替代实现、无效测试、废弃样式和死代码已删除。
+- 公共 API、复杂架构决策或用户可见限制已更新文档。
+
+提交保持单一职责，使用简短、描述性的中文摘要，不使用 Conventional Commit 前缀。拉取请求应说明用户可见结果、架构决策、媒体或时间线风险，以及所执行的验证；视觉变更附截图或录屏。
