@@ -178,21 +178,29 @@
 
 .oc-editor__toast {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 9px 10px 9px 12px;
-  border: 1px solid rgb(56 189 248 / 32%);
-  border-radius: var(--oc-radius);
-  color: #bae6fd;
-  background: rgb(14 116 144 / 94%);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 32%);
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid var(--oc-border-strong);
+  border-radius: calc(var(--oc-radius) + 2px);
+  color: var(--oc-text);
+  background: var(--oc-panel-raised);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 40%);
   font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
 }
 
 .oc-editor__toast--error {
-  border-color: rgb(251 113 133 / 38%);
-  color: #fecdd3;
-  background: rgb(159 18 57 / 94%);
+  border-color: rgb(251 113 133 / 32%);
+  background: #2c1b21;
+}
+
+.oc-editor__toast-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: #fb7185;
 }
 
 .oc-editor__toast-description {
@@ -202,21 +210,25 @@
 
 .oc-editor__toast-close {
   display: inline-flex;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  margin: -1px -2px -1px 0;
+  margin: -4px -4px -4px 0;
   padding: 0;
   border: 0;
-  border-radius: 4px;
-  color: currentcolor;
+  border-radius: var(--oc-radius);
+  color: var(--oc-text-muted);
   background: transparent;
   cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
 }
 
 .oc-editor__toast-close:hover {
+  color: var(--oc-text);
   background: rgb(255 255 255 / 14%);
 }
 

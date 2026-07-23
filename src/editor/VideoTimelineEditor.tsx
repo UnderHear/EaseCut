@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import * as Toast from '@radix-ui/react-toast';
-import { FileJson, FileVideo, X } from 'lucide-react';
+import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
 import { MediaRuntimeProvider, useMediaRuntime } from './media';
@@ -174,6 +174,7 @@ function VideoTimelineEditorView({
   const importUrlInputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const onDraftChangeRef = useRef(onDraftChange);
+  const notifiedMetadataFailureSourceIdsRef = useRef(new Set<string>());
   const importDialogTitleId = useId();
   const importErrorId = useId();
 
@@ -211,6 +212,12 @@ function VideoTimelineEditorView({
 
   useEffect(() => {
     let cancelled = false;
+    const activeSourceIds = new Set(sources.map((source) => source.id));
+    for (const sourceId of notifiedMetadataFailureSourceIdsRef.current) {
+      if (!activeSourceIds.has(sourceId)) {
+        notifiedMetadataFailureSourceIdsRef.current.delete(sourceId);
+      }
+    }
 
     void Promise.all(
       sources.map(async (source) => {
@@ -242,14 +249,16 @@ function VideoTimelineEditorView({
     ).then((resolvedSources) => {
       if (cancelled) return;
 
-      const failedCount = resolvedSources.filter(
-        (source) => !hasCompleteSourceMetadata(source),
-      ).length;
-      setMediaError(
-        failedCount > 0
-          ? `${failedCount} 个素材的元数据读取失败，已使用默认时长或画布尺寸。`
-          : null,
-      );
+      const hasNewMetadataFailure = resolvedSources.some((source) => {
+        if (hasCompleteSourceMetadata(source)) return false;
+        if (notifiedMetadataFailureSourceIdsRef.current.has(source.id)) {
+          return false;
+        }
+
+        notifiedMetadataFailureSourceIdsRef.current.add(source.id);
+        return true;
+      });
+      if (hasNewMetadataFailure) setMediaError('该素材上传失败');
       syncSources(resolvedSources);
     });
 
@@ -343,10 +352,8 @@ function VideoTimelineEditorView({
       await onImportMedia({ type, url });
       setIsImportDialogOpen(false);
       resetImportForm();
-    } catch (error) {
-      setImportError(
-        error instanceof Error ? error.message : '导入素材失败，请稍后重试。',
-      );
+    } catch {
+      setImportError('该素材上传失败');
     } finally {
       setIsImporting(false);
     }
@@ -630,6 +637,7 @@ function VideoTimelineEditorView({
           role='alert'
           type='foreground'
         >
+          <CircleAlert aria-hidden='true' className='oc-editor__toast-icon' size={16} />
           <Toast.Description className='oc-editor__toast-description'>
             {exportError}
           </Toast.Description>
@@ -638,7 +646,7 @@ function VideoTimelineEditorView({
           </Toast.Close>
         </Toast.Root>
         <Toast.Root
-          className='oc-editor__toast'
+          className='oc-editor__toast oc-editor__toast--error'
           duration={5000}
           onOpenChange={(open) => {
             if (!open) setMediaError(null);
@@ -647,6 +655,7 @@ function VideoTimelineEditorView({
           role='status'
           type='background'
         >
+          <CircleAlert aria-hidden='true' className='oc-editor__toast-icon' size={16} />
           <Toast.Description className='oc-editor__toast-description'>
             {mediaError}
           </Toast.Description>

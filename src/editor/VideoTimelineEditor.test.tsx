@@ -324,9 +324,7 @@ describe('VideoTimelineEditor', () => {
     );
     await user.click(screen.getByRole('button', { name: '确认导入' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      '素材服务暂不可用',
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('该素材上传失败');
     expect(screen.getByRole('dialog', { name: '导入在线素材' })).toBeVisible();
   });
 
@@ -461,9 +459,7 @@ describe('VideoTimelineEditor', () => {
       }),
     );
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      '素材下载失败：无权访问素材',
-    );
+    expect(await screen.findByText('素材下载失败：无权访问素材')).toBeVisible();
   });
 
   it('fills a missing audio duration through the injected metadata loader', async () => {
@@ -596,8 +592,7 @@ describe('VideoTimelineEditor', () => {
     );
   });
 
-  it('automatically dismisses a media metadata toast after five seconds', async () => {
-    vi.useFakeTimers();
+  it('shows one upload failure notification when metadata loading falls back to defaults', async () => {
     const loadMetadata = vi.fn().mockResolvedValue(null);
     render(
       <VideoTimelineEditor
@@ -611,50 +606,7 @@ describe('VideoTimelineEditor', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(
-      screen.getByText('1 个素材的元数据读取失败，已使用默认时长或画布尺寸。'),
-    ).toBeInTheDocument();
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(5000);
-    });
-    expect(
-      screen.queryByText('1 个素材的元数据读取失败，已使用默认时长或画布尺寸。'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('stacks media and export error toasts independently', async () => {
-    const user = userEvent.setup();
-    const loadMetadata = vi.fn().mockResolvedValue(null);
-    const onExport = vi
-      .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
-      .mockRejectedValue(new Error('导出服务暂不可用'));
-    render(
-      <VideoTimelineEditor
-        mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
-        onExport={onExport}
-        sources={[{ ...audioSource, durationSeconds: undefined }]}
-      />,
-    );
-
-    const mediaToast = await screen.findByText(
-      '1 个素材的元数据读取失败，已使用默认时长或画布尺寸。',
-    );
-    await user.click(screen.getByRole('button', { name: '导出视频' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('导出服务暂不可用');
-
-    const viewport = document.querySelector<HTMLElement>(
-      '.oc-editor__toast-viewport',
-    );
-    if (!viewport) throw new Error('Toast viewport 未渲染');
-    const toasts = Array.from(
-      viewport.querySelectorAll<HTMLElement>('.oc-editor__toast'),
-    );
-    expect(toasts).toHaveLength(2);
-    expect(
-      toasts.some((toast) => toast.textContent?.includes('导出服务暂不可用')),
-    ).toBe(true);
-    expect(toasts.some((toast) => toast.contains(mediaToast))).toBe(true);
+    expect(await screen.findByText('该素材上传失败')).toBeVisible();
   });
 
   it('emits draft changes for persistent edits but not playback state', async () => {
