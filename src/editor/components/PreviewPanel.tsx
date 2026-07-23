@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -657,11 +658,9 @@ export function PreviewPanel({
     }
   }, [activeClips, isPlaying, previewObjectUrls]);
 
-  useEffect(() => {
-    if (!isPlaying) {
-      drawPreview(interactionRef.current);
-      return undefined;
-    }
+  useLayoutEffect(() => {
+    drawPreview(interactionRef.current);
+    if (!isPlaying) return undefined;
 
     let animationFrame = 0;
     const tick = () => {

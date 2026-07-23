@@ -325,11 +325,18 @@ describe('PreviewPanel', () => {
   it('resizes the preview canvas to fill its parent container', () => {
     renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    drawCalls = [];
 
     triggerPreviewResize(1600, 900);
 
     expect(canvas.width).toBe(1600);
     expect(canvas.height).toBe(900);
+    expect(
+      drawCalls.some(
+        ({ args, kind }) =>
+          kind === 'fillRect' && hasRectArgs(args, [0, 0, 1600, 900]),
+      ),
+    ).toBe(true);
   });
 
   it('draws active clips by track order so later tracks overlay earlier tracks', async () => {

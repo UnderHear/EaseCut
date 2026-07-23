@@ -65,7 +65,6 @@ export function TimelineViewport({
   const store = useTimelineStoreApi();
   const [scrollLeft, setScrollLeft] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(900);
-  const [viewportHeight, setViewportHeight] = useState(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
@@ -119,14 +118,13 @@ export function TimelineViewport({
     (scrollLeft + laneViewportWidth - TIMELINE_CONTENT_PADDING_X) /
       pixelsPerSecond,
   );
-  const laneWidth = Math.max(
-    laneViewportWidth,
+  const contentLaneWidth =
     durationToWidth(contentDuration, pixelsPerSecond) +
-      TIMELINE_CONTENT_PADDING_X * 2,
-  );
+    TIMELINE_CONTENT_PADDING_X * 2;
+  const rulerWidth = Math.max(laneViewportWidth, contentLaneWidth);
   const rulerDuration = Math.max(
     contentDuration,
-    (laneWidth - TIMELINE_CONTENT_PADDING_X * 2) / pixelsPerSecond,
+    (rulerWidth - TIMELINE_CONTENT_PADDING_X * 2) / pixelsPerSecond,
   );
   const { majorInterval } = calcTickScale(pixelsPerSecond);
   const clipsByTrack = useMemo(() => {
@@ -140,11 +138,10 @@ export function TimelineViewport({
   }, [displayClips]);
   const gridStyle = {
     '--oc-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
-    '--oc-timeline-lane-width': `${laneWidth}px`,
+    '--oc-timeline-lane-width': `${contentLaneWidth}px`,
     '--oc-timeline-ruler-height': `${TIMELINE_RULER_HEIGHT}px`,
     '--oc-timeline-track-gap': `${TIMELINE_TRACK_GAP}px`,
     '--oc-timeline-grid-step': `${majorInterval * pixelsPerSecond}px`,
-    width: TIMELINE_TRACK_HEADER_WIDTH + laneWidth,
   } as CSSProperties;
   const playheadLeft =
     TIMELINE_TRACK_HEADER_WIDTH +
@@ -152,8 +149,6 @@ export function TimelineViewport({
     timeToX(currentTime, pixelsPerSecond);
   const playheadLayerStyle = {
     '--oc-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
-    height: viewportHeight,
-    width: viewportWidth,
   } as CSSProperties;
   const syncPlayheadHorizontalPosition = useCallback(() => {
     const viewport = viewportRef.current;
@@ -174,7 +169,6 @@ export function TimelineViewport({
     if (!element) return undefined;
 
     const update = () => {
-      setViewportHeight(element.clientHeight);
       setViewportWidth(element.clientWidth || 900);
     };
     update();
@@ -303,7 +297,6 @@ export function TimelineViewport({
             gaps={videoGaps}
             onPointerDown={controller.beginScrub}
             pixelsPerSecond={pixelsPerSecond}
-            width={laneWidth}
           />
 
           <div className='oc-timeline-track-stack'>

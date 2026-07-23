@@ -14,7 +14,6 @@ type TimelineRulerProps = {
   gaps: VideoGap[];
   onPointerDown: (event: PointerEvent<HTMLElement>) => void;
   pixelsPerSecond: number;
-  width: number;
 };
 
 export function TimelineRuler({
@@ -23,7 +22,6 @@ export function TimelineRuler({
   gaps,
   onPointerDown,
   pixelsPerSecond,
-  width,
 }: TimelineRulerProps) {
   const { majorInterval, minorDivisions, formatTick } =
     calcTickScale(pixelsPerSecond);
@@ -36,7 +34,6 @@ export function TimelineRuler({
     '--oc-timeline-minor-step': `${
       (majorInterval * pixelsPerSecond) / minorDivisions
     }px`,
-    width,
   } as CSSProperties;
 
   return (

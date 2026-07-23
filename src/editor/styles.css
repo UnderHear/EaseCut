@@ -813,9 +813,13 @@
 .oc-timeline-grid {
   position: relative;
   display: grid;
+  width: max(
+    100%,
+    calc(var(--oc-timeline-header-width) + var(--oc-timeline-lane-width))
+  );
   grid-template-columns:
     var(--oc-timeline-header-width)
-    var(--oc-timeline-lane-width);
+    minmax(var(--oc-timeline-lane-width), 1fr);
   grid-template-rows: var(--oc-timeline-ruler-height) auto;
   min-height: 100%;
   align-content: stretch;
@@ -907,8 +911,7 @@
 
 .oc-timeline-playhead-layer {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   z-index: 13;
   overflow: hidden;
   clip-path: inset(0 0 0 var(--oc-timeline-header-width));
@@ -969,7 +972,7 @@
   flex: none;
   grid-template-columns:
     var(--oc-timeline-header-width)
-    var(--oc-timeline-lane-width);
+    minmax(var(--oc-timeline-lane-width), 1fr);
 }
 
 .oc-timeline-tail-row {

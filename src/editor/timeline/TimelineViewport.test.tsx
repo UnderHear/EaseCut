@@ -583,10 +583,31 @@ describe('TimelineViewport DOM interactions', () => {
     fireEvent.scroll(viewport);
 
     expect(playhead).toHaveStyle({ left: '60px' });
-    expect(playhead?.parentElement).toHaveStyle({
-      height: '240px',
-      width: '800px',
+    expect((playhead?.parentElement as HTMLElement).style.height).toBe('');
+    expect((playhead?.parentElement as HTMLElement).style.width).toBe('');
+  });
+
+  it('keeps short timeline content width independent from viewport resize state', () => {
+    testTimelineStore.setState({ clips: [] });
+    const { grid, viewport } = renderTimeline();
+    const contentLaneWidth =
+      12 * DEFAULT_PIXELS_PER_SECOND + TIMELINE_CONTENT_PADDING_X * 2;
+
+    expect(grid.style.getPropertyValue('--oc-timeline-lane-width')).toBe(
+      `${contentLaneWidth}px`,
+    );
+    expect(grid.style.width).toBe('');
+
+    Object.defineProperty(viewport, 'clientWidth', {
+      configurable: true,
+      value: 1_200,
     });
+    fireEvent(window, new Event('resize'));
+
+    expect(grid.style.getPropertyValue('--oc-timeline-lane-width')).toBe(
+      `${contentLaneWidth}px`,
+    );
+    expect(grid.style.width).toBe('');
   });
 
   it('uses Shift+wheel for horizontal scroll and Ctrl+wheel for zoom', () => {
