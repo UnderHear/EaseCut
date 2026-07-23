@@ -231,7 +231,8 @@ describe('VideoTimelineEditor', () => {
     await user.click(screen.getByRole('button', { name: '导入素材' }));
 
     const urlInput = screen.getByLabelText('素材 URL');
-    await user.type(urlInput, 'file:///private/video.mp4');
+    await user.click(urlInput);
+    await user.paste('file:///private/video.mp4');
     await user.click(screen.getByRole('button', { name: '确认导入' }));
     expect(screen.getByRole('alert')).toHaveTextContent(
       '请输入有效的 http 或 https 素材地址。',
@@ -239,7 +240,7 @@ describe('VideoTimelineEditor', () => {
     expect(onImportMedia).not.toHaveBeenCalled();
 
     await user.clear(urlInput);
-    await user.type(urlInput, 'https://cdn.example.com/music.mp3?signature=1');
+    await user.paste('https://cdn.example.com/music.mp3?signature=1');
     expect(screen.queryByText('素材类型')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '确认导入' }));
 
@@ -266,14 +267,15 @@ describe('VideoTimelineEditor', () => {
     await user.click(screen.getByRole('button', { name: '导入素材' }));
     const urlInput = screen.getByLabelText('素材 URL');
 
-    await user.type(urlInput, 'https://cdn.example.com/document.pdf');
+    await user.click(urlInput);
+    await user.paste('https://cdn.example.com/document.pdf');
     await user.click(screen.getByRole('button', { name: '确认导入' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '不支持的素材文件后缀：.pdf。',
     );
 
     await user.clear(urlInput);
-    await user.type(urlInput, 'https://cdn.example.com/no-extension');
+    await user.paste('https://cdn.example.com/no-extension');
     await user.click(screen.getByRole('button', { name: '确认导入' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '无法从 URL 文件后缀识别素材类型。',
@@ -295,10 +297,8 @@ describe('VideoTimelineEditor', () => {
       />,
     );
     await user.click(screen.getByRole('button', { name: '导入素材' }));
-    await user.type(
-      screen.getByLabelText('素材 URL'),
-      'https://cdn.example.com/video.mp4',
-    );
+    await user.click(screen.getByLabelText('素材 URL'));
+    await user.paste('https://cdn.example.com/video.mp4');
     await user.click(screen.getByRole('button', { name: '确认导入' }));
 
     expect(screen.getByRole('button', { name: '导入中…' })).toBeDisabled();
@@ -318,10 +318,8 @@ describe('VideoTimelineEditor', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '导入素材' }));
-    await user.type(
-      screen.getByLabelText('素材 URL'),
-      'https://cdn.example.com/retry.mp4',
-    );
+    await user.click(screen.getByLabelText('素材 URL'));
+    await user.paste('https://cdn.example.com/retry.mp4');
     await user.click(screen.getByRole('button', { name: '确认导入' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('该素材上传失败');

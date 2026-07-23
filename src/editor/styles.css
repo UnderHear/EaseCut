@@ -1138,7 +1138,8 @@
 }
 
 .oc-timeline-clip[data-type="audio"] {
-  background: #19364b;
+  --oc-timeline-waveform-bar: rgb(250 245 255 / 82%);
+  background: #8051ad;
 }
 
 .oc-timeline-clip[data-selected="true"] {
@@ -1219,8 +1220,7 @@
   will-change: left, top;
 }
 
-.oc-timeline-clip__media,
-.oc-timeline-clip__waveform {
+.oc-timeline-clip__media {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1250,9 +1250,12 @@
   pointer-events: none;
 }
 
-.oc-timeline-clip__waveform-shape {
-  fill: #5abcf2;
-  opacity: 0.82;
+.oc-timeline-clip__waveform-canvas {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  pointer-events: none;
 }
 
 .oc-timeline-clip__meta {

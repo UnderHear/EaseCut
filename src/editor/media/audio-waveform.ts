@@ -1,7 +1,12 @@
 import type { AudioWaveformExtractor } from './mediabunny-audio-waveform';
-import { normalizeAudioWaveformSampleCount } from '../workers/audio-waveform-protocol';
+import {
+  MAX_AUDIO_WAVEFORM_SAMPLE_COUNT,
+  normalizeAudioWaveformSampleCount,
+} from '../workers/audio-waveform-protocol';
 
 const DEFAULT_AUDIO_WAVEFORM_SAMPLE_COUNT = 512;
+export const HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT =
+  MAX_AUDIO_WAVEFORM_SAMPLE_COUNT;
 
 type AudioWaveformEntry =
   | {

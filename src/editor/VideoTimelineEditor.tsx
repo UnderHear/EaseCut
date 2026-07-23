@@ -493,7 +493,7 @@ function VideoTimelineEditorView({
         className={rootClassName}
         onKeyDown={handleKeyDown}
         onPointerDownCapture={(event) => {
-          if (!(event.target instanceof HTMLElement)) return;
+          if (!(event.target instanceof Element)) return;
           if (
             !event.target.closest(
               'button, input, select, textarea, summary, a[href], [role="dialog"], [role="menu"]',

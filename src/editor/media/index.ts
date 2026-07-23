@@ -16,5 +16,8 @@ export {
   type FramePreviewRequest,
   type FramePreviewStrip,
 } from './frame-preview';
-export { sampleAudioBuffer } from './audio-waveform';
+export {
+  HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
+  sampleAudioBuffer,
+} from './audio-waveform';
 

@@ -16,18 +16,22 @@ import {
 
 import {
   FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+  HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   useAudioWaveformSamples,
   useFramePreviewStrip,
   type FramePreviewRequest,
   type FramePreviewStrip,
 } from '../media';
+import {
+  getAudioWaveformRenderWindow,
+  type AudioWaveformRenderWindow,
+} from '../core/audio-waveform-bars';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
 import { roundTimelineTime } from '../core/timeline-math';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
 import { formatTimelineTime } from '../util/format-timeline-time';
+import { AudioWaveformCanvas } from './AudioWaveformCanvas';
 
-const WAVEFORM_HEIGHT = 100;
-const WAVEFORM_AMPLITUDE = 44;
 const AUDIO_VOLUME_INSET = 8;
 
 export type TimelineClipViewProps = {
@@ -57,35 +61,6 @@ export type TimelineClipViewProps = {
 };
 
 const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
-
-const createWaveformPath = (samples: readonly number[]) => {
-  if (samples.length === 0) return '';
-
-  const denominator = Math.max(1, samples.length - 1);
-  const point = (sample: number, index: number, direction: -1 | 1) =>
-    `${index === 0 ? 'M' : 'L'} ${(index / denominator) * 100} ${
-      WAVEFORM_HEIGHT / 2 + direction * clampUnit(sample) * WAVEFORM_AMPLITUDE
-    }`;
-  const top = samples.map((sample, index) => point(sample, index, -1));
-  const bottom = [...samples].reverse().map((sample, index) =>
-    point(sample, samples.length - index - 1, 1).replace('M', 'L'),
-  );
-
-  return `${top.join(' ')} ${bottom.join(' ')} Z`;
-};
-
-const getVisibleSamples = (samples: readonly number[], clip: TimelineClip) => {
-  if (samples.length === 0) return samples;
-
-  const sourceDuration = Math.max(clip.sourceDuration, clip.trimEnd, 0.001);
-  const start = Math.floor(
-    clampUnit(clip.trimStart / sourceDuration) * samples.length,
-  );
-  const end = Math.ceil(
-    clampUnit(clip.trimEnd / sourceDuration) * samples.length,
-  );
-  return samples.slice(start, Math.max(start + 1, end));
-};
 
 const useTimelineClipPresentation = (
   clip: TimelineClip,
@@ -146,20 +121,40 @@ const useTimelineClipPresentation = (
     visibleTimeStart,
   ]);
   const previewStrip = useFramePreviewStrip(previewRequest);
+  const waveformRenderWindow = useMemo(
+    () =>
+      clip.type === 'audio'
+        ? getAudioWaveformRenderWindow({
+            clipDuration: clip.duration,
+            pixelsPerSecond,
+            timelineStart,
+            trimStart: clip.trimStart,
+            visibleTimeEnd,
+            visibleTimeStart,
+          })
+        : null,
+    [
+      clip.duration,
+      clip.trimStart,
+      clip.type,
+      pixelsPerSecond,
+      timelineStart,
+      visibleTimeEnd,
+      visibleTimeStart,
+    ],
+  );
   const waveformSamples = useAudioWaveformSamples(
     clip.waveformSrc ?? clip.src,
-    clip.type === 'audio',
-  );
-  const waveformPath = useMemo(
-    () => createWaveformPath(getVisibleSamples(waveformSamples, clip)),
-    [clip, waveformSamples],
+    waveformRenderWindow !== null,
+    HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   );
 
   return {
     previewOffset: clip.trimStart * pixelsPerSecond,
     previewStrip,
     volume: clampUnit(trackVolume),
-    waveformPath,
+    waveformRenderWindow,
+    waveformSamples,
   };
 };
 
@@ -168,7 +163,9 @@ type TimelineClipVisualProps = {
   pixelsPerSecond: number;
   previewOffset: number;
   previewStrip: FramePreviewStrip | null;
-  waveformPath: string;
+  waveformRenderWindow: AudioWaveformRenderWindow | null;
+  waveformSamples: readonly number[];
+  volume: number;
 };
 
 function TimelineClipVisual({
@@ -176,7 +173,9 @@ function TimelineClipVisual({
   pixelsPerSecond,
   previewOffset,
   previewStrip,
-  waveformPath,
+  waveformRenderWindow,
+  waveformSamples,
+  volume,
 }: TimelineClipVisualProps) {
   const previewScale =
     previewStrip && previewStrip.pixelsPerSecond > 0
@@ -210,16 +209,17 @@ function TimelineClipVisual({
               />
             ))}
           </div>
-        ) : (
-          <svg
-            aria-hidden='true'
-            className='oc-timeline-clip__waveform'
-            preserveAspectRatio='none'
-            viewBox={`0 0 100 ${WAVEFORM_HEIGHT}`}
-          >
-            <path className='oc-timeline-clip__waveform-shape' d={waveformPath} />
-          </svg>
-        )}
+        ) : waveformRenderWindow ? (
+          <AudioWaveformCanvas
+            left={waveformRenderWindow.left}
+            pixelsPerSecond={pixelsPerSecond}
+            renderWidth={waveformRenderWindow.width}
+            samples={waveformSamples}
+            sourceDuration={clip.sourceDuration}
+            sourceStart={waveformRenderWindow.sourceStart}
+            volume={volume}
+          />
+        ) : null}
       </div>
 
       <header className='oc-timeline-clip__meta'>
@@ -259,7 +259,13 @@ export function TimelineClipView({
   width,
 }: TimelineClipViewProps) {
   const [contextMenuTime, setContextMenuTime] = useState(clip.start);
-  const { previewOffset, previewStrip, volume, waveformPath } =
+  const {
+    previewOffset,
+    previewStrip,
+    volume,
+    waveformRenderWindow,
+    waveformSamples,
+  } =
     useTimelineClipPresentation(
       clip,
       pixelsPerSecond,
@@ -322,7 +328,9 @@ export function TimelineClipView({
             pixelsPerSecond={pixelsPerSecond}
             previewOffset={previewOffset}
             previewStrip={previewStrip}
-            waveformPath={waveformPath}
+            waveformRenderWindow={waveformRenderWindow}
+            waveformSamples={waveformSamples}
+            volume={volume}
           />
 
           {clip.type === 'audio' && (
@@ -432,7 +440,13 @@ export function TimelineClipDragOverlay({
   visibleTimeStart,
   width,
 }: TimelineClipDragOverlayProps) {
-  const { previewOffset, previewStrip, volume, waveformPath } =
+  const {
+    previewOffset,
+    previewStrip,
+    volume,
+    waveformRenderWindow,
+    waveformSamples,
+  } =
     useTimelineClipPresentation(
       clip,
       pixelsPerSecond,
@@ -465,7 +479,9 @@ export function TimelineClipDragOverlay({
         pixelsPerSecond={pixelsPerSecond}
         previewOffset={previewOffset}
         previewStrip={previewStrip}
-        waveformPath={waveformPath}
+        waveformRenderWindow={waveformRenderWindow}
+        waveformSamples={waveformSamples}
+        volume={volume}
       />
     </div>
   );
