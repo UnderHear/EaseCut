@@ -1,5 +1,6 @@
-export const FRAME_PREVIEW_HEIGHT = 48;
 export const FRAME_PREVIEW_CHUNK_DURATION_SECONDS = 5;
+
+const FRAME_PREVIEW_CAPTURE_HEIGHT = 48;
 
 export type FramePreviewFrame = {
   index: number;
@@ -7,7 +8,6 @@ export type FramePreviewFrame = {
 };
 
 export type FramePreviewStrip = {
-  frameHeight: number;
   frameWidth: number;
   frames: FramePreviewFrame[];
 };
@@ -44,7 +44,6 @@ type FramePreviewCacheEntry = {
 const FRAME_PREVIEW_TIME_EPSILON = 0.001;
 
 const EMPTY_FRAME_PREVIEW_STRIP: FramePreviewStrip = {
-  frameHeight: FRAME_PREVIEW_HEIGHT,
   frameWidth: 0,
   frames: [],
 };
@@ -150,7 +149,7 @@ const captureVideoFrame = (
   }
 
   canvas.width = frameWidth;
-  canvas.height = FRAME_PREVIEW_HEIGHT;
+  canvas.height = FRAME_PREVIEW_CAPTURE_HEIGHT;
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   return new Promise<string>((resolve, reject) => {
@@ -235,7 +234,6 @@ export const createFramePreviewCache = (
   ): FramePreviewStrip => {
     if (!entry.frameWidth) return EMPTY_FRAME_PREVIEW_STRIP;
     return {
-      frameHeight: FRAME_PREVIEW_HEIGHT,
       frameWidth: entry.frameWidth,
       frames: getRangeIndexes(entry, range).flatMap((index) => {
         const url = entry.urls.get(index);
@@ -284,7 +282,8 @@ export const createFramePreviewCache = (
       entry.frameWidth = Math.max(
         1,
         Math.round(
-          FRAME_PREVIEW_HEIGHT * (video.videoWidth / video.videoHeight),
+          FRAME_PREVIEW_CAPTURE_HEIGHT *
+            (video.videoWidth / video.videoHeight),
         ),
       );
       entry.totalFrames = Math.ceil(

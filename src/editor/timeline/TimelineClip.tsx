@@ -194,7 +194,6 @@ function TimelineClipVisual({
                 key={frame.index}
                 src={frame.url}
                 style={{
-                  height: previewStrip.frameHeight,
                   left: frame.index * previewStrip.frameWidth,
                   width: previewStrip.frameWidth,
                 }}

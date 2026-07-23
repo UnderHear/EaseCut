@@ -146,7 +146,6 @@ describe('TimelineViewport DOM interactions', () => {
     useFramePreviewStripMock.mockImplementation((request) =>
       request
         ? {
-            frameHeight: 48,
             frameWidth: 85,
             frames: [
               { index: 0, url: 'blob:frame-0' },
@@ -258,7 +257,6 @@ describe('TimelineViewport DOM interactions', () => {
         '.oc-timeline-clip__thumbnail',
       ),
     ].map((image) => ({
-      height: image.style.height,
       left: image.style.left,
       src: image.src,
       width: image.style.width,
@@ -266,8 +264,8 @@ describe('TimelineViewport DOM interactions', () => {
 
     expect(strip).toHaveStyle({ transform: 'translate3d(0px, -50%, 0)' });
     expect(imageStylesBeforeTrim).toEqual([
-      { height: '48px', left: '0px', src: 'blob:frame-0', width: '85px' },
-      { height: '48px', left: '85px', src: 'blob:frame-1', width: '85px' },
+      { left: '0px', src: 'blob:frame-0', width: '85px' },
+      { left: '85px', src: 'blob:frame-1', width: '85px' },
     ]);
 
     fireEvent.pointerDown(
@@ -288,7 +286,6 @@ describe('TimelineViewport DOM interactions', () => {
           '.oc-timeline-clip__thumbnail',
         ),
       ].map((image) => ({
-        height: image.style.height,
         left: image.style.left,
         src: image.src,
         width: image.style.width,

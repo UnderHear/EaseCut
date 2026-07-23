@@ -1195,7 +1195,7 @@
   position: absolute;
   top: 50%;
   left: 0;
-  height: 48px;
+  height: 100%;
   pointer-events: none;
   will-change: transform;
 }
@@ -1203,9 +1203,10 @@
 .oc-timeline-clip__thumbnail {
   position: absolute;
   top: 0;
+  height: 100%;
   display: block;
   max-width: none;
-  object-fit: contain;
+  object-fit: cover;
   pointer-events: none;
 }
 

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  FRAME_PREVIEW_HEIGHT,
   createFramePreviewCache,
   type FramePreviewRequest,
   type FramePreviewStrip,
@@ -111,7 +110,6 @@ describe('frame preview cache', () => {
     expect(getObjectUrl).toHaveBeenCalledTimes(1);
     expect(createObjectUrl).toHaveBeenCalledTimes(3);
     expect(firstUpdates.at(-1)).toEqual({
-      frameHeight: FRAME_PREVIEW_HEIGHT,
       frameWidth: 85,
       frames: [
         { index: 0, url: 'blob:frame-1' },
@@ -124,7 +122,7 @@ describe('frame preview cache', () => {
       0,
       0,
       85,
-      FRAME_PREVIEW_HEIGHT,
+      48,
     );
   });
 
@@ -250,7 +248,6 @@ describe('frame preview cache', () => {
 
     expect(subscriber).toHaveBeenCalledOnce();
     expect(subscriber).toHaveBeenCalledWith({
-      frameHeight: FRAME_PREVIEW_HEIGHT,
       frameWidth: 0,
       frames: [],
     });

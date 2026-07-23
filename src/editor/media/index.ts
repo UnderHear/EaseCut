@@ -12,7 +12,6 @@ export {
 export {
   canGenerateFramePreviews,
   FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
-  FRAME_PREVIEW_HEIGHT,
   type FramePreviewFrame,
   type FramePreviewRequest,
   type FramePreviewStrip,
