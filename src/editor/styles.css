@@ -275,15 +275,12 @@
 
 .oc-preview-panel__error {
   position: absolute;
-  right: 10px;
   bottom: 10px;
+  left: 50%;
+  transform: translate(-50%);
   max-width: min(420px, calc(100% - 20px));
   margin: 0;
-  padding: 6px 9px;
-  border: 1px solid rgb(251 113 133 / 28%);
-  border-radius: 5px;
-  color: #fecdd3;
-  background: rgb(17 17 17 / 88%);
+  color: #ffafaf;
   font-size: 12px;
 }
 
