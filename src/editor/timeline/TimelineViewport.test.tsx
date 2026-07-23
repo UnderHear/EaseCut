@@ -165,6 +165,7 @@ describe('TimelineViewport DOM interactions', () => {
               { index: 0, url: 'blob:frame-0' },
               { index: 1, url: 'blob:frame-1' },
             ],
+            pixelsPerSecond: request.pixelsPerSecond,
           }
         : null,
     );
@@ -359,6 +360,36 @@ describe('TimelineViewport DOM interactions', () => {
         width: image.style.width,
       })),
     ).toEqual(imageStylesBeforeTrim);
+  });
+
+  it('rescales retained preview frames to the current timeline zoom', () => {
+    useFramePreviewStripMock.mockReturnValue({
+      frameWidth: 85,
+      frames: [
+        { index: 0, url: 'blob:frame-0' },
+        { index: 1, url: 'blob:frame-1' },
+      ],
+      pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND / 2,
+    });
+
+    renderTimeline();
+
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    expect(
+      [
+        ...clip.querySelectorAll<HTMLImageElement>(
+          '.oc-timeline-clip__thumbnail',
+        ),
+      ].map((image) => ({
+        left: image.style.left,
+        width: image.style.width,
+      })),
+    ).toEqual([
+      { left: '0px', width: '170px' },
+      { left: '170px', width: '170px' },
+    ]);
   });
 
   it('uses the standard video label for non-main video tracks', () => {

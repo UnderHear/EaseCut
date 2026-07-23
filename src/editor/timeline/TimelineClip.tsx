@@ -165,6 +165,7 @@ const useTimelineClipPresentation = (
 
 type TimelineClipVisualProps = {
   clip: TimelineClip;
+  pixelsPerSecond: number;
   previewOffset: number;
   previewStrip: FramePreviewStrip | null;
   waveformPath: string;
@@ -172,10 +173,16 @@ type TimelineClipVisualProps = {
 
 function TimelineClipVisual({
   clip,
+  pixelsPerSecond,
   previewOffset,
   previewStrip,
   waveformPath,
 }: TimelineClipVisualProps) {
+  const previewScale =
+    previewStrip && previewStrip.pixelsPerSecond > 0
+      ? pixelsPerSecond / previewStrip.pixelsPerSecond
+      : 1;
+
   return (
     <>
       <div className='oc-timeline-clip__media'>
@@ -194,8 +201,11 @@ function TimelineClipVisual({
                 key={frame.index}
                 src={frame.url}
                 style={{
-                  left: frame.index * previewStrip.frameWidth,
-                  width: previewStrip.frameWidth,
+                  left:
+                    frame.index *
+                    previewStrip.frameWidth *
+                    previewScale,
+                  width: previewStrip.frameWidth * previewScale,
                 }}
               />
             ))}
@@ -309,6 +319,7 @@ export function TimelineClipView({
         >
           <TimelineClipVisual
             clip={clip}
+            pixelsPerSecond={pixelsPerSecond}
             previewOffset={previewOffset}
             previewStrip={previewStrip}
             waveformPath={waveformPath}
@@ -451,6 +462,7 @@ export function TimelineClipDragOverlay({
     >
       <TimelineClipVisual
         clip={clip}
+        pixelsPerSecond={pixelsPerSecond}
         previewOffset={previewOffset}
         previewStrip={previewStrip}
         waveformPath={waveformPath}

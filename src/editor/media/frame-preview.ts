@@ -1,3 +1,5 @@
+import type { FramePreviewExtractor } from './webcodecs-frame-preview';
+
 export const FRAME_PREVIEW_CHUNK_DURATION_SECONDS = 5;
 
 const FRAME_PREVIEW_CAPTURE_HEIGHT = 48;
@@ -10,6 +12,7 @@ export type FramePreviewFrame = {
 export type FramePreviewStrip = {
   frameWidth: number;
   frames: FramePreviewFrame[];
+  pixelsPerSecond: number;
 };
 
 export type FramePreviewRequest = {
@@ -30,6 +33,7 @@ type CachedFramePreview = {
 type FramePreviewRange = Pick<FramePreviewRequest, 'rangeEnd' | 'rangeStart'>;
 
 type FramePreviewCacheEntry = {
+  controller: AbortController | null;
   frameWidth: number | null;
   key: string;
   pixelsPerSecond: number;
@@ -41,11 +45,20 @@ type FramePreviewCacheEntry = {
   urls: Map<number, string>;
 };
 
+type FramePreviewAcceleration = {
+  extractor: FramePreviewExtractor;
+  getBlob: (src: string) => Promise<Blob>;
+  getDimensions: (
+    src: string,
+  ) => Promise<{ height: number; width: number } | null>;
+};
+
 const FRAME_PREVIEW_TIME_EPSILON = 0.001;
 
 const EMPTY_FRAME_PREVIEW_STRIP: FramePreviewStrip = {
   frameWidth: 0,
   frames: [],
+  pixelsPerSecond: 0,
 };
 
 export const canGenerateFramePreviews = () =>
@@ -95,11 +108,30 @@ const getProgressiveFramePreviewIndexes = (indexes: readonly number[]) => {
   return [...new Set(ordered)];
 };
 
-const waitForVideoMetadata = (video: HTMLVideoElement, src: string) =>
+const createAbortError = () =>
+  new DOMException('预览帧任务已取消', 'AbortError');
+
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException && error.name === 'AbortError';
+
+const throwIfAborted = (signal: AbortSignal) => {
+  if (signal.aborted) throw createAbortError();
+};
+
+const waitForVideoMetadata = (
+  video: HTMLVideoElement,
+  src: string,
+  signal: AbortSignal,
+) =>
   new Promise<void>((resolve, reject) => {
     const cleanup = () => {
+      signal.removeEventListener('abort', handleAbort);
       video.onloadedmetadata = null;
       video.onerror = null;
+    };
+    const handleAbort = () => {
+      cleanup();
+      reject(createAbortError());
     };
     video.onloadedmetadata = () => {
       cleanup();
@@ -109,6 +141,11 @@ const waitForVideoMetadata = (video: HTMLVideoElement, src: string) =>
       cleanup();
       reject(new Error('无法读取视频帧'));
     };
+    if (signal.aborted) {
+      handleAbort();
+      return;
+    }
+    signal.addEventListener('abort', handleAbort, { once: true });
     video.muted = true;
     video.playsInline = true;
     video.preload = 'metadata';
@@ -116,11 +153,20 @@ const waitForVideoMetadata = (video: HTMLVideoElement, src: string) =>
     video.load();
   });
 
-const seekVideo = (video: HTMLVideoElement, time: number) =>
+const seekVideo = (
+  video: HTMLVideoElement,
+  time: number,
+  signal: AbortSignal,
+) =>
   new Promise<void>((resolve, reject) => {
     const cleanup = () => {
+      signal.removeEventListener('abort', handleAbort);
       video.onseeked = null;
       video.onerror = null;
+    };
+    const handleAbort = () => {
+      cleanup();
+      reject(createAbortError());
     };
     video.onseeked = () => {
       cleanup();
@@ -130,6 +176,11 @@ const seekVideo = (video: HTMLVideoElement, time: number) =>
       cleanup();
       reject(new Error('无法读取视频帧'));
     };
+    if (signal.aborted) {
+      handleAbort();
+      return;
+    }
+    signal.addEventListener('abort', handleAbort, { once: true });
     try {
       video.currentTime = time;
     } catch (error) {
@@ -192,6 +243,7 @@ const getRangeIndexes = (
 export const createFramePreviewCache = (
   getObjectUrl: (src: string) => Promise<string>,
   isDisposed: () => boolean,
+  acceleration: FramePreviewAcceleration | null = null,
 ) => {
   const entries = new Map<string, FramePreviewCacheEntry>();
   const framesBySource = new Map<string, CachedFramePreview[]>();
@@ -239,6 +291,7 @@ export const createFramePreviewCache = (
         const url = entry.urls.get(index);
         return url ? [{ index, url }] : [];
       }),
+      pixelsPerSecond: entry.pixelsPerSecond,
     };
   };
 
@@ -271,73 +324,146 @@ export const createFramePreviewCache = (
     return queuedTask;
   };
 
-  const createFrames = async (entry: FramePreviewCacheEntry) => {
+  const getFrameTime = (
+    entry: FramePreviewCacheEntry,
+    index: number,
+    mediaDuration: number,
+  ) => {
+    if (!entry.frameWidth) return 0;
+    const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
+    return Math.min(
+      Math.max(0, mediaDuration - 0.01),
+      (index + 0.5) * frameDuration,
+    );
+  };
+
+  const initializeEntry = (
+    entry: FramePreviewCacheEntry,
+    frameWidth: number,
+    mediaDuration: number,
+  ) => {
+    entry.frameWidth = Math.max(1, Math.round(frameWidth));
+    entry.totalFrames = Math.ceil(
+      (entry.sourceDuration * entry.pixelsPerSecond) / entry.frameWidth,
+    );
+    emit(entry);
+
+    const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
+    for (const index of getRequestedIndexes(entry)) {
+      if (entry.urls.has(index)) continue;
+      const cachedUrl = findCachedUrl(
+        entry.src,
+        getFrameTime(entry, index, mediaDuration),
+        frameDuration / 2,
+      );
+      if (cachedUrl) entry.urls.set(index, cachedUrl);
+    }
+    emit(entry);
+  };
+
+  const createAcceleratedFrames = async (
+    entry: FramePreviewCacheEntry,
+    signal: AbortSignal,
+  ) => {
+    if (!acceleration) throw new Error('WebCodecs 预览帧后端不可用');
+    const [blob, dimensions] = await Promise.all([
+      acceleration.getBlob(entry.src),
+      acceleration.getDimensions(entry.src),
+    ]);
+    throwIfAborted(signal);
+    if (!dimensions || dimensions.height <= 0 || dimensions.width <= 0) {
+      throw new Error('无法读取 WebCodecs 预览帧尺寸');
+    }
+
+    initializeEntry(
+      entry,
+      FRAME_PREVIEW_CAPTURE_HEIGHT *
+        (dimensions.width / dimensions.height),
+      entry.sourceDuration,
+    );
+    const missingFrames = getRequestedIndexes(entry)
+      .filter((index) => !entry.urls.has(index))
+      .map((index) => ({
+        index,
+        time: getFrameTime(entry, index, entry.sourceDuration),
+      }));
+
+    await acceleration.extractor.extract(
+      blob,
+      FRAME_PREVIEW_CAPTURE_HEIGHT,
+      missingFrames,
+      signal,
+      (index, frameBlob) => {
+        if (
+          signal.aborted ||
+          entry.urls.has(index) ||
+          !getRequestedIndexes(entry).includes(index)
+        ) {
+          return;
+        }
+        const url = URL.createObjectURL(frameBlob);
+        generatedUrls.add(url);
+        entry.urls.set(index, url);
+        cacheFrame(
+          entry.src,
+          getFrameTime(entry, index, entry.sourceDuration),
+          url,
+        );
+        emit(entry);
+      },
+    );
+  };
+
+  const createMediaElementFrames = async (
+    entry: FramePreviewCacheEntry,
+    signal: AbortSignal,
+  ) => {
+    throwIfAborted(signal);
     if (isDisposed()) {
       throw new DOMException('媒体运行时已销毁', 'AbortError');
     }
+    if (entry.subscribers.size === 0) return;
     const objectUrl = await getObjectUrl(entry.src);
+    throwIfAborted(signal);
+    if (entry.subscribers.size === 0) return;
     const video = document.createElement('video');
     try {
-      await waitForVideoMetadata(video, objectUrl);
-      entry.frameWidth = Math.max(
-        1,
-        Math.round(
-          FRAME_PREVIEW_CAPTURE_HEIGHT *
-            (video.videoWidth / video.videoHeight),
-        ),
+      await waitForVideoMetadata(video, objectUrl, signal);
+      throwIfAborted(signal);
+      if (entry.subscribers.size === 0) return;
+      initializeEntry(
+        entry,
+        FRAME_PREVIEW_CAPTURE_HEIGHT *
+          (video.videoWidth / video.videoHeight),
+        video.duration,
       );
-      entry.totalFrames = Math.ceil(
-        (entry.sourceDuration * entry.pixelsPerSecond) / entry.frameWidth,
-      );
-      emit(entry);
-
-      const indexes = getRequestedIndexes(entry);
-      const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
-      for (const index of indexes) {
-        if (entry.urls.has(index)) continue;
-        const time = Math.min(
-          Math.max(0, video.duration - 0.01),
-          (index + 0.5) * frameDuration,
-        );
-        const cachedUrl = findCachedUrl(
-          entry.src,
-          time,
-          frameDuration / 2,
-        );
-        if (cachedUrl) entry.urls.set(index, cachedUrl);
-      }
-      emit(entry);
 
       const missingIndexes = getProgressiveFramePreviewIndexes(
         getRequestedIndexes(entry).filter((index) => !entry.urls.has(index)),
       );
       for (const index of missingIndexes) {
+        throwIfAborted(signal);
         if (isDisposed()) {
           throw new DOMException('媒体运行时已销毁', 'AbortError');
         }
-        const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
-        const time = Math.min(
-          Math.max(0, video.duration - 0.01),
-          (index + 0.5) * frameDuration,
-        );
-        const cachedUrl = findCachedUrl(
-          entry.src,
-          time,
-          frameDuration / 2,
-        );
-        if (cachedUrl) {
-          entry.urls.set(index, cachedUrl);
-          emit(entry);
+        if (
+          entry.subscribers.size === 0 ||
+          !getRequestedIndexes(entry).includes(index)
+        ) {
           continue;
         }
-        await seekVideo(video, time);
+        const time = getFrameTime(entry, index, video.duration);
+        await seekVideo(video, time, signal);
+        throwIfAborted(signal);
         if (isDisposed()) {
           throw new DOMException('媒体运行时已销毁', 'AbortError');
         }
-        const url = await captureVideoFrame(video, entry.frameWidth);
-        if (isDisposed()) {
+        const frameWidth = entry.frameWidth;
+        if (!frameWidth) throw new Error('无法读取视频帧尺寸');
+        const url = await captureVideoFrame(video, frameWidth);
+        if (isDisposed() || signal.aborted) {
           URL.revokeObjectURL(url);
-          throw new DOMException('媒体运行时已销毁', 'AbortError');
+          throw createAbortError();
         }
         generatedUrls.add(url);
         entry.urls.set(index, url);
@@ -351,14 +477,33 @@ export const createFramePreviewCache = (
     }
   };
 
+  const createFrames = async (
+    entry: FramePreviewCacheEntry,
+    signal: AbortSignal,
+  ) => {
+    if (acceleration) {
+      try {
+        await createAcceleratedFrames(entry, signal);
+        return;
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+      }
+    }
+    await createMediaElementFrames(entry, signal);
+  };
+
   const schedule = (entry: FramePreviewCacheEntry) => {
     if (entry.task || !hasMissingFrames(entry)) return;
-    entry.task = enqueue(() => createFrames(entry))
-      .catch(() => {
+    const controller = new AbortController();
+    entry.controller = controller;
+    entry.task = enqueue(() => createFrames(entry, controller.signal))
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return;
         if (entries.get(entry.key) === entry) entries.delete(entry.key);
         entry.subscribers.clear();
       })
       .finally(() => {
+        if (entry.controller === controller) entry.controller = null;
         entry.task = null;
         if (entries.get(entry.key) === entry && hasMissingFrames(entry)) {
           schedule(entry);
@@ -372,6 +517,7 @@ export const createFramePreviewCache = (
     if (cachedEntry) return cachedEntry;
 
     const entry: FramePreviewCacheEntry = {
+      controller: null,
       frameWidth: null,
       key,
       pixelsPerSecond: request.pixelsPerSecond,
@@ -388,7 +534,10 @@ export const createFramePreviewCache = (
 
   return {
     clear: () => {
-      entries.forEach((entry) => entry.subscribers.clear());
+      entries.forEach((entry) => {
+        entry.controller?.abort();
+        entry.subscribers.clear();
+      });
       entries.clear();
       framesBySource.clear();
       generatedUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -421,6 +570,7 @@ export const createFramePreviewCache = (
       schedule(entry);
       return () => {
         entry.subscribers.delete(subscriber);
+        if (entry.subscribers.size === 0) entry.controller?.abort();
       };
     },
   };

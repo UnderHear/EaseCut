@@ -5,6 +5,7 @@ import {
   type FramePreviewRequest,
   type FramePreviewStrip,
 } from './frame-preview';
+import type { FramePreviewExtractor } from './webcodecs-frame-preview';
 
 const createRequest = (
   patch: Partial<FramePreviewRequest> = {},
@@ -116,6 +117,7 @@ describe('frame preview cache', () => {
         { index: 1, url: 'blob:frame-3' },
         { index: 2, url: 'blob:frame-2' },
       ],
+      pixelsPerSecond: 80,
     });
     expect(drawImage).toHaveBeenCalledWith(
       expect.anything(),
@@ -226,6 +228,122 @@ describe('frame preview cache', () => {
     expect(createObjectUrl).toHaveBeenCalledTimes(6);
   });
 
+  it('extracts missing frames through the WebCodecs backend in timestamp order', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    const { createObjectUrl, drawImage } = installMediaElementMocks();
+    const getObjectUrl = vi.fn().mockResolvedValue('blob:video');
+    const getBlob = vi.fn().mockResolvedValue(new Blob(['video']));
+    const extract = vi.fn<
+      FramePreviewExtractor['extract']
+    >(async (_blob, _height, frames, _signal, onFrame) => {
+      frames.forEach(({ index }) => {
+        onFrame(index, new Blob([`frame-${index}`], { type: 'image/jpeg' }));
+      });
+    });
+    const cache = createFramePreviewCache(
+      getObjectUrl,
+      () => false,
+      {
+        extractor: { dispose: vi.fn(), extract },
+        getBlob,
+        getDimensions: vi.fn().mockResolvedValue({
+          height: 1080,
+          width: 1920,
+        }),
+      },
+    );
+    const subscriber = vi.fn();
+
+    cache.subscribe(createRequest(), subscriber);
+
+    await vi.waitFor(() =>
+      expect(
+        (subscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(3),
+    );
+    expect(extract).toHaveBeenCalledOnce();
+    expect(extract.mock.calls[0]?.[2]).toEqual([
+      { index: 0, time: 0.53125 },
+      { index: 1, time: 1.59375 },
+      { index: 2, time: 2.65625 },
+    ]);
+    expect(getBlob).toHaveBeenCalledWith('/video.mp4');
+    expect(getObjectUrl).not.toHaveBeenCalled();
+    expect(drawImage).not.toHaveBeenCalled();
+    expect(createObjectUrl).toHaveBeenCalledTimes(3);
+  });
+
+  it('falls back to media-element extraction when WebCodecs decoding fails', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    installMediaElementMocks();
+    const getObjectUrl = vi.fn().mockResolvedValue('blob:video');
+    const extractor: FramePreviewExtractor = {
+      dispose: vi.fn(),
+      extract: vi.fn().mockRejectedValue(new Error('unsupported codec')),
+    };
+    const cache = createFramePreviewCache(
+      getObjectUrl,
+      () => false,
+      {
+        extractor,
+        getBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
+        getDimensions: vi.fn().mockResolvedValue({
+          height: 1080,
+          width: 1920,
+        }),
+      },
+    );
+    const subscriber = vi.fn();
+
+    cache.subscribe(createRequest(), subscriber);
+
+    await vi.waitFor(() =>
+      expect(
+        (subscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(3),
+    );
+    expect(extractor.extract).toHaveBeenCalledOnce();
+    expect(getObjectUrl).toHaveBeenCalledOnce();
+  });
+
+  it('cancels an active WebCodecs extraction after its last subscriber leaves', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    installMediaElementMocks();
+    const extractionSignal: { current?: AbortSignal } = {};
+    const extractor: FramePreviewExtractor = {
+      dispose: vi.fn(),
+      extract: vi.fn((_blob, _height, _frames, signal) => {
+        extractionSignal.current = signal;
+        return new Promise<void>((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () =>
+              reject(new DOMException('cancelled', 'AbortError')),
+            { once: true },
+          );
+        });
+      }),
+    };
+    const cache = createFramePreviewCache(
+      vi.fn().mockResolvedValue('blob:video'),
+      () => false,
+      {
+        extractor,
+        getBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
+        getDimensions: vi.fn().mockResolvedValue({
+          height: 1080,
+          width: 1920,
+        }),
+      },
+    );
+    const unsubscribe = cache.subscribe(createRequest(), vi.fn());
+    await vi.waitFor(() => expect(extractor.extract).toHaveBeenCalledOnce());
+
+    unsubscribe();
+
+    expect(extractionSignal.current?.aborted).toBe(true);
+  });
+
   it('stops extracting a pending range after its subscriber is removed', async () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
     const { createObjectUrl } = installMediaElementMocks();
@@ -250,8 +368,44 @@ describe('frame preview cache', () => {
     expect(subscriber).toHaveBeenCalledWith({
       frameWidth: 0,
       frames: [],
+      pixelsPerSecond: 0,
     });
     expect(createObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it('skips a queued zoom request after its subscriber is removed', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    installMediaElementMocks();
+    let resolveObjectUrl!: (url: string) => void;
+    const getObjectUrl = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveObjectUrl = resolve;
+        }),
+    );
+    const cache = createFramePreviewCache(getObjectUrl, () => false);
+    const activeSubscriber = vi.fn();
+    const staleSubscriber = vi.fn();
+
+    cache.subscribe(createRequest(), activeSubscriber);
+    const unsubscribeStale = cache.subscribe(
+      createRequest({ pixelsPerSecond: 160 }),
+      staleSubscriber,
+    );
+    unsubscribeStale();
+
+    await vi.waitFor(() => expect(getObjectUrl).toHaveBeenCalledOnce());
+    resolveObjectUrl('blob:video');
+    await vi.waitFor(() =>
+      expect(
+        (activeSubscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,
+      ).toHaveLength(3),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getObjectUrl).toHaveBeenCalledOnce();
+    expect(staleSubscriber).toHaveBeenCalledOnce();
   });
 
   it('revokes generated frame URLs when the cache is cleared', async () => {

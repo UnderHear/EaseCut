@@ -47,6 +47,7 @@
     "@radix-ui/react-separator": "^1.1.11",
     "@radix-ui/react-toast": "^1.2.19",
     "lucide-react": "^1.14.0",
+    "mediabunny": "^1.51.0",
     "zustand": "^5.0.13"
   },
   "devDependencies": {

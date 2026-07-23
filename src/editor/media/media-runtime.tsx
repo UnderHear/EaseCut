@@ -21,6 +21,7 @@ import {
   type FramePreviewStrip,
   type FramePreviewSubscriber,
 } from './frame-preview';
+import { createWebCodecsFramePreviewExtractor } from './webcodecs-frame-preview';
 
 type MediaInput = string | VideoTimelineSource;
 
@@ -50,7 +51,7 @@ type MetadataCacheEntry =
 const createAbortError = () =>
   new DOMException('媒体运行时已销毁', 'AbortError');
 
-const hasPositiveNumber = (value: number | undefined) =>
+const hasPositiveNumber = (value: number | undefined): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
 
 const getSourceMetadata = (
@@ -306,9 +307,24 @@ export const createMediaRuntime = (
     (src) => getBlob(src),
     () => disposed,
   );
+  const framePreviewExtractor = createWebCodecsFramePreviewExtractor();
   const framePreviewCache = createFramePreviewCache(
     (src) => getObjectUrl(src),
     () => disposed,
+    framePreviewExtractor
+      ? {
+          extractor: framePreviewExtractor,
+          getBlob: (src) => getBlob(src),
+          getDimensions: async (src) => {
+            const metadata = await getMetadata(src);
+            const height = metadata?.height;
+            const width = metadata?.width;
+            return hasPositiveNumber(height) && hasPositiveNumber(width)
+              ? { height, width }
+              : null;
+          },
+        }
+      : null,
   );
 
   const runtime: MediaRuntime = {
@@ -316,6 +332,7 @@ export const createMediaRuntime = (
       if (disposed) return;
       disposed = true;
       framePreviewCache.clear();
+      framePreviewExtractor?.dispose();
       waveformCache.clear();
       metadataEntries.forEach((entry) => {
         if (entry.status === 'pending') entry.controller.abort();
@@ -501,8 +518,9 @@ export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
         rangeEnd,
       ].join('\n')
     : '';
+  const sourceKey = src ? [src, sourceDuration].join('\n') : '';
   const [result, setResult] = useState<{
-    key: string;
+    sourceKey: string;
     strip: FramePreviewStrip;
   } | null>(null);
 
@@ -510,7 +528,17 @@ export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
     if (!src) return undefined;
     let cancelled = false;
     const update = (strip: FramePreviewStrip) => {
-      if (!cancelled) setResult({ key, strip });
+      if (cancelled) return;
+      setResult((current) => {
+        if (
+          strip.frames.length === 0 &&
+          current?.sourceKey === sourceKey &&
+          current.strip.frames.length > 0
+        ) {
+          return current;
+        }
+        return { sourceKey, strip };
+      });
     };
     const unsubscribe = runtime.subscribeFramePreviews(
       { pixelsPerSecond, rangeEnd, rangeStart, sourceDuration, src },
@@ -527,8 +555,9 @@ export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
     rangeStart,
     runtime,
     sourceDuration,
+    sourceKey,
     src,
   ]);
 
-  return result?.key === key ? result.strip : null;
+  return result?.sourceKey === sourceKey ? result.strip : null;
 };
