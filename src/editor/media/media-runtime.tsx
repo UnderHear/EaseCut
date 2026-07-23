@@ -22,6 +22,7 @@ import {
   type FramePreviewSubscriber,
 } from './frame-preview';
 import { createWebCodecsFramePreviewExtractor } from './webcodecs-frame-preview';
+import { createMediabunnyAudioWaveformExtractor } from './mediabunny-audio-waveform';
 
 type MediaInput = string | VideoTimelineSource;
 
@@ -303,9 +304,11 @@ export const createMediaRuntime = (
     return entry.promise;
   };
 
+  const audioWaveformExtractor = createMediabunnyAudioWaveformExtractor();
   const waveformCache = createAudioWaveformCache(
     (src) => getBlob(src),
     () => disposed,
+    audioWaveformExtractor,
   );
   const framePreviewExtractor = createWebCodecsFramePreviewExtractor();
   const framePreviewCache = createFramePreviewCache(
@@ -334,6 +337,7 @@ export const createMediaRuntime = (
       framePreviewCache.clear();
       framePreviewExtractor?.dispose();
       waveformCache.clear();
+      audioWaveformExtractor?.dispose();
       metadataEntries.forEach((entry) => {
         if (entry.status === 'pending') entry.controller.abort();
       });

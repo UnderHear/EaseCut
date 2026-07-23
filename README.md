@@ -124,6 +124,8 @@ type VideoTimelineSource = {
 
 时间线帧预览在浏览器支持 Worker、OffscreenCanvas 和 WebCodecs 时，会在独立 Worker 中使用 Mediabunny 解封装并批量解码递增时间点；任务取消时同步释放输入和解码器。容器、编码格式或浏览器能力不支持时，自动回退到 HTMLVideoElement 逐点定位抽帧。
 
+音频波形会优先在独立 Worker 中使用 Mediabunny 分段解码；每个解码样本会立即聚合为归一化峰值并释放，不会在主线程保留整段 PCM。运行时销毁会同步取消解码；容器、编码格式或浏览器能力不支持时，自动回退到 `AudioContext.decodeAudioData()`。
+
 ## 导出
 
 - “导出 JSON”下载当前 `CompositionExportPayload`。
@@ -152,7 +154,7 @@ type VideoTimelineSource = {
 
 - 面向现代桌面浏览器，不支持 SSR、React Native 或移动端触控剪辑。
 - 远程媒体必须允许 CORS，并使用浏览器支持的封装和编解码格式。
-- WebCodecs 加速需要安全上下文和浏览器可用的对应视频解码器；不满足时帧预览仍可使用媒体元素回退路径。
+- WebCodecs 加速需要安全上下文和浏览器可用的对应音视频解码器；不满足时帧预览和音频波形仍可使用各自的回退路径。
 - Canvas 预览是编辑体验，不等同于最终离线渲染结果。
 
 ## License

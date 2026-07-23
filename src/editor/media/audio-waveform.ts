@@ -1,7 +1,11 @@
+import type { AudioWaveformExtractor } from './mediabunny-audio-waveform';
+import { normalizeAudioWaveformSampleCount } from '../workers/audio-waveform-protocol';
+
 const DEFAULT_AUDIO_WAVEFORM_SAMPLE_COUNT = 512;
 
 type AudioWaveformEntry =
   | {
+      controller: AbortController;
       promise: Promise<number[]>;
       status: 'pending';
     }
@@ -27,6 +31,9 @@ export const isAbortError = (error: unknown) =>
           'name' in error &&
           error.name === 'AbortError',
       );
+
+const createAbortError = () =>
+  new DOMException('媒体运行时已销毁', 'AbortError');
 
 export const sampleAudioBuffer = (
   audioBuffer: Pick<
@@ -70,10 +77,15 @@ export const sampleAudioBuffer = (
 export const createAudioWaveformCache = (
   getBlob: (src: string) => Promise<Blob>,
   isDisposed: () => boolean,
+  extractor: AudioWaveformExtractor | null = null,
 ) => {
   const entries = new Map<string, AudioWaveformEntry>();
 
-  const decode = async (src: string, sampleCount: number) => {
+  const decodeWithAudioContext = async (
+    blob: Blob,
+    sampleCount: number,
+    signal: AbortSignal,
+  ) => {
     const AudioContextConstructor = getAudioContextConstructor();
     if (!AudioContextConstructor) {
       throw new Error('当前浏览器不支持音频波形解析');
@@ -81,12 +93,11 @@ export const createAudioWaveformCache = (
 
     const audioContext = new AudioContextConstructor();
     try {
-      const blob = await getBlob(src);
       const audioBuffer = await audioContext.decodeAudioData(
         await blob.arrayBuffer(),
       );
-      if (isDisposed()) {
-        throw new DOMException('媒体运行时已销毁', 'AbortError');
+      if (isDisposed() || signal.aborted) {
+        throw createAbortError();
       }
       return sampleAudioBuffer(audioBuffer, sampleCount);
     } finally {
@@ -94,15 +105,42 @@ export const createAudioWaveformCache = (
     }
   };
 
+  const decode = async (
+    src: string,
+    sampleCount: number,
+    signal: AbortSignal,
+  ) => {
+    if (sampleCount === 0) return [];
+    const blob = await getBlob(src);
+    if (isDisposed() || signal.aborted) {
+      throw createAbortError();
+    }
+
+    if (extractor) {
+      try {
+        const samples = await extractor.extract(blob, sampleCount, signal);
+        if (isDisposed() || signal.aborted) {
+          throw createAbortError();
+        }
+        return samples;
+      } catch (error) {
+        if (isAbortError(error)) throw error;
+        if (signal.aborted || isDisposed()) throw createAbortError();
+      }
+    }
+
+    return decodeWithAudioContext(blob, sampleCount, signal);
+  };
+
   const getSamples = (
     src: string,
     sampleCount = DEFAULT_AUDIO_WAVEFORM_SAMPLE_COUNT,
   ) => {
     if (isDisposed()) {
-      return Promise.reject(new DOMException('媒体运行时已销毁', 'AbortError'));
+      return Promise.reject(createAbortError());
     }
 
-    const safeSampleCount = Math.max(0, Math.floor(sampleCount));
+    const safeSampleCount = normalizeAudioWaveformSampleCount(sampleCount);
     const key = `${src}\n${safeSampleCount}`;
     const cachedEntry = entries.get(key);
     if (cachedEntry?.status === 'ready') {
@@ -112,13 +150,21 @@ export const createAudioWaveformCache = (
       return cachedEntry.promise;
     }
 
-    const promise = decode(src, safeSampleCount)
+    const controller = new AbortController();
+    const entry: Extract<AudioWaveformEntry, { status: 'pending' }> = {
+      controller,
+      promise: Promise.resolve([]),
+      status: 'pending',
+    };
+    entry.promise = decode(src, safeSampleCount, controller.signal)
       .then((samples) => {
-        entries.set(key, { samples, status: 'ready' });
+        if (entries.get(key) === entry) {
+          entries.set(key, { samples, status: 'ready' });
+        }
         return samples;
       })
       .catch((error: unknown) => {
-        entries.delete(key);
+        if (entries.get(key) === entry) entries.delete(key);
         if (isAbortError(error)) {
           throw error;
         }
@@ -127,13 +173,17 @@ export const createAudioWaveformCache = (
         return [];
       });
 
-    entries.set(key, { promise, status: 'pending' });
-    return promise;
+    entries.set(key, entry);
+    return entry.promise;
   };
 
   return {
-    clear: () => entries.clear(),
+    clear: () => {
+      entries.forEach((entry) => {
+        if (entry.status === 'pending') entry.controller.abort();
+      });
+      entries.clear();
+    },
     getSamples,
   };
 };
-
