@@ -815,6 +815,44 @@ describe('TimelineViewport DOM interactions', () => {
     expect(viewport.scrollLeft).toBeCloseTo(24);
   });
 
+  it('keeps clip content visible when a zoom scroll target is clamped', () => {
+    const { viewport } = renderTimeline();
+    let actualScrollLeft = 400;
+    Object.defineProperty(viewport, 'scrollLeft', {
+      configurable: true,
+      get: () => actualScrollLeft,
+      set: () => {
+        actualScrollLeft = 0;
+      },
+    });
+
+    fireEvent.wheel(viewport, {
+      clientX: 96,
+      ctrlKey: true,
+      deltaY: 40,
+    });
+
+    expect(viewport.scrollLeft).toBe(0);
+    expect(
+      useFramePreviewStripMock.mock.calls.map(([request]) => request).at(-2),
+    ).toEqual(
+      expect.objectContaining({
+        pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND - TIMELINE_ZOOM_STEP,
+        src: videoClip.src,
+      }),
+    );
+    expect(
+      screen
+        .getByRole('article', { name: 'video clip: opening.mp4' })
+        .querySelectorAll('.oc-timeline-clip__thumbnail'),
+    ).toHaveLength(2);
+    expect(
+      screen
+        .getByRole('article', { name: 'audio clip: background.mp3' })
+        .querySelector('.oc-timeline-clip__waveform-canvas'),
+    ).toBeInTheDocument();
+  });
+
   it('keeps a pointer-anchored playhead stable while zooming', () => {
     testTimelineStore.setState({
       currentTimeUs: secondsToMicroseconds(2.4),

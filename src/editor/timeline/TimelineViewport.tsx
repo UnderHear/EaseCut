@@ -235,7 +235,7 @@ export function TimelineViewport({
 
     if (element && pendingZoom?.pixelsPerSecond === pixelsPerSecond) {
       element.scrollLeft = pendingZoom.scrollLeft;
-      setScrollLeft(pendingZoom.scrollLeft);
+      setScrollLeft(element.scrollLeft);
       pendingZoomRef.current = null;
     }
     syncScrollLayers();
