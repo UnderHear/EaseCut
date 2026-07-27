@@ -340,7 +340,7 @@ export const createMediaRuntime = (
     audioWaveformExtractor,
   );
   const framePreviewCache = createFramePreviewCache(
-    (src) => getObjectUrl(src),
+    (src) => getBlob(src),
     () => disposed,
   );
 
