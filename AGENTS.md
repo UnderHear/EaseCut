@@ -175,6 +175,8 @@ OpenCut 是一个基于 React 19、TypeScript 和现代浏览器能力构建的�
 - `npm run build`：类型检查并构建组件库和 demo。
 - `npm run preview`：预览 `demo-dist/`。
 
+浏览器人工验收本地 Vite demo 时，统一使用 `http://localhost:5173/`。除非任务明确要求或 `localhost` 不可用，不得改用 `127.0.0.1`；如确有例外，必须说明原因及其对 CORS Origin 的影响。
+
 完成修改后按顺序运行 `npm run lint`、`npm run typecheck`、`npm run test`、`npm run build`。如果某项无法运行，必须说明具体原因、未验证范围和风险。
 
 ## 变更流程与完成标准
