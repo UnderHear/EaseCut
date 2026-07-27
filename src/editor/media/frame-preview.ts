@@ -1,4 +1,3 @@
-import type { FramePreviewExtractor } from './webcodecs-frame-preview';
 import {
   MICROSECONDS_PER_SECOND,
   microsecondsToSeconds,
@@ -49,14 +48,6 @@ type FramePreviewCacheEntry = {
   task: Promise<void> | null;
   totalFrames: number;
   urls: Map<number, string>;
-};
-
-type FramePreviewAcceleration = {
-  extractor: FramePreviewExtractor;
-  getBlob: (src: string) => Promise<Blob>;
-  getDimensions: (
-    src: string,
-  ) => Promise<{ height: number; width: number } | null>;
 };
 
 const FRAME_PREVIEW_TIME_EPSILON_US = 1_000;
@@ -255,7 +246,6 @@ const getRangeIndexes = (
 export const createFramePreviewCache = (
   getObjectUrl: (src: string) => Promise<string>,
   isDisposed: () => boolean,
-  acceleration: FramePreviewAcceleration | null = null,
 ) => {
   const entries = new Map<string, FramePreviewCacheEntry>();
   const framesBySource = new Map<string, CachedFramePreview[]>();
@@ -381,61 +371,6 @@ export const createFramePreviewCache = (
     emit(entry);
   };
 
-  const createAcceleratedFrames = async (
-    entry: FramePreviewCacheEntry,
-    signal: AbortSignal,
-  ) => {
-    if (!acceleration) throw new Error('WebCodecs 预览帧后端不可用');
-    const [blob, dimensions] = await Promise.all([
-      acceleration.getBlob(entry.src),
-      acceleration.getDimensions(entry.src),
-    ]);
-    throwIfAborted(signal);
-    if (!dimensions || dimensions.height <= 0 || dimensions.width <= 0) {
-      throw new Error('无法读取 WebCodecs 预览帧尺寸');
-    }
-
-    initializeEntry(
-      entry,
-      FRAME_PREVIEW_CAPTURE_HEIGHT *
-        (dimensions.width / dimensions.height),
-      entry.sourceDurationUs,
-    );
-    const missingFrames = getRequestedIndexes(entry)
-      .filter((index) => !entry.urls.has(index))
-      .map((index) => ({
-        index,
-        time: microsecondsToSeconds(
-          getFrameTimeUs(entry, index, entry.sourceDurationUs),
-        ),
-      }));
-
-    await acceleration.extractor.extract(
-      blob,
-      FRAME_PREVIEW_CAPTURE_HEIGHT,
-      missingFrames,
-      signal,
-      (index, frameBlob) => {
-        if (
-          signal.aborted ||
-          entry.urls.has(index) ||
-          !getRequestedIndexes(entry).includes(index)
-        ) {
-          return;
-        }
-        const url = URL.createObjectURL(frameBlob);
-        generatedUrls.add(url);
-        entry.urls.set(index, url);
-        cacheFrame(
-          entry.src,
-          getFrameTimeUs(entry, index, entry.sourceDurationUs),
-          url,
-        );
-        emit(entry);
-      },
-    );
-  };
-
   const createMediaElementFrames = async (
     entry: FramePreviewCacheEntry,
     signal: AbortSignal,
@@ -503,26 +438,11 @@ export const createFramePreviewCache = (
     }
   };
 
-  const createFrames = async (
-    entry: FramePreviewCacheEntry,
-    signal: AbortSignal,
-  ) => {
-    if (acceleration) {
-      try {
-        await createAcceleratedFrames(entry, signal);
-        return;
-      } catch (error) {
-        if (isAbortError(error)) throw error;
-      }
-    }
-    await createMediaElementFrames(entry, signal);
-  };
-
   const schedule = (entry: FramePreviewCacheEntry) => {
     if (entry.task || !hasMissingFrames(entry)) return;
     const controller = new AbortController();
     entry.controller = controller;
-    entry.task = enqueue(() => createFrames(entry, controller.signal))
+    entry.task = enqueue(() => createMediaElementFrames(entry, controller.signal))
       .catch((error: unknown) => {
         if (isAbortError(error)) return;
         if (entries.get(entry.key) === entry) entries.delete(entry.key);
