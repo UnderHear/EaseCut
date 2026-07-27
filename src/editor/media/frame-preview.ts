@@ -1,13 +1,14 @@
 import {
   MICROSECONDS_PER_SECOND,
-  microsecondsToSeconds,
   normalizeTimeUs,
-  secondsToMicroseconds,
 } from '../core/time';
+import {
+  canUseMediabunnyFramePreviewWorker,
+  createMediabunnyFramePreviewSource,
+  type MediabunnyFramePreviewSourceFactory,
+} from './mediabunny-frame-preview';
 
-export const FRAME_PREVIEW_CHUNK_DURATION_US = secondsToMicroseconds(5);
-
-const FRAME_PREVIEW_CAPTURE_HEIGHT = 48;
+export const FRAME_PREVIEW_CHUNK_DURATION_US = 5 * MICROSECONDS_PER_SECOND;
 
 export type FramePreviewFrame = {
   index: number;
@@ -60,6 +61,7 @@ const EMPTY_FRAME_PREVIEW_STRIP: FramePreviewStrip = {
 
 export const canGenerateFramePreviews = () =>
   typeof document !== 'undefined' &&
+  canUseMediabunnyFramePreviewWorker() &&
   (typeof navigator === 'undefined' ||
     !navigator.userAgent.toLowerCase().includes('jsdom'));
 
@@ -88,23 +90,6 @@ const normalizeRequest = (
 const getFramePreviewCacheKey = (request: FramePreviewRequest) =>
   [request.src, request.sourceDurationUs, request.pixelsPerSecond].join('\n');
 
-const getProgressiveFramePreviewIndexes = (indexes: readonly number[]) => {
-  const ordered: number[] = [];
-  const addRange = (start: number, end: number) => {
-    if (start > end) return;
-    ordered.push(indexes[start]!);
-    if (start === end) return;
-    ordered.push(indexes[end]!);
-    const middle = Math.floor((start + end) / 2);
-    if (middle !== start && middle !== end) ordered.push(indexes[middle]!);
-    addRange(start + 1, middle - 1);
-    addRange(middle + 1, end - 1);
-  };
-
-  addRange(0, indexes.length - 1);
-  return [...new Set(ordered)];
-};
-
 const createAbortError = () =>
   new DOMException('预览帧任务已取消', 'AbortError');
 
@@ -113,106 +98,6 @@ const isAbortError = (error: unknown) =>
 
 const throwIfAborted = (signal: AbortSignal) => {
   if (signal.aborted) throw createAbortError();
-};
-
-const waitForVideoMetadata = (
-  video: HTMLVideoElement,
-  src: string,
-  signal: AbortSignal,
-) =>
-  new Promise<void>((resolve, reject) => {
-    const cleanup = () => {
-      signal.removeEventListener('abort', handleAbort);
-      video.onloadedmetadata = null;
-      video.onerror = null;
-    };
-    const handleAbort = () => {
-      cleanup();
-      reject(createAbortError());
-    };
-    video.onloadedmetadata = () => {
-      cleanup();
-      resolve();
-    };
-    video.onerror = () => {
-      cleanup();
-      reject(new Error('无法读取视频帧'));
-    };
-    if (signal.aborted) {
-      handleAbort();
-      return;
-    }
-    signal.addEventListener('abort', handleAbort, { once: true });
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = 'metadata';
-    video.src = src;
-    video.load();
-  });
-
-const seekVideo = (
-  video: HTMLVideoElement,
-  timeSeconds: number,
-  signal: AbortSignal,
-) =>
-  new Promise<void>((resolve, reject) => {
-    const cleanup = () => {
-      signal.removeEventListener('abort', handleAbort);
-      video.onseeked = null;
-      video.onerror = null;
-    };
-    const handleAbort = () => {
-      cleanup();
-      reject(createAbortError());
-    };
-    video.onseeked = () => {
-      cleanup();
-      resolve();
-    };
-    video.onerror = () => {
-      cleanup();
-      reject(new Error('无法读取视频帧'));
-    };
-    if (signal.aborted) {
-      handleAbort();
-      return;
-    }
-    signal.addEventListener('abort', handleAbort, { once: true });
-    try {
-      video.currentTime = timeSeconds;
-    } catch (error) {
-      cleanup();
-      reject(error);
-    }
-  });
-
-const captureVideoFrame = (
-  video: HTMLVideoElement,
-  frameWidth: number,
-) => {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context || !video.videoWidth || !video.videoHeight) {
-    return Promise.reject(new Error('无法读取视频帧'));
-  }
-
-  canvas.width = frameWidth;
-  canvas.height = FRAME_PREVIEW_CAPTURE_HEIGHT;
-  context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-  return new Promise<string>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(new Error('无法读取视频帧'));
-          return;
-        }
-        resolve(URL.createObjectURL(blob));
-      },
-      'image/jpeg',
-      0.72,
-    );
-  });
 };
 
 const getRangeIndexes = (
@@ -244,9 +129,14 @@ const getRangeIndexes = (
 };
 
 export const createFramePreviewCache = (
-  getObjectUrl: (src: string) => Promise<string>,
+  getBlob: (src: string) => Promise<Blob>,
   isDisposed: () => boolean,
+  customCreateSource?: MediabunnyFramePreviewSourceFactory,
 ) => {
+  const createSource =
+    customCreateSource ?? createMediabunnyFramePreviewSource;
+  const canCreatePreviews =
+    customCreateSource !== undefined || canGenerateFramePreviews();
   const entries = new Map<string, FramePreviewCacheEntry>();
   const framesBySource = new Map<string, CachedFramePreview[]>();
   const generatedUrls = new Set<string>();
@@ -371,7 +261,7 @@ export const createFramePreviewCache = (
     emit(entry);
   };
 
-  const createMediaElementFrames = async (
+  const createMediabunnyFrames = async (
     entry: FramePreviewCacheEntry,
     signal: AbortSignal,
   ) => {
@@ -380,61 +270,51 @@ export const createFramePreviewCache = (
       throw new DOMException('媒体运行时已销毁', 'AbortError');
     }
     if (entry.subscribers.size === 0) return;
-    const objectUrl = await getObjectUrl(entry.src);
+    const blob = await getBlob(entry.src);
     throwIfAborted(signal);
     if (entry.subscribers.size === 0) return;
-    const video = document.createElement('video');
+    const source = await createSource(blob, signal);
     try {
-      await waitForVideoMetadata(video, objectUrl, signal);
       throwIfAborted(signal);
       if (entry.subscribers.size === 0) return;
       initializeEntry(
         entry,
-        FRAME_PREVIEW_CAPTURE_HEIGHT *
-          (video.videoWidth / video.videoHeight),
-        secondsToMicroseconds(video.duration),
+        source.frameWidth,
+        source.mediaDurationUs,
       );
 
-      const missingIndexes = getProgressiveFramePreviewIndexes(
-        getRequestedIndexes(entry).filter((index) => !entry.urls.has(index)),
-      );
-      for (const index of missingIndexes) {
-        throwIfAborted(signal);
-        if (isDisposed()) {
-          throw new DOMException('媒体运行时已销毁', 'AbortError');
-        }
-        if (
-          entry.subscribers.size === 0 ||
-          !getRequestedIndexes(entry).includes(index)
-        ) {
-          continue;
-        }
-        const timeUs = getFrameTimeUs(
-          entry,
+      const requestedIndexes = new Set(getRequestedIndexes(entry));
+      const missingFrames = [...requestedIndexes]
+        .filter((index) => !entry.urls.has(index))
+        .map((index) => ({
           index,
-          secondsToMicroseconds(video.duration),
-        );
-        await seekVideo(video, microsecondsToSeconds(timeUs), signal);
-        throwIfAborted(signal);
-        if (isDisposed()) {
-          throw new DOMException('媒体运行时已销毁', 'AbortError');
+          timeUs: getFrameTimeUs(
+            entry,
+            index,
+            source.mediaDurationUs,
+          ),
+        }));
+      await source.extract(missingFrames, ({ blob: frameBlob, index, timeUs }) => {
+        if (
+          isDisposed() ||
+          signal.aborted ||
+          entry.subscribers.size === 0 ||
+          !requestedIndexes.has(index)
+        ) {
+          return;
         }
-        const frameWidth = entry.frameWidth;
-        if (!frameWidth) throw new Error('无法读取视频帧尺寸');
-        const url = await captureVideoFrame(video, frameWidth);
+        const url = URL.createObjectURL(frameBlob);
         if (isDisposed() || signal.aborted) {
           URL.revokeObjectURL(url);
-          throw createAbortError();
+          return;
         }
         generatedUrls.add(url);
         entry.urls.set(index, url);
         cacheFrame(entry.src, timeUs, url);
         emit(entry);
-      }
+      });
     } finally {
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
+      source.dispose();
     }
   };
 
@@ -442,7 +322,7 @@ export const createFramePreviewCache = (
     if (entry.task || !hasMissingFrames(entry)) return;
     const controller = new AbortController();
     entry.controller = controller;
-    entry.task = enqueue(() => createMediaElementFrames(entry, controller.signal))
+    entry.task = enqueue(() => createMediabunnyFrames(entry, controller.signal))
       .catch((error: unknown) => {
         if (isAbortError(error)) return;
         if (entries.get(entry.key) === entry) entries.delete(entry.key);
@@ -493,7 +373,7 @@ export const createFramePreviewCache = (
       rawRequest: FramePreviewRequest,
       subscriber: FramePreviewSubscriber,
     ) => {
-      if (!canGenerateFramePreviews() || isDisposed()) {
+      if (!canCreatePreviews || isDisposed()) {
         subscriber(EMPTY_FRAME_PREVIEW_STRIP);
         return () => undefined;
       }

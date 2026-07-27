@@ -157,7 +157,6 @@ const useTimelineClipPresentation = (
   );
 
   return {
-    previewOffset: durationUsToWidth(clip.trimStartUs, pixelsPerSecond),
     previewStrip,
     volume: clampUnit(trackVolume),
     waveformRenderWindow,
@@ -168,7 +167,6 @@ const useTimelineClipPresentation = (
 type TimelineClipVisualProps = {
   clip: TimelineClip;
   pixelsPerSecond: number;
-  previewOffset: number;
   previewStrip: FramePreviewStrip | null;
   waveformRenderWindow: AudioWaveformRenderWindow | null;
   waveformSamples: readonly number[];
@@ -178,16 +176,17 @@ type TimelineClipVisualProps = {
 function TimelineClipVisual({
   clip,
   pixelsPerSecond,
-  previewOffset,
   previewStrip,
   waveformRenderWindow,
   waveformSamples,
   volume,
 }: TimelineClipVisualProps) {
-  const previewScale =
-    previewStrip && previewStrip.pixelsPerSecond > 0
-      ? pixelsPerSecond / previewStrip.pixelsPerSecond
-      : 1;
+  const previewPixelsPerSecond =
+    previewStrip?.pixelsPerSecond ?? pixelsPerSecond;
+  const previewOffset = durationUsToWidth(
+    clip.trimStartUs,
+    previewPixelsPerSecond,
+  );
 
   return (
     <>
@@ -207,11 +206,8 @@ function TimelineClipVisual({
                 key={frame.index}
                 src={frame.url}
                 style={{
-                  left:
-                    frame.index *
-                    previewStrip.frameWidth *
-                    previewScale,
-                  width: previewStrip.frameWidth * previewScale,
+                  left: frame.index * previewStrip.frameWidth,
+                  width: previewStrip.frameWidth,
                 }}
               />
             ))}
@@ -269,7 +265,6 @@ export function TimelineClipView({
 }: TimelineClipViewProps) {
   const [contextMenuTimeUs, setContextMenuTimeUs] = useState(clip.startUs);
   const {
-    previewOffset,
     previewStrip,
     volume,
     waveformRenderWindow,
@@ -335,7 +330,6 @@ export function TimelineClipView({
           <TimelineClipVisual
             clip={clip}
             pixelsPerSecond={pixelsPerSecond}
-            previewOffset={previewOffset}
             previewStrip={previewStrip}
             waveformRenderWindow={waveformRenderWindow}
             waveformSamples={waveformSamples}
@@ -450,7 +444,6 @@ export function TimelineClipDragOverlay({
   width,
 }: TimelineClipDragOverlayProps) {
   const {
-    previewOffset,
     previewStrip,
     volume,
     waveformRenderWindow,
@@ -486,7 +479,6 @@ export function TimelineClipDragOverlay({
       <TimelineClipVisual
         clip={clip}
         pixelsPerSecond={pixelsPerSecond}
-        previewOffset={previewOffset}
         previewStrip={previewStrip}
         waveformRenderWindow={waveformRenderWindow}
         waveformSamples={waveformSamples}

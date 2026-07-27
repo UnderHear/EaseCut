@@ -14,6 +14,21 @@ import {
   useMediaRuntime,
 } from './media-runtime';
 import type { FramePreviewRequest } from './frame-preview';
+import type {
+  FramePreviewExtractionFrame,
+  MediabunnyFramePreviewSource,
+  MediabunnyFramePreviewSourceFactory,
+} from './mediabunny-frame-preview';
+
+const framePreviewSourceFactory = vi.hoisted(() => vi.fn());
+
+vi.mock('./mediabunny-frame-preview', () => ({
+  canUseMediabunnyFramePreviewWorker: () =>
+    typeof Worker !== 'undefined' &&
+    typeof OffscreenCanvas !== 'undefined' &&
+    typeof VideoDecoder !== 'undefined',
+  createMediabunnyFramePreviewSource: framePreviewSourceFactory,
+}));
 
 const source: VideoTimelineSource = {
   fileName: 'example.mp4',
@@ -21,6 +36,32 @@ const source: VideoTimelineSource = {
   src: '/example.mp4',
   type: 'video',
 };
+
+const createTestFramePreviewSource = (): MediabunnyFramePreviewSource => ({
+  dispose: vi.fn(),
+  async extract(
+    frames: readonly FramePreviewExtractionFrame[],
+    onFrame: (
+      frame: FramePreviewExtractionFrame & { blob: Blob },
+    ) => void,
+  ) {
+    for (const frame of frames) {
+      onFrame({
+        ...frame,
+        blob: new Blob([`frame-${frame.index}`], {
+          type: 'image/jpeg',
+        }),
+      });
+      await Promise.resolve();
+    }
+  },
+  frameWidth: 85,
+  mediaDurationUs: secondsToMicroseconds(10),
+});
+
+const createDefaultFramePreviewSource:
+  MediabunnyFramePreviewSourceFactory = async () =>
+    createTestFramePreviewSource();
 
 const installFramePreviewElementMocks = () => {
   let metadataLoadCount = 0;
@@ -99,6 +140,10 @@ describe('MediaRuntime', () => {
   beforeEach(() => {
     URL.createObjectURL = vi.fn(() => 'blob:opencut-1');
     URL.revokeObjectURL = vi.fn();
+    framePreviewSourceFactory.mockReset();
+    framePreviewSourceFactory.mockImplementation(
+      createDefaultFramePreviewSource,
+    );
   });
 
   afterEach(() => {
@@ -351,10 +396,21 @@ describe('MediaRuntime', () => {
 
   it('keeps the previous frame strip visible while a new zoom density loads', async () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
-    const { getMetadataLoadCount, resolveNextMetadata } =
-      installFramePreviewElementMocks();
+    vi.stubGlobal('Worker', class Worker {});
+    vi.stubGlobal('OffscreenCanvas', class OffscreenCanvas {});
+    vi.stubGlobal('VideoDecoder', class VideoDecoder {});
     let frameUrlIndex = 0;
     URL.createObjectURL = vi.fn(() => `blob:preview-${frameUrlIndex++}`);
+    let sourceOpenCount = 0;
+    let resolveSecondSource!: () => void;
+    const secondSourceReady = new Promise<void>((resolve) => {
+      resolveSecondSource = resolve;
+    });
+    framePreviewSourceFactory.mockImplementation(async () => {
+      sourceOpenCount += 1;
+      if (sourceOpenCount === 2) await secondSourceReady;
+      return createTestFramePreviewSource();
+    });
     const mediaLoader: VideoTimelineMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
     };
@@ -393,8 +449,10 @@ describe('MediaRuntime', () => {
     );
 
     expect(view.getByText('80:3')).toBeInTheDocument();
-    await waitFor(() => expect(getMetadataLoadCount()).toBe(2));
-    resolveNextMetadata();
+    await waitFor(() =>
+      expect(framePreviewSourceFactory).toHaveBeenCalledTimes(2),
+    );
+    resolveSecondSource();
     await waitFor(() =>
       expect(view.getByText('160:6')).toBeInTheDocument(),
     );
