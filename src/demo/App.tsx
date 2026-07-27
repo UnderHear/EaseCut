@@ -10,7 +10,7 @@ const BUILT_IN_SOURCES: VideoTimelineSource[] = [
   {
     fileName: 'demo-video.mp4',
     id: 'built-in-demo-video',
-    src: 'https://yiqun-bucket.oss-cn-beijing.aliyuncs.com/uploads%2F019f0399-f9bc-791e-9d76-4ff8fd6bcb81%2Fa1059ee2-3b63-4ccf-a3d7-db08e637516d_123_123.mp4?OSSAccessKeyId=LTAI5t7XnCpjNo3F4SACrkRh&Expires=2099193645&Signature=TR59dfLHMxuJAtgB%2FDwwHLfzX1I%3D',
+    src: 'https://yiqun-bucket.oss-cn-beijing.aliyuncs.com/uploads%2F019f0399-f9bc-791e-9d76-4ff8fd6bcb81%2F00915833-4f6b-4e3a-876d-18fb73e8516d_65854b42205ac5a8dd0b6c2b81e1b93d.mp4?OSSAccessKeyId=LTAI5t7XnCpjNo3F4SACrkRh&Expires=2098755074&Signature=0KBQCVKwSrvStmwLF90UiFcSmx4%3D',
     type: 'video',
   },
   {
