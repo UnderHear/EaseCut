@@ -480,6 +480,45 @@ describe('TimelineViewport DOM interactions', () => {
     });
   });
 
+  it('uses one absolute tick sequence for a later video gap', () => {
+    testTimelineStore.setState({
+      clips: [
+        createClip({
+          durationUs: secondsToMicroseconds(2),
+          trimEndUs: secondsToMicroseconds(2),
+        }),
+        createClip({
+          id: 'video-clip-2',
+          name: 'ending.mp4',
+          sourceId: 'video-source-2',
+          startUs: secondsToMicroseconds(4),
+        }),
+      ],
+      pixelsPerSecond: 222,
+    });
+    renderTimeline();
+
+    const ruler = screen.getByRole('slider', { name: '时间标尺' });
+    const majorTick = ruler.querySelector(
+      '.oc-timeline-ruler__tick[data-time-us="2000000"]',
+    );
+    const nextMinorTick = ruler.querySelector(
+      '.oc-timeline-ruler__tick[data-time-us="2100000"]',
+    );
+
+    expect(majorTick).toHaveClass(
+      'oc-timeline-ruler__tick--major',
+      'oc-timeline-ruler__tick--gap',
+    );
+    expect(majorTick).toHaveStyle({
+      left: `${TIMELINE_CONTENT_PADDING_X + 2 * 222}px`,
+    });
+    expect(nextMinorTick).toHaveClass('oc-timeline-ruler__tick--gap');
+    expect(nextMinorTick).toHaveStyle({
+      left: `${TIMELINE_CONTENT_PADDING_X + 2.1 * 222}px`,
+    });
+  });
+
   it('does not show a video-gap status without a gap or without video', () => {
     testTimelineStore.setState({
       clips: [

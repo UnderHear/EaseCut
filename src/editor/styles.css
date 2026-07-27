@@ -877,18 +877,24 @@
   overflow: hidden;
   cursor: col-resize;
   touch-action: none;
-  background:
-    linear-gradient(
-      to right,
-      #3a3a3a 0 1px,
-      transparent 1px
-    ) 12px 3px / var(--oc-timeline-major-step) 20px repeat-x,
-    linear-gradient(
-      to right,
-      #3a3a3a 0 1px,
-      transparent 1px
-    ) 12px 3px / var(--oc-timeline-minor-step) 6px repeat-x,
-    #1c1c1c;
+  background-color: #1c1c1c;
+}
+
+.oc-timeline-ruler__tick {
+  position: absolute;
+  top: 3px;
+  width: 1px;
+  height: 6px;
+  background-color: #3a3a3a;
+  pointer-events: none;
+}
+
+.oc-timeline-ruler__tick--major {
+  height: 20px;
+}
+
+.oc-timeline-ruler__tick--gap {
+  background-color: #f3d149;
 }
 
 .oc-timeline-ruler__label {
@@ -910,17 +916,6 @@
   top: 0;
   bottom: 0;
   border-bottom: 2px solid #f3d149;
-  background:
-    linear-gradient(
-      to right,
-      #f3d149 0 1px,
-      transparent 1px
-    ) var(--oc-timeline-gap-grid-offset) 3px / var(--oc-timeline-major-step) 20px repeat-x,
-    linear-gradient(
-      to right,
-      #f3d149 0 1px,
-      transparent 1px
-    ) var(--oc-timeline-gap-grid-offset) 3px / var(--oc-timeline-minor-step) 6px repeat-x;
   pointer-events: none;
 }
 

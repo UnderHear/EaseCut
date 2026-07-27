@@ -416,6 +416,8 @@ export function TimelineViewport({
             gaps={videoGaps}
             onPointerDown={controller.beginScrub}
             pixelsPerSecond={pixelsPerSecond}
+            visibleTimeEndUs={visibleTimeEndUs}
+            visibleTimeStartUs={visibleTimeStartUs}
           />
         </div>
       </div>
