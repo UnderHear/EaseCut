@@ -1,6 +1,12 @@
 import type { FramePreviewExtractor } from './webcodecs-frame-preview';
+import {
+  MICROSECONDS_PER_SECOND,
+  microsecondsToSeconds,
+  normalizeTimeUs,
+  secondsToMicroseconds,
+} from '../core/time';
 
-export const FRAME_PREVIEW_CHUNK_DURATION_SECONDS = 5;
+export const FRAME_PREVIEW_CHUNK_DURATION_US = secondsToMicroseconds(5);
 
 const FRAME_PREVIEW_CAPTURE_HEIGHT = 48;
 
@@ -17,27 +23,27 @@ export type FramePreviewStrip = {
 
 export type FramePreviewRequest = {
   pixelsPerSecond: number;
-  rangeEnd: number;
-  rangeStart: number;
-  sourceDuration: number;
+  rangeEndUs: number;
+  rangeStartUs: number;
+  sourceDurationUs: number;
   src: string;
 };
 
 export type FramePreviewSubscriber = (strip: FramePreviewStrip) => void;
 
 type CachedFramePreview = {
-  time: number;
+  timeUs: number;
   url: string;
 };
 
-type FramePreviewRange = Pick<FramePreviewRequest, 'rangeEnd' | 'rangeStart'>;
+type FramePreviewRange = Pick<FramePreviewRequest, 'rangeEndUs' | 'rangeStartUs'>;
 
 type FramePreviewCacheEntry = {
   controller: AbortController | null;
   frameWidth: number | null;
   key: string;
   pixelsPerSecond: number;
-  sourceDuration: number;
+  sourceDurationUs: number;
   src: string;
   subscribers: Map<FramePreviewSubscriber, FramePreviewRange>;
   task: Promise<void> | null;
@@ -53,7 +59,7 @@ type FramePreviewAcceleration = {
   ) => Promise<{ height: number; width: number } | null>;
 };
 
-const FRAME_PREVIEW_TIME_EPSILON = 0.001;
+const FRAME_PREVIEW_TIME_EPSILON_US = 1_000;
 
 const EMPTY_FRAME_PREVIEW_STRIP: FramePreviewStrip = {
   frameWidth: 0,
@@ -69,27 +75,27 @@ export const canGenerateFramePreviews = () =>
 const normalizeRequest = (
   request: FramePreviewRequest,
 ): FramePreviewRequest => {
-  const sourceDuration = Math.max(0, request.sourceDuration);
-  const rangeStart = Math.min(
-    sourceDuration,
-    Math.max(0, request.rangeStart),
+  const sourceDurationUs = normalizeTimeUs(request.sourceDurationUs);
+  const rangeStartUs = Math.min(
+    sourceDurationUs,
+    normalizeTimeUs(request.rangeStartUs),
   );
-  const rangeEnd = Math.min(
-    sourceDuration,
-    Math.max(rangeStart, request.rangeEnd),
+  const rangeEndUs = Math.min(
+    sourceDurationUs,
+    Math.max(rangeStartUs, normalizeTimeUs(request.rangeEndUs)),
   );
 
   return {
     pixelsPerSecond: Math.max(1, request.pixelsPerSecond),
-    rangeEnd,
-    rangeStart,
-    sourceDuration,
+    rangeEndUs,
+    rangeStartUs,
+    sourceDurationUs,
     src: request.src,
   };
 };
 
 const getFramePreviewCacheKey = (request: FramePreviewRequest) =>
-  [request.src, request.sourceDuration, request.pixelsPerSecond].join('\n');
+  [request.src, request.sourceDurationUs, request.pixelsPerSecond].join('\n');
 
 const getProgressiveFramePreviewIndexes = (indexes: readonly number[]) => {
   const ordered: number[] = [];
@@ -155,7 +161,7 @@ const waitForVideoMetadata = (
 
 const seekVideo = (
   video: HTMLVideoElement,
-  time: number,
+  timeSeconds: number,
   signal: AbortSignal,
 ) =>
   new Promise<void>((resolve, reject) => {
@@ -182,7 +188,7 @@ const seekVideo = (
     }
     signal.addEventListener('abort', handleAbort, { once: true });
     try {
-      video.currentTime = time;
+      video.currentTime = timeSeconds;
     } catch (error) {
       cleanup();
       reject(error);
@@ -226,12 +232,18 @@ const getRangeIndexes = (
   const firstIndex = Math.max(
     0,
     Math.floor(
-      (range.rangeStart * entry.pixelsPerSecond) / entry.frameWidth,
+      ((range.rangeStartUs / MICROSECONDS_PER_SECOND) *
+        entry.pixelsPerSecond) /
+        entry.frameWidth,
     ),
   );
   const lastIndex = Math.min(
     entry.totalFrames - 1,
-    Math.ceil((range.rangeEnd * entry.pixelsPerSecond) / entry.frameWidth) - 1,
+    Math.ceil(
+      ((range.rangeEndUs / MICROSECONDS_PER_SECOND) *
+        entry.pixelsPerSecond) /
+        entry.frameWidth,
+    ) - 1,
   );
   if (lastIndex < firstIndex) return [];
   return Array.from(
@@ -252,19 +264,19 @@ export const createFramePreviewCache = (
 
   const findCachedUrl = (
     src: string,
-    time: number,
-    reuseTolerance: number,
+    timeUs: number,
+    reuseToleranceUs: number,
   ) => {
     const frames = framesBySource.get(src);
     if (!frames) return null;
     const maxDistance = Math.max(
-      reuseTolerance,
-      FRAME_PREVIEW_TIME_EPSILON,
+      reuseToleranceUs,
+      FRAME_PREVIEW_TIME_EPSILON_US,
     );
     let nearest: CachedFramePreview | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (const frame of frames) {
-      const distance = Math.abs(frame.time - time);
+      const distance = Math.abs(frame.timeUs - timeUs);
       if (distance < maxDistance && distance < nearestDistance) {
         nearest = frame;
         nearestDistance = distance;
@@ -273,10 +285,10 @@ export const createFramePreviewCache = (
     return nearest?.url ?? null;
   };
 
-  const cacheFrame = (src: string, time: number, url: string) => {
+  const cacheFrame = (src: string, timeUs: number, url: string) => {
     const frames = framesBySource.get(src) ?? [];
-    frames.push({ time, url });
-    frames.sort((left, right) => left.time - right.time);
+    frames.push({ timeUs, url });
+    frames.sort((left, right) => left.timeUs - right.timeUs);
     framesBySource.set(src, frames);
   };
 
@@ -324,37 +336,45 @@ export const createFramePreviewCache = (
     return queuedTask;
   };
 
-  const getFrameTime = (
+  const getFrameTimeUs = (
     entry: FramePreviewCacheEntry,
     index: number,
-    mediaDuration: number,
+    mediaDurationUs: number,
   ) => {
     if (!entry.frameWidth) return 0;
-    const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
-    return Math.min(
-      Math.max(0, mediaDuration - 0.01),
-      (index + 0.5) * frameDuration,
+    const frameDurationUs = normalizeTimeUs(
+      (entry.frameWidth / entry.pixelsPerSecond) * MICROSECONDS_PER_SECOND,
+    );
+    return normalizeTimeUs(
+      Math.min(
+        Math.max(0, mediaDurationUs - 10_000),
+        (index + 0.5) * frameDurationUs,
+      ),
     );
   };
 
   const initializeEntry = (
     entry: FramePreviewCacheEntry,
     frameWidth: number,
-    mediaDuration: number,
+    mediaDurationUs: number,
   ) => {
     entry.frameWidth = Math.max(1, Math.round(frameWidth));
     entry.totalFrames = Math.ceil(
-      (entry.sourceDuration * entry.pixelsPerSecond) / entry.frameWidth,
+      ((entry.sourceDurationUs / MICROSECONDS_PER_SECOND) *
+        entry.pixelsPerSecond) /
+        entry.frameWidth,
     );
     emit(entry);
 
-    const frameDuration = entry.frameWidth / entry.pixelsPerSecond;
+    const frameDurationUs = normalizeTimeUs(
+      (entry.frameWidth / entry.pixelsPerSecond) * MICROSECONDS_PER_SECOND,
+    );
     for (const index of getRequestedIndexes(entry)) {
       if (entry.urls.has(index)) continue;
       const cachedUrl = findCachedUrl(
         entry.src,
-        getFrameTime(entry, index, mediaDuration),
-        frameDuration / 2,
+        getFrameTimeUs(entry, index, mediaDurationUs),
+        Math.round(frameDurationUs / 2),
       );
       if (cachedUrl) entry.urls.set(index, cachedUrl);
     }
@@ -379,13 +399,15 @@ export const createFramePreviewCache = (
       entry,
       FRAME_PREVIEW_CAPTURE_HEIGHT *
         (dimensions.width / dimensions.height),
-      entry.sourceDuration,
+      entry.sourceDurationUs,
     );
     const missingFrames = getRequestedIndexes(entry)
       .filter((index) => !entry.urls.has(index))
       .map((index) => ({
         index,
-        time: getFrameTime(entry, index, entry.sourceDuration),
+        time: microsecondsToSeconds(
+          getFrameTimeUs(entry, index, entry.sourceDurationUs),
+        ),
       }));
 
     await acceleration.extractor.extract(
@@ -406,7 +428,7 @@ export const createFramePreviewCache = (
         entry.urls.set(index, url);
         cacheFrame(
           entry.src,
-          getFrameTime(entry, index, entry.sourceDuration),
+          getFrameTimeUs(entry, index, entry.sourceDurationUs),
           url,
         );
         emit(entry);
@@ -435,7 +457,7 @@ export const createFramePreviewCache = (
         entry,
         FRAME_PREVIEW_CAPTURE_HEIGHT *
           (video.videoWidth / video.videoHeight),
-        video.duration,
+        secondsToMicroseconds(video.duration),
       );
 
       const missingIndexes = getProgressiveFramePreviewIndexes(
@@ -452,8 +474,12 @@ export const createFramePreviewCache = (
         ) {
           continue;
         }
-        const time = getFrameTime(entry, index, video.duration);
-        await seekVideo(video, time, signal);
+        const timeUs = getFrameTimeUs(
+          entry,
+          index,
+          secondsToMicroseconds(video.duration),
+        );
+        await seekVideo(video, microsecondsToSeconds(timeUs), signal);
         throwIfAborted(signal);
         if (isDisposed()) {
           throw new DOMException('媒体运行时已销毁', 'AbortError');
@@ -467,7 +493,7 @@ export const createFramePreviewCache = (
         }
         generatedUrls.add(url);
         entry.urls.set(index, url);
-        cacheFrame(entry.src, time, url);
+        cacheFrame(entry.src, timeUs, url);
         emit(entry);
       }
     } finally {
@@ -521,7 +547,7 @@ export const createFramePreviewCache = (
       frameWidth: null,
       key,
       pixelsPerSecond: request.pixelsPerSecond,
-      sourceDuration: request.sourceDuration,
+      sourceDurationUs: request.sourceDurationUs,
       src: request.src,
       subscribers: new Map(),
       task: null,
@@ -552,19 +578,19 @@ export const createFramePreviewCache = (
         return () => undefined;
       }
       const request = normalizeRequest(rawRequest);
-      if (!request.src || request.rangeEnd <= request.rangeStart) {
+      if (!request.src || request.rangeEndUs <= request.rangeStartUs) {
         subscriber(EMPTY_FRAME_PREVIEW_STRIP);
         return () => undefined;
       }
       const entry = getEntry(request);
       entry.subscribers.set(subscriber, {
-        rangeEnd: request.rangeEnd,
-        rangeStart: request.rangeStart,
+        rangeEndUs: request.rangeEndUs,
+        rangeStartUs: request.rangeStartUs,
       });
       subscriber(
         getSnapshot(entry, {
-          rangeEnd: request.rangeEnd,
-          rangeStart: request.rangeStart,
+          rangeEndUs: request.rangeEndUs,
+          rangeStartUs: request.rangeStartUs,
         }),
       );
       schedule(entry);

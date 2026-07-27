@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { secondsToMicroseconds } from '../core/time';
 import {
   DEFAULT_COMPOSITION_CANVAS_SIZE,
   MAIN_VIDEO_TRACK_ID,
@@ -80,16 +81,16 @@ const audioTrack: TimelineTrack = {
 };
 
 const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
-  duration: 5,
+  durationUs: secondsToMicroseconds(5),
   id: 'clip-main',
   name: 'clip.mp4',
   sourceId: 'source-main',
-  sourceDuration: 5,
+  sourceDurationUs: secondsToMicroseconds(5),
   src: '/clip.mp4',
-  start: 0,
+  startUs: 0,
   trackId: MAIN_VIDEO_TRACK_ID,
-  trimEnd: 5,
-  trimStart: 0,
+  trimEndUs: secondsToMicroseconds(5),
+  trimStartUs: 0,
   transform: { height: 720, width: 1280, x: 0, y: 0 },
   type: 'video',
   zIndex: 0,
@@ -210,7 +211,7 @@ describe('PreviewPanel', () => {
           zIndex: 0,
         }),
       ],
-      currentTime: 1,
+      currentTimeUs: secondsToMicroseconds(1),
       future: [],
       isPlaying: false,
       past: [],
@@ -506,7 +507,9 @@ describe('PreviewPanel', () => {
     mediaReadyState = 1;
 
     act(() => {
-      testTimelineStore.getState().setCurrentTime(1.5);
+      testTimelineStore.getState().setCurrentTimeUs(
+        secondsToMicroseconds(1.5),
+      );
     });
 
     expect(fillRectMock).not.toHaveBeenCalled();
@@ -708,7 +711,7 @@ describe('PreviewPanel', () => {
         createClip({
           id: 'clip-inactive',
           src: '/inactive.mp4',
-          start: 2,
+          startUs: secondsToMicroseconds(2),
           trackId: targetTrack.id,
           transform: { height: 100, width: 100, x: 100, y: 400 },
         }),

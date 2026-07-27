@@ -3,45 +3,49 @@ import type { CSSProperties, PointerEvent } from 'react';
 import { TIMELINE_CONTENT_PADDING_X } from '../core/timeline-layout';
 import {
   calcTickScale,
-  durationToWidth,
-  timeToX,
+  durationUsToWidth,
+  timeUsToX,
 } from '../core/timeline-math';
-import type { VideoGap } from './video-gaps';
+import { microsecondsToSeconds } from '../core/time';
+import type { CompositionVideoGap } from '../core/composition';
 
 type TimelineRulerProps = {
-  currentTime: number;
-  duration: number;
-  gaps: VideoGap[];
+  currentTimeUs: number;
+  durationUs: number;
+  gaps: readonly CompositionVideoGap[];
   onPointerDown: (event: PointerEvent<HTMLElement>) => void;
   pixelsPerSecond: number;
 };
 
 export function TimelineRuler({
-  currentTime,
-  duration,
+  currentTimeUs,
+  durationUs,
   gaps,
   onPointerDown,
   pixelsPerSecond,
 }: TimelineRulerProps) {
-  const { majorInterval, minorDivisions, formatTick } =
+  const { majorIntervalUs, minorDivisions, formatTick } =
     calcTickScale(pixelsPerSecond);
   const majorTicks = Array.from(
-    { length: Math.floor(duration / majorInterval) + 1 },
-    (_, index) => index * majorInterval,
+    { length: Math.floor(durationUs / majorIntervalUs) + 1 },
+    (_, index) => index * majorIntervalUs,
   );
   const style = {
-    '--oc-timeline-major-step': `${majorInterval * pixelsPerSecond}px`,
+    '--oc-timeline-major-step': `${durationUsToWidth(
+      majorIntervalUs,
+      pixelsPerSecond,
+    )}px`,
     '--oc-timeline-minor-step': `${
-      (majorInterval * pixelsPerSecond) / minorDivisions
+      durationUsToWidth(majorIntervalUs, pixelsPerSecond) / minorDivisions
     }px`,
   } as CSSProperties;
 
   return (
     <div
       aria-label='时间标尺'
-      aria-valuemax={duration}
+      aria-valuemax={durationUs}
       aria-valuemin={0}
-      aria-valuenow={currentTime}
+      aria-valuenow={currentTimeUs}
       className='oc-timeline-ruler'
       onPointerDown={onPointerDown}
       role='slider'
@@ -51,18 +55,18 @@ export function TimelineRuler({
         <span
           aria-hidden='true'
           className='oc-timeline-ruler__gap'
-          key={`${gap.start}-${gap.end}`}
+          key={`${gap.startUs}-${gap.endUs}`}
           style={
             {
-              '--oc-timeline-gap-grid-offset': `${-timeToX(
-                gap.start,
+              '--oc-timeline-gap-grid-offset': `${-timeUsToX(
+                gap.startUs,
                 pixelsPerSecond,
               )}px`,
               left:
                 TIMELINE_CONTENT_PADDING_X +
-                timeToX(gap.start, pixelsPerSecond),
-              width: durationToWidth(
-                gap.end - gap.start,
+                timeUsToX(gap.startUs, pixelsPerSecond),
+              width: durationUsToWidth(
+                gap.endUs - gap.startUs,
                 pixelsPerSecond,
               ),
             } as CSSProperties
@@ -72,13 +76,19 @@ export function TimelineRuler({
       {majorTicks.map((tick) => (
         <time
           className={`oc-timeline-ruler__label${
-            gaps.some((gap) => tick >= gap.start && tick < gap.end)
+            gaps.some(
+              (gap) => tick >= gap.startUs && tick < gap.endUs,
+            )
               ? ' oc-timeline-ruler__label--gap'
               : ''
           }`}
-          dateTime={`PT${tick}S`}
+          dateTime={`PT${microsecondsToSeconds(tick)}S`}
           key={tick}
-          style={{ left: TIMELINE_CONTENT_PADDING_X + timeToX(tick, pixelsPerSecond) }}
+          style={{
+            left:
+              TIMELINE_CONTENT_PADDING_X +
+              timeUsToX(tick, pixelsPerSecond),
+          }}
         >
           {formatTick(tick)}
         </time>

@@ -13,6 +13,7 @@ import {
   accumulateAudioSamplePeaks,
   normalizeAudioPeaks,
 } from '../media/audio-waveform-peaks';
+import { secondsToMicroseconds } from '../core/time';
 import {
   isAudioWaveformWorkerRequest,
   type AudioWaveformWorkerRequest,
@@ -91,17 +92,18 @@ const extractWaveform = async (
       return;
     }
 
-    const duration = await track.computeDuration();
-    if (!Number.isFinite(duration) || duration <= 0) {
+    const durationSeconds = await track.computeDuration();
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
       throw new Error('无法读取有效的音频时长');
     }
+    const durationUs = secondsToMicroseconds(durationSeconds);
 
     const peaks = new Float32Array(request.sampleCount);
     const sink = new AudioSampleSink(track);
     for await (const sample of sink.samples()) {
       try {
         if (cancelledRequests.has(request.requestId)) return;
-        accumulateAudioSamplePeaks(peaks, duration, sample);
+        accumulateAudioSamplePeaks(peaks, durationUs, sample);
       } finally {
         sample.close();
       }

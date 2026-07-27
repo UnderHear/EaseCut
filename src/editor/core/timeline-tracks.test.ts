@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { TimelineTrack } from '../types';
+import type { TimelineTrack } from './model';
 import {
   MAIN_VIDEO_TRACK_ID,
   getSafeTrackInsertIndex,

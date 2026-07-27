@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { TimelineTrack } from '../types';
+import type { TimelineTrack } from './model';
 import {
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_GAP,

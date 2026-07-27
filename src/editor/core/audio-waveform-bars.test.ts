@@ -6,6 +6,7 @@ import {
   getAudioWaveformBars,
   getAudioWaveformRenderWindow,
 } from './audio-waveform-bars';
+import { secondsToMicroseconds } from './time';
 
 const samples = [0.1, 0.8, 0.2, 0.4, 1, 0.3, 0.6, 0.2];
 
@@ -22,8 +23,8 @@ describe('audio waveform bars', () => {
         getAudioWaveformBars(samples, {
           height: 20,
           pixelsPerSecond,
-          sourceDuration: 8,
-          sourceStart: 0,
+          sourceDurationUs: secondsToMicroseconds(8),
+          sourceStartUs: 0,
           volume: 1,
           width,
         }),
@@ -44,8 +45,8 @@ describe('audio waveform bars', () => {
     const full = getAudioWaveformBars(samples, {
       height: 20,
       pixelsPerSecond,
-      sourceDuration: 8,
-      sourceStart: 0,
+      sourceDurationUs: secondsToMicroseconds(8),
+      sourceStartUs: 0,
       volume: 1,
       width: 80,
     });
@@ -53,8 +54,8 @@ describe('audio waveform bars', () => {
       getAudioWaveformBars(samples, {
         height: 20,
         pixelsPerSecond,
-        sourceDuration: 8,
-        sourceStart: 2,
+        sourceDurationUs: secondsToMicroseconds(8),
+        sourceStartUs: secondsToMicroseconds(2),
         volume: 1,
         width: 60,
       }),
@@ -73,8 +74,8 @@ describe('audio waveform bars', () => {
     const options = {
       height: 20,
       pixelsPerSecond: 10,
-      sourceDuration: 8,
-      sourceStart: 0,
+      sourceDurationUs: secondsToMicroseconds(8),
+      sourceStartUs: 0,
       volume: 1,
     } as const;
     const full = getVisibleBars(
@@ -93,8 +94,8 @@ describe('audio waveform bars', () => {
     const options = {
       height: 20,
       pixelsPerSecond: 10,
-      sourceDuration: 8,
-      sourceStart: 0,
+      sourceDurationUs: secondsToMicroseconds(8),
+      sourceStartUs: 0,
       width: 40,
     } as const;
     const fullVolume = getAudioWaveformBars(samples, {
@@ -120,16 +121,16 @@ describe('audio waveform bars', () => {
   it('bounds the canvas to the visible clip intersection with edge overscan', () => {
     expect(
       getAudioWaveformRenderWindow({
-        clipDuration: 100,
+        clipDurationUs: secondsToMicroseconds(100),
         pixelsPerSecond: 80,
-        timelineStart: 10,
-        trimStart: 5,
-        visibleTimeEnd: 22,
-        visibleTimeStart: 20,
+        timelineStartUs: secondsToMicroseconds(10),
+        trimStartUs: secondsToMicroseconds(5),
+        visibleTimeEndUs: secondsToMicroseconds(22),
+        visibleTimeStartUs: secondsToMicroseconds(20),
       }),
     ).toEqual({
       left: 798,
-      sourceStart: 14.975,
+      sourceStartUs: secondsToMicroseconds(14.975),
       width: 164,
     });
   });
@@ -137,16 +138,16 @@ describe('audio waveform bars', () => {
   it('keeps long, highly zoomed assets bounded to the visible window', () => {
     expect(
       getAudioWaveformRenderWindow({
-        clipDuration: 21_600,
+        clipDurationUs: secondsToMicroseconds(21_600),
         pixelsPerSecond: 2_000,
-        timelineStart: 0,
-        trimStart: 7_200,
-        visibleTimeEnd: 10_000.6,
-        visibleTimeStart: 10_000,
+        timelineStartUs: 0,
+        trimStartUs: secondsToMicroseconds(7_200),
+        visibleTimeEndUs: secondsToMicroseconds(10_000.6),
+        visibleTimeStartUs: secondsToMicroseconds(10_000),
       }),
     ).toEqual({
       left: 19_999_998,
-      sourceStart: 17_199.999,
+      sourceStartUs: secondsToMicroseconds(17_199.999),
       width: 1_204,
     });
   });
@@ -155,8 +156,8 @@ describe('audio waveform bars', () => {
     const bars = getAudioWaveformBars([0.25, 1], {
       height: 20,
       pixelsPerSecond: 2_000,
-      sourceDuration: 0.001,
-      sourceStart: 0,
+      sourceDurationUs: secondsToMicroseconds(0.001),
+      sourceStartUs: 0,
       volume: 1,
       width: 2,
     });
@@ -181,23 +182,23 @@ describe('audio waveform bars', () => {
     const options = {
       height: 20,
       pixelsPerSecond: 80,
-      sourceDuration: 8,
-      sourceStart: 0,
+      sourceDurationUs: secondsToMicroseconds(8),
+      sourceStartUs: 0,
       volume: 1,
       width: 40,
     } as const;
     expect(getAudioWaveformBars([], options)).toEqual([]);
     expect(
-      getAudioWaveformBars([1], { ...options, sourceDuration: Number.NaN }),
+      getAudioWaveformBars([1], { ...options, sourceDurationUs: Number.NaN }),
     ).toEqual([]);
     expect(
       getAudioWaveformRenderWindow({
-        clipDuration: 1,
+        clipDurationUs: secondsToMicroseconds(1),
         pixelsPerSecond: 80,
-        timelineStart: 0,
-        trimStart: 0,
-        visibleTimeEnd: 2,
-        visibleTimeStart: 2,
+        timelineStartUs: 0,
+        trimStartUs: 0,
+        visibleTimeEndUs: secondsToMicroseconds(2),
+        visibleTimeStartUs: secondsToMicroseconds(2),
       }),
     ).toBeNull();
   });

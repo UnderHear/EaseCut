@@ -1,20 +1,40 @@
+import { MICROSECONDS_PER_SECOND } from './time';
+
 export const DEFAULT_PIXELS_PER_SECOND = 80;
 export const MIN_PIXELS_PER_SECOND = 10;
 export const MAX_PIXELS_PER_SECOND = 240;
 export const TIMELINE_ZOOM_STEP = 10;
 export const SNAP_THRESHOLD_PX = 6;
 
-export const timeToX = (time: number, pixelsPerSecond: number) =>
-  Math.max(0, time) * pixelsPerSecond;
+export const timeUsToX = (timeUs: number, pixelsPerSecond: number) =>
+  (Math.max(0, normalizeTimelineTimeUs(timeUs)) / MICROSECONDS_PER_SECOND) *
+  pixelsPerSecond;
 
-export const xToTime = (x: number, pixelsPerSecond: number) =>
-  Math.max(0, x) / pixelsPerSecond;
+export const xToTimeUs = (x: number, pixelsPerSecond: number) =>
+  normalizeTimelineTimeUs(
+    (Math.max(0, x) / Math.max(1, pixelsPerSecond)) *
+      MICROSECONDS_PER_SECOND,
+  );
 
-export const durationToWidth = (duration: number, pixelsPerSecond: number) =>
-  Math.max(0, duration) * pixelsPerSecond;
+export const durationUsToWidth = (
+  durationUs: number,
+  pixelsPerSecond: number,
+) =>
+  (Math.max(0, normalizeTimelineTimeUs(durationUs)) /
+    MICROSECONDS_PER_SECOND) *
+  pixelsPerSecond;
 
-export const roundTimelineTime = (time: number) =>
-  Math.round(time * 1000) / 1000;
+export const normalizeTimelineTimeUs = (timeUs: number) => {
+  if (!Number.isFinite(timeUs)) {
+    throw new TypeError('时间线时间必须是有限数字');
+  }
+  const normalizedTimeUs = Math.round(timeUs);
+  if (!Number.isSafeInteger(normalizedTimeUs)) {
+    throw new RangeError('时间线时间超出安全整数范围');
+  }
+  return normalizedTimeUs;
+};
+
 /**
  * "Nice" interval candidates for major tick spacing (in seconds).
  * Sorted smallest → largest so we can pick the best-fit.
@@ -28,12 +48,12 @@ const DENSE_MINOR_DIVISIONS = 10;
 const DENSE_MINOR_THRESHOLD_PX = 120;
 
 type TickScale = {
-  /** Seconds between two major ticks. */
-  majorInterval: number;
+  /** Microseconds between two major ticks. */
+  majorIntervalUs: number;
   /** How many minor ticks to draw between two major ticks. */
   minorDivisions: number;
   /** Time formatter suitable for the current zoom level. */
-  formatTick: (seconds: number) => string;
+  formatTick: (timeUs: number) => string;
 };
 
 /**
@@ -42,7 +62,7 @@ type TickScale = {
  */
 export const calcTickScale = (pixelsPerSecond: number): TickScale => {
   const safePixelsPerSecond = Math.max(1, pixelsPerSecond);
-  const majorInterval = NICE_INTERVALS.reduce((best, candidate) =>
+  const majorIntervalSeconds = NICE_INTERVALS.reduce((best, candidate) =>
     getTickSpacingScore(candidate, safePixelsPerSecond) <
     getTickSpacingScore(best, safePixelsPerSecond)
       ? candidate
@@ -50,21 +70,26 @@ export const calcTickScale = (pixelsPerSecond: number): TickScale => {
   );
 
   const minorDivisions =
-    majorInterval === 1 &&
-    majorInterval * safePixelsPerSecond >= DENSE_MINOR_THRESHOLD_PX
+    majorIntervalSeconds === 1 &&
+    majorIntervalSeconds * safePixelsPerSecond >= DENSE_MINOR_THRESHOLD_PX
       ? DENSE_MINOR_DIVISIONS
       : DEFAULT_MINOR_DIVISIONS;
-  const formatTick = formatTickTime;
+  const formatTick = formatTickTimeUs;
 
-  return { majorInterval, minorDivisions, formatTick };
+  return {
+    majorIntervalUs: majorIntervalSeconds * MICROSECONDS_PER_SECOND,
+    minorDivisions,
+    formatTick,
+  };
 };
 
 const getTickSpacingScore = (interval: number, pixelsPerSecond: number) =>
   Math.abs(Math.log((interval * pixelsPerSecond) / TARGET_MAJOR_TICK_PX));
 
-const formatTickTime = (seconds: number) => {
-  const safe = Math.max(0, seconds);
-  const totalSeconds = Math.floor(safe);
+const formatTickTimeUs = (timeUs: number) => {
+  const totalSeconds = Math.floor(
+    Math.max(0, normalizeTimelineTimeUs(timeUs)) / MICROSECONDS_PER_SECOND,
+  );
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const secondsInMinute = totalSeconds % 60;

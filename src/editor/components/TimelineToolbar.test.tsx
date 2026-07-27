@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { secondsToMicroseconds } from '../core/time';
 import {
   renderWithEditorProviders,
   resetTestTimelineStore,
@@ -15,7 +16,7 @@ describe('TimelineToolbar', () => {
     testTimelineStore.getState().resetTimeline({
       sources: [
         {
-          durationSeconds: 4,
+          durationUs: secondsToMicroseconds(4),
           fileName: 'clip.mp4',
           id: 'video-source-1',
           src: 'http://localhost/clip.mp4',
@@ -26,7 +27,9 @@ describe('TimelineToolbar', () => {
   });
 
   it('disables the split button when splitting would create a clip shorter than 0.6s', () => {
-    testTimelineStore.getState().setCurrentTime(0.5);
+    testTimelineStore
+      .getState()
+      .setCurrentTimeUs(secondsToMicroseconds(0.5));
     renderWithEditorProviders(
       <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
     );
@@ -35,7 +38,9 @@ describe('TimelineToolbar', () => {
   });
 
   it('enables the split button when both split clips are at least 0.6s', () => {
-    testTimelineStore.getState().setCurrentTime(0.6);
+    testTimelineStore
+      .getState()
+      .setCurrentTimeUs(secondsToMicroseconds(0.6));
     renderWithEditorProviders(
       <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
     );
@@ -44,7 +49,9 @@ describe('TimelineToolbar', () => {
   });
 
   it('displays the current time and total duration as MM:SS:CC', () => {
-    testTimelineStore.getState().setCurrentTime(3.999);
+    testTimelineStore
+      .getState()
+      .setCurrentTimeUs(secondsToMicroseconds(3.999));
     renderWithEditorProviders(
       <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
     );
@@ -57,7 +64,9 @@ describe('TimelineToolbar', () => {
   });
 
   it('exposes native titles for enabled and disabled toolbar actions', () => {
-    testTimelineStore.getState().setCurrentTime(0.5);
+    testTimelineStore
+      .getState()
+      .setCurrentTimeUs(secondsToMicroseconds(0.5));
     renderWithEditorProviders(
       <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
     );

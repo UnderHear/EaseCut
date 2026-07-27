@@ -9,7 +9,7 @@ import {
 
 import {
   getClipSnapCandidates,
-  snapTimeToCandidates,
+  snapTimeUsToCandidates,
 } from '../core/collision';
 import {
   getTimelineClipHeight,
@@ -17,13 +17,13 @@ import {
 } from '../core/timeline-layout';
 import {
   SNAP_THRESHOLD_PX,
-  roundTimelineTime,
-  xToTime,
+  normalizeTimelineTimeUs,
+  xToTimeUs,
 } from '../core/timeline-math';
 import {
   getTrimmedClip,
   getTrimmedTimelineClips,
-} from '../store/timeline-store';
+} from '../core/timeline-commands';
 import {
   useTimelineStore,
   useTimelineStoreApi,
@@ -65,7 +65,7 @@ export function useTimelineController({
   viewportRef,
 }: TimelineControllerOptions) {
   const clips = useTimelineStore((state) => state.clips);
-  const currentTime = useTimelineStore((state) => state.currentTime);
+  const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
   const snappingEnabled = useTimelineStore((state) => state.snappingEnabled);
   const tracks = useTimelineStore((state) => state.tracks);
@@ -91,8 +91,8 @@ export function useTimelineController({
       clips,
       trimPreview.clipId,
       trimPreview.edge,
-      trimPreview.trimStart,
-      trimPreview.trimEnd,
+      trimPreview.trimStartUs,
+      trimPreview.trimEndUs,
     );
   }, [clips, dropPreview, trimPreview]);
 
@@ -103,16 +103,18 @@ export function useTimelineController({
       if (gesture.kind !== 'scrub') return;
       const point = getContentPoint(viewportRef.current, clientX, clientY);
       if (!point) return;
-      const candidate = xToTime(point.x, gesture.pixelsPerSecond);
-      const { snappedTime } = gesture.snappingEnabled
-        ? snapTimeToCandidates(
-            candidate,
+      const candidateTimeUs = xToTimeUs(point.x, gesture.pixelsPerSecond);
+      const { snappedTimeUs } = gesture.snappingEnabled
+        ? snapTimeUsToCandidates(
+            candidateTimeUs,
             gesture.snapCandidates,
             gesture.pixelsPerSecond,
             SNAP_THRESHOLD_PX,
           )
-        : { snappedTime: roundTimelineTime(candidate) };
-      store.getState().setCurrentTime(snappedTime);
+        : {
+            snappedTimeUs: normalizeTimelineTimeUs(candidateTimeUs),
+          };
+      store.getState().setCurrentTimeUs(snappedTimeUs);
     };
     const updateMove = (clientX: number, clientY: number) => {
       if (gesture.kind !== 'move') return;
@@ -133,29 +135,29 @@ export function useTimelineController({
       setDropPreview(next);
       onClipTimingPreviewChange?.({
         clipId: gesture.clip.id,
-        duration: gesture.clip.duration,
-        start: next.start,
+        durationUs: gesture.clip.durationUs,
+        startUs: next.startUs,
       });
     };
     const updateTrim = (clientX: number, clientY: number) => {
       if (gesture.kind !== 'trim') return;
       const point = getContentPoint(viewportRef.current, clientX, clientY);
       if (!point) return;
-      const delta = roundTimelineTime(
-        xToTime(point.x, gesture.pixelsPerSecond) -
-          gesture.initialPointerTime,
+      const deltaUs = normalizeTimelineTimeUs(
+        xToTimeUs(point.x, gesture.pixelsPerSecond) -
+          gesture.initialPointerTimeUs,
       );
       const trimmed = getTrimmedClip(
         gesture.clip,
         gesture.edge,
-        gesture.clip.trimStart + (gesture.edge === 'start' ? delta : 0),
-        gesture.clip.trimEnd + (gesture.edge === 'end' ? delta : 0),
+        gesture.clip.trimStartUs + (gesture.edge === 'start' ? deltaUs : 0),
+        gesture.clip.trimEndUs + (gesture.edge === 'end' ? deltaUs : 0),
       );
       const next: TrimPreview = {
         clipId: gesture.clip.id,
         edge: gesture.edge,
-        trimEnd: trimmed.trimEnd,
-        trimStart: trimmed.trimStart,
+        trimEndUs: trimmed.trimEndUs,
+        trimStartUs: trimmed.trimStartUs,
       };
       trimPreviewRef.current = next;
       setTrimPreview(next);
@@ -163,14 +165,14 @@ export function useTimelineController({
         clips,
         next.clipId,
         next.edge,
-        next.trimStart,
-        next.trimEnd,
+        next.trimStartUs,
+        next.trimEndUs,
       ).find((clip) => clip.id === next.clipId);
       if (previewClip) {
         onClipTimingPreviewChange?.({
           clipId: previewClip.id,
-          duration: previewClip.duration,
-          start: previewClip.start,
+          durationUs: previewClip.durationUs,
+          startUs: previewClip.startUs,
         });
       }
     };
@@ -200,7 +202,7 @@ export function useTimelineController({
         if (preview?.target) {
           store.getState().commitClipDrop({
             clipId: preview.clipId,
-            freeStart: preview.start,
+            freeStartUs: preview.startUs,
             insertionIndex: preview.insertionIndex,
             target: preview.target,
           });
@@ -318,10 +320,10 @@ export function useTimelineController({
     setGesture({
       clip,
       clips,
-      currentTime,
-      grabOffsetTime: Math.min(
-        clip.duration,
-        Math.max(0, xToTime(point.x, pixelsPerSecond) - clip.start),
+      currentTimeUs,
+      grabOffsetTimeUs: Math.min(
+        clip.durationUs,
+        Math.max(0, xToTimeUs(point.x, pixelsPerSecond) - clip.startUs),
       ),
       grabOffsetY: Math.min(
         clipHeight,
@@ -358,7 +360,7 @@ export function useTimelineController({
     setGesture({
       clip,
       edge,
-      initialPointerTime: xToTime(point.x, pixelsPerSecond),
+      initialPointerTimeUs: xToTimeUs(point.x, pixelsPerSecond),
       kind: 'trim',
       pixelsPerSecond,
       pointerId: event.pointerId,
@@ -382,16 +384,16 @@ export function useTimelineController({
     store.getState().setIsPlaying(false);
     if (!preserveSelection) store.getState().selectClip(null);
     const snapCandidates = getClipSnapCandidates(clips);
-    const candidate = xToTime(point.x, pixelsPerSecond);
-    const snapped = snappingEnabled
-      ? snapTimeToCandidates(
-          candidate,
+    const candidateTimeUs = xToTimeUs(point.x, pixelsPerSecond);
+    const snappedTimeUs = snappingEnabled
+      ? snapTimeUsToCandidates(
+          candidateTimeUs,
           snapCandidates,
           pixelsPerSecond,
           SNAP_THRESHOLD_PX,
-        ).snappedTime
-      : candidate;
-    store.getState().setCurrentTime(snapped);
+        ).snappedTimeUs
+      : candidateTimeUs;
+    store.getState().setCurrentTimeUs(snappedTimeUs);
     gridRef.current?.setPointerCapture?.(event.pointerId);
     setGesture({
       kind: 'scrub',

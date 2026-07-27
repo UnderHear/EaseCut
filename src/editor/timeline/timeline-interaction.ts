@@ -15,15 +15,16 @@ import {
 } from '../core/timeline-layout';
 import {
   SNAP_THRESHOLD_PX,
-  durationToWidth,
-  timeToX,
-  xToTime,
+  durationUsToWidth,
+  timeUsToX,
+  xToTimeUs,
 } from '../core/timeline-math';
+import { secondsToMicroseconds } from '../core/time';
 import type {
   TrackDropTarget,
   TrackInsertTarget,
 } from '../core/timeline-tracks';
-import { shouldCompactMainVideoTrackAfterDrop } from '../store/timeline-store';
+import { MAIN_VIDEO_TRACK_ID } from '../core/timeline-tracks';
 import type {
   TimelineClip,
   TimelineClipTrimEdge,
@@ -35,8 +36,8 @@ type ContentPoint = { x: number; y: number };
 export type MoveGesture = {
   clip: TimelineClip;
   clips: TimelineClip[];
-  currentTime: number;
-  grabOffsetTime: number;
+  currentTimeUs: number;
+  grabOffsetTimeUs: number;
   grabOffsetY: number;
   initialClientX: number;
   initialClientY: number;
@@ -50,7 +51,7 @@ export type MoveGesture = {
 export type TrimGesture = {
   clip: TimelineClip;
   edge: TimelineClipTrimEdge;
-  initialPointerTime: number;
+  initialPointerTimeUs: number;
   kind: 'trim';
   pixelsPerSecond: number;
   pointerId: number;
@@ -85,19 +86,19 @@ export type ClipDropPreview = {
   dragTop: number;
   insertionIndex: number;
   insertLineY: number | null;
-  originStart: number;
+  originStartUs: number;
   originTrackId: string;
-  rawStart: number;
-  snapTime: number | null;
-  start: number;
+  rawStartUs: number;
+  snapTimeUs: number | null;
+  startUs: number;
   target: TrackDropTarget | null;
 };
 
 export type TrimPreview = {
   clipId: string;
   edge: TimelineClipTrimEdge;
-  trimEnd: number;
-  trimStart: number;
+  trimEndUs: number;
+  trimStartUs: number;
 };
 
 export const DRAG_ACTIVATION_DISTANCE = 4;
@@ -264,37 +265,37 @@ export const planClipDrop = (
   point: ContentPoint,
   previousPreview: ClipDropPreview | null = null,
 ): ClipDropPreview => {
-  const { clip, clips, currentTime, pixelsPerSecond, snappingEnabled, tracks } =
+  const { clip, clips, currentTimeUs, pixelsPerSecond, snappingEnabled, tracks } =
     gesture;
   const resolvedTarget = getDropTarget(tracks, clip, point.y, previousPreview);
   const insertLineY = resolvedTarget?.insertLineY ?? null;
   const target = resolvedTarget?.target ?? null;
   const targetTrack = resolvedTarget?.targetTrack ?? null;
 
-  const requestedStart = Math.max(
+  const requestedStartUs = Math.max(
     0,
-    xToTime(point.x, pixelsPerSecond) - gesture.grabOffsetTime,
+    xToTimeUs(point.x, pixelsPerSecond) - gesture.grabOffsetTimeUs,
   );
   const snapped = snappingEnabled
     ? snapClipMoveToCandidates(
-        requestedStart,
-        clip.duration,
-        [...getClipSnapCandidates(clips, clip.id), currentTime],
+        requestedStartUs,
+        clip.durationUs,
+        [...getClipSnapCandidates(clips, clip.id), currentTimeUs],
         pixelsPerSecond,
         SNAP_THRESHOLD_PX,
       )
-    : { snappedStart: requestedStart, snappedTo: null };
+    : { snappedStartUs: requestedStartUs, snappedToUs: null };
   const targetClips = targetTrack ? getTrackClips(clips, targetTrack.id) : [];
   const insertionIndex = getInsertionIndex(
     targetClips,
     clip.id,
-    timeToX(snapped.snappedStart, pixelsPerSecond),
-    durationToWidth(clip.duration, pixelsPerSecond),
+    timeUsToX(snapped.snappedStartUs, pixelsPerSecond),
+    durationUsToWidth(clip.durationUs, pixelsPerSecond),
     pixelsPerSecond,
   );
   const targetClip = {
     ...clip,
-    start: snapped.snappedStart,
+    startUs: snapped.snappedStartUs,
     trackId: targetTrack?.id ?? clip.trackId,
     zIndex: targetClips.length,
   };
@@ -303,12 +304,12 @@ export const planClipDrop = (
         targetClips,
         targetClip,
         insertionIndex,
-        snapped.snappedStart,
-        shouldCompactMainVideoTrackAfterDrop(targetTrack.id),
+        snapped.snappedStartUs,
+        targetTrack.id === MAIN_VIDEO_TRACK_ID,
       )
     : {
         clips: [targetClip],
-        insertedStart: snapped.snappedStart,
+        insertedStartUs: snapped.snappedStartUs,
         shiftedClipIds: [] as string[],
       };
   const projectedIds = new Set(layout.clips.map(({ id }) => id));
@@ -326,16 +327,16 @@ export const planClipDrop = (
     dragTop: Math.max(TIMELINE_RULER_HEIGHT, point.y - gesture.grabOffsetY),
     insertionIndex,
     insertLineY,
-    originStart: clip.start,
+    originStartUs: clip.startUs,
     originTrackId: clip.trackId,
-    rawStart: requestedStart,
-    snapTime:
-      snapped.snappedTo !== null &&
-      layout.insertedStart === snapped.snappedStart &&
+    rawStartUs: requestedStartUs,
+    snapTimeUs:
+      snapped.snappedToUs !== null &&
+      layout.insertedStartUs === snapped.snappedStartUs &&
       layout.shiftedClipIds.length === 0
-        ? snapped.snappedTo
+        ? snapped.snappedToUs
         : null,
-    start: layout.insertedStart,
+    startUs: layout.insertedStartUs,
     target,
   };
 };
@@ -352,5 +353,8 @@ export const getVolumeAtPointer = (
   );
 };
 
-export const getTimelineContentDuration = (clips: TimelineClip[]) =>
-  Math.max(12, getTimelineDuration(clips) + 2);
+export const getTimelineContentDurationUs = (clips: TimelineClip[]) =>
+  Math.max(
+    secondsToMicroseconds(12),
+    getTimelineDuration(clips) + secondsToMicroseconds(2),
+  );

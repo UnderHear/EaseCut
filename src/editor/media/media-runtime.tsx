@@ -14,6 +14,7 @@ import type {
   VideoTimelineMediaMetadata,
   VideoTimelineSource,
 } from '../types';
+import { isValidTimeUs, secondsToMicroseconds } from '../core/time';
 import { createAudioWaveformCache, isAbortError } from './audio-waveform';
 import {
   createFramePreviewCache,
@@ -55,13 +56,16 @@ const createAbortError = () =>
 const hasPositiveNumber = (value: number | undefined): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value > 0;
 
+const hasPositiveTimeUs = (value: number | undefined): value is number =>
+  typeof value === 'number' && isValidTimeUs(value) && value > 0;
+
 const getSourceMetadata = (
   source: VideoTimelineSource | undefined,
 ): VideoTimelineMediaMetadata | null => {
   if (!source) return null;
   const metadata: VideoTimelineMediaMetadata = {};
-  if (hasPositiveNumber(source.durationSeconds)) {
-    metadata.durationSeconds = source.durationSeconds;
+  if (hasPositiveTimeUs(source.durationUs)) {
+    metadata.durationUs = source.durationUs;
   }
   if (hasPositiveNumber(source.height)) metadata.height = source.height;
   if (hasPositiveNumber(source.width)) metadata.width = source.width;
@@ -77,13 +81,38 @@ const mergeMetadata = (
   return Object.keys(merged).length > 0 ? merged : null;
 };
 
+const validateLoadedMetadata = (
+  metadata: VideoTimelineMediaMetadata | null,
+) => {
+  if (!metadata) return null;
+  if (
+    metadata.durationUs !== undefined &&
+    !hasPositiveTimeUs(metadata.durationUs)
+  ) {
+    throw new RangeError('媒体加载器返回的 durationUs 必须是正安全整数');
+  }
+  if (
+    metadata.height !== undefined &&
+    !hasPositiveNumber(metadata.height)
+  ) {
+    throw new RangeError('媒体加载器返回的 height 必须是正有限数字');
+  }
+  if (
+    metadata.width !== undefined &&
+    !hasPositiveNumber(metadata.width)
+  ) {
+    throw new RangeError('媒体加载器返回的 width 必须是正有限数字');
+  }
+  return metadata;
+};
+
 const isMetadataComplete = (
   metadata: VideoTimelineMediaMetadata | null,
   source: VideoTimelineSource | undefined,
 ) =>
   Boolean(
     metadata &&
-      hasPositiveNumber(metadata.durationSeconds) &&
+      hasPositiveTimeUs(metadata.durationUs) &&
       (source?.type === 'audio' ||
         (hasPositiveNumber(metadata.height) &&
           hasPositiveNumber(metadata.width))),
@@ -136,7 +165,7 @@ const readBrowserMetadata = (
     media.onloadedmetadata = () => {
       const metadata: VideoTimelineMediaMetadata = {};
       if (hasPositiveNumber(media.duration)) {
-        metadata.durationSeconds = media.duration;
+        metadata.durationUs = secondsToMicroseconds(media.duration);
       }
       if (media instanceof HTMLVideoElement) {
         if (hasPositiveNumber(media.videoHeight)) {
@@ -276,12 +305,13 @@ export const createMediaRuntime = (
     };
     entry.promise = Promise.resolve()
       .then(async () => {
-        const loaded =
+        const loaded = validateLoadedMetadata(
           source && mediaLoader.loadMetadata
             ? await mediaLoader.loadMetadata(source, {
                 signal: controller.signal,
               })
-            : null;
+            : null,
+        );
         const merged = mergeMetadata(knownMetadata, loaded);
         if (isMetadataComplete(merged, source)) return merged;
         const browserMetadata = await readBrowserMetadata(
@@ -509,20 +539,20 @@ export const useAudioWaveformSamples = (
 export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
   const runtime = useMediaRuntime();
   const pixelsPerSecond = request?.pixelsPerSecond ?? 0;
-  const rangeEnd = request?.rangeEnd ?? 0;
-  const rangeStart = request?.rangeStart ?? 0;
-  const sourceDuration = request?.sourceDuration ?? 0;
+  const rangeEndUs = request?.rangeEndUs ?? 0;
+  const rangeStartUs = request?.rangeStartUs ?? 0;
+  const sourceDurationUs = request?.sourceDurationUs ?? 0;
   const src = request?.src ?? '';
   const key = src
     ? [
         src,
-        sourceDuration,
+        sourceDurationUs,
         pixelsPerSecond,
-        rangeStart,
-        rangeEnd,
+        rangeStartUs,
+        rangeEndUs,
       ].join('\n')
     : '';
-  const sourceKey = src ? [src, sourceDuration].join('\n') : '';
+  const sourceKey = src ? [src, sourceDurationUs].join('\n') : '';
   const [result, setResult] = useState<{
     sourceKey: string;
     strip: FramePreviewStrip;
@@ -545,7 +575,7 @@ export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
       });
     };
     const unsubscribe = runtime.subscribeFramePreviews(
-      { pixelsPerSecond, rangeEnd, rangeStart, sourceDuration, src },
+      { pixelsPerSecond, rangeEndUs, rangeStartUs, sourceDurationUs, src },
       update,
     );
     return () => {
@@ -555,10 +585,10 @@ export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
   }, [
     key,
     pixelsPerSecond,
-    rangeEnd,
-    rangeStart,
+    rangeEndUs,
+    rangeStartUs,
     runtime,
-    sourceDuration,
+    sourceDurationUs,
     sourceKey,
     src,
   ]);

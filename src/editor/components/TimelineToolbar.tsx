@@ -17,12 +17,13 @@ import {
 } from 'lucide-react';
 
 import { getTimelineDuration } from '../core/collision';
+import { microsecondsToSeconds } from '../core/time';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
   TIMELINE_ZOOM_STEP,
 } from '../core/timeline-math';
-import { canSplitClipAtTime } from '../store/timeline-store';
+import { canSplitClipAtTime } from '../core/timeline-commands';
 import { useTimelineStore } from '../store/timeline-store-context';
 import { formatTimelineTime } from '../util/format-timeline-time';
 
@@ -75,7 +76,7 @@ export function TimelineToolbar({
     (state) => state.canvasSnappingEnabled,
   );
   const clips = useTimelineStore((state) => state.clips);
-  const currentTime = useTimelineStore((state) => state.currentTime);
+  const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
   const selectedClipId = useTimelineStore((state) => state.selectedClipId);
@@ -96,7 +97,7 @@ export function TimelineToolbar({
   const undo = useTimelineStore((state) => state.undo);
   const canSplitAtPlayhead = canSplitClipAtTime(
     clips,
-    currentTime,
+    currentTimeUs,
     selectedClipId,
   );
   const duration = getTimelineDuration(clips);
@@ -141,8 +142,11 @@ export function TimelineToolbar({
       </div>
 
       <div className='oc-timeline-toolbar__transport'>
-        <time className='oc-timeline-toolbar__time' dateTime={`PT${currentTime}S`}>
-          {formatTimelineTime(currentTime)}
+        <time
+          className='oc-timeline-toolbar__time'
+          dateTime={`PT${microsecondsToSeconds(currentTimeUs)}S`}
+        >
+          {formatTimelineTime(currentTimeUs)}
         </time>
         <ToolbarButton
           className='oc-icon-button--transport'
@@ -153,7 +157,7 @@ export function TimelineToolbar({
         </ToolbarButton>
         <time
           className='oc-timeline-toolbar__time oc-timeline-toolbar__time--muted'
-          dateTime={`PT${duration}S`}
+          dateTime={`PT${microsecondsToSeconds(duration)}S`}
         >
           {formatTimelineTime(duration)}
         </time>

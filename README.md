@@ -50,7 +50,7 @@ const sources: VideoTimelineSource[] = [
     type: 'video',
     fileName: 'example.mp4',
     src: 'https://example.com/example.mp4',
-    durationSeconds: 8.5,
+    durationUs: 8_500_000,
     width: 1920,
     height: 1080,
   },
@@ -92,13 +92,17 @@ type VideoTimelineSource = {
   fileName: string;
   src: string;
   waveformSrc?: string;
-  durationSeconds?: number;
+  durationUs?: number;
   width?: number;
   height?: number;
 };
 ```
 
 后续向 `sources` 加入新 ID 会将素材追加到当前时间线。移除 source 不会自动删除已编辑片段，避免宿主数据刷新导致工程内容丢失。
+
+项目草稿只接受 `schemaVersion: 5`。草稿中的
+`startUs`、`durationUs`、`sourceDurationUs`、`trimStartUs` 和 `trimEndUs`
+均为整数微秒；浏览器媒体元素使用的浮点秒只在媒体边界换算。
 
 ## 私有媒体加载
 

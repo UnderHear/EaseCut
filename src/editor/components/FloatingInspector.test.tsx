@@ -2,6 +2,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { secondsToMicroseconds } from '../core/time';
 import type { TimelineClip, TimelineTrack } from '../types';
 import {
   renderWithEditorProviders,
@@ -19,17 +20,17 @@ const videoTrack: TimelineTrack = {
 };
 
 const videoClip: TimelineClip = {
-  duration: 4.5,
+  durationUs: secondsToMicroseconds(4.5),
   id: 'video-clip',
   name: 'sample.mp4',
-  sourceDuration: 8,
+  sourceDurationUs: secondsToMicroseconds(8),
   sourceId: 'video-source',
   src: '/sample.mp4',
-  start: 1.25,
+  startUs: secondsToMicroseconds(1.25),
   trackId: videoTrack.id,
   transform: { height: 360, width: 640, x: 35, y: 20 },
-  trimEnd: 5,
-  trimStart: 0.5,
+  trimEndUs: secondsToMicroseconds(5),
+  trimStartUs: secondsToMicroseconds(0.5),
   type: 'video',
   zIndex: 0,
 };
@@ -43,17 +44,17 @@ const audioTrack: TimelineTrack = {
 };
 
 const audioClip: TimelineClip = {
-  duration: 6,
+  durationUs: secondsToMicroseconds(6),
   id: 'audio-clip',
   name: 'sample.mp3',
-  sourceDuration: 10,
+  sourceDurationUs: secondsToMicroseconds(10),
   sourceId: 'audio-source',
   src: '/sample.mp3',
-  start: 2,
+  startUs: secondsToMicroseconds(2),
   trackId: audioTrack.id,
   transform: { height: 0, width: 0, x: 0, y: 0 },
-  trimEnd: 8,
-  trimStart: 2,
+  trimEndUs: secondsToMicroseconds(8),
+  trimStartUs: secondsToMicroseconds(2),
   type: 'audio',
   zIndex: 0,
 };
@@ -115,8 +116,8 @@ describe('FloatingInspector', () => {
       <FloatingInspector
         previewTiming={{
           clipId: videoClip.id,
-          duration: 3.25,
-          start: 2.75,
+          durationUs: secondsToMicroseconds(3.25),
+          startUs: secondsToMicroseconds(2.75),
         }}
       />,
     );

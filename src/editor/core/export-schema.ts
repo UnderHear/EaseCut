@@ -3,49 +3,32 @@ import type {
   TimelineCanvasSize,
   TimelineClip,
   TimelineTrack,
-  VideoTimelineClipDraft,
-  VideoTimelineDraft,
-  VideoTimelineTrackDraft,
-} from '../types';
+} from './model';
+import {
+  createCompositionSnapshot,
+  getCompositionTrackClips,
+  type CompositionSnapshotInput,
+} from './composition';
+import { microsecondsToMilliseconds } from './time';
 
-const secondsToMilliseconds = (time: number) => Math.round(time * 1000);
-
-type ExportSource = {
-  tracks: VideoTimelineTrackDraft[];
-  clips: VideoTimelineClipDraft[];
-  canvasSize: TimelineCanvasSize;
-};
-
-const createPayload = ({ tracks, clips, canvasSize }: ExportSource) => ({
+const createPayload = (
+  snapshot: ReturnType<typeof createCompositionSnapshot>,
+) => ({
   Canvas: {
-    Height: Math.round(canvasSize.height),
-    Width: Math.round(canvasSize.width),
+    Height: Math.round(snapshot.canvasSize.height),
+    Width: Math.round(snapshot.canvasSize.width),
   },
-  Track: [
-    ...tracks.filter((track) => track.type === 'video'),
-    ...tracks.filter((track) => track.type === 'audio'),
-  ].map((track) =>
-    [...clips]
-      .filter((clip) => clip.trackId === track.id)
-      .sort(
-        (left, right) =>
-          left.start - right.start || left.zIndex - right.zIndex,
-      )
+  Track: snapshot.tracks.map((track) =>
+    getCompositionTrackClips(snapshot, track.id)
       .map((clip) => {
         const trim = {
-          EndTime: secondsToMilliseconds(clip.trimEnd),
-          StartTime: secondsToMilliseconds(clip.trimStart),
+          EndTime: microsecondsToMilliseconds(clip.trimEndUs),
+          StartTime: microsecondsToMilliseconds(clip.trimStartUs),
           Type: 'trim' as const,
         };
         const volume = {
           Type: 'a_volume' as const,
-          Volume: track.volume ?? 1,
-        };
-        const transform = clip.transform ?? {
-          height: canvasSize.height,
-          width: canvasSize.width,
-          x: 0,
-          y: 0,
+          Volume: track.volume,
         };
 
         return {
@@ -55,18 +38,18 @@ const createPayload = ({ tracks, clips, canvasSize }: ExportSource) => ({
               : [
                   trim,
                   {
-                    Height: Math.round(transform.height),
-                    PosX: Math.round(transform.x),
-                    PosY: Math.round(transform.y),
+                    Height: Math.round(clip.transform.height),
+                    PosX: Math.round(clip.transform.x),
+                    PosY: Math.round(clip.transform.y),
                     Type: 'transform' as const,
-                    Width: Math.round(transform.width),
+                    Width: Math.round(clip.transform.width),
                   },
                   volume,
                 ],
           Source: clip.src,
           TargetTime: [
-            secondsToMilliseconds(clip.start),
-            secondsToMilliseconds(clip.start + clip.duration),
+            microsecondsToMilliseconds(clip.startUs),
+            microsecondsToMilliseconds(clip.startUs + clip.durationUs),
           ] as [number, number],
           Type: clip.type,
         };
@@ -74,26 +57,36 @@ const createPayload = ({ tracks, clips, canvasSize }: ExportSource) => ({
   ),
 }) satisfies CompositionExportPayload;
 
+const isTrackArray = (
+  value: CompositionSnapshotInput | readonly TimelineTrack[],
+): value is readonly TimelineTrack[] => Array.isArray(value);
+
 export function createCompositionExportPayload(
-  draft: VideoTimelineDraft,
+  snapshot: CompositionSnapshotInput,
 ): CompositionExportPayload;
 export function createCompositionExportPayload(
-  tracks: TimelineTrack[],
-  clips: TimelineClip[],
+  tracks: readonly TimelineTrack[],
+  clips: readonly TimelineClip[],
   canvasSize: TimelineCanvasSize,
 ): CompositionExportPayload;
 export function createCompositionExportPayload(
-  draftOrTracks: VideoTimelineDraft | TimelineTrack[],
-  clips?: TimelineClip[],
+  snapshotOrTracks: CompositionSnapshotInput | readonly TimelineTrack[],
+  clips?: readonly TimelineClip[],
   canvasSize?: TimelineCanvasSize,
 ): CompositionExportPayload {
-  if (!Array.isArray(draftOrTracks)) {
-    return createPayload(draftOrTracks);
+  if (!isTrackArray(snapshotOrTracks)) {
+    return createPayload(createCompositionSnapshot(snapshotOrTracks));
   }
 
   if (!clips || !canvasSize) {
     throw new TypeError('tracks、clips 和 canvasSize 必须同时提供');
   }
 
-  return createPayload({ tracks: draftOrTracks, clips, canvasSize });
+  return createPayload(
+    createCompositionSnapshot({
+      canvasSize,
+      clips,
+      tracks: snapshotOrTracks,
+    }),
+  );
 }

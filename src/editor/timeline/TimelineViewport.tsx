@@ -10,6 +10,10 @@ import {
 import { Music2, SquarePlay, Volume2, VolumeX } from 'lucide-react';
 
 import {
+  createCompositionSnapshot,
+  getCompositionVideoGaps,
+} from '../core/composition';
+import {
   TIMELINE_CONTENT_PADDING_X,
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_GAP,
@@ -23,10 +27,12 @@ import {
   MIN_PIXELS_PER_SECOND,
   TIMELINE_ZOOM_STEP,
   calcTickScale,
-  durationToWidth,
-  timeToX,
+  durationUsToWidth,
+  timeUsToX,
+  xToTimeUs,
 } from '../core/timeline-math';
-import { canSplitClipAtTime } from '../store/timeline-store';
+import { secondsToMicroseconds } from '../core/time';
+import { canSplitClipAtTime } from '../core/timeline-commands';
 import {
   useTimelineStore,
   useTimelineStoreApi,
@@ -38,9 +44,8 @@ import {
 } from './TimelineClip';
 import { TimelineDragGhost } from './TimelineDragGhost';
 import { TimelineRuler } from './TimelineRuler';
-import { getTimelineContentDuration } from './timeline-interaction';
+import { getTimelineContentDurationUs } from './timeline-interaction';
 import { useTimelineController } from './useTimelineController';
-import { getVideoGaps } from './video-gaps';
 
 type TimelineViewportProps = {
   onClipTimingPreviewChange?: (
@@ -53,9 +58,10 @@ export function TimelineViewport({
   onClipTimingPreviewChange,
   onDownloadClip,
 }: TimelineViewportProps) {
+  const canvasSize = useTimelineStore((state) => state.canvasSize);
   const clips = useTimelineStore((state) => state.clips);
   const copiedClip = useTimelineStore((state) => state.copiedClip);
-  const currentTime = useTimelineStore((state) => state.currentTime);
+  const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
   const selectedClipId = useTimelineStore((state) => state.selectedClipId);
@@ -90,44 +96,69 @@ export function TimelineViewport({
     ? clips.find(({ id }) => id === dropPreview.clipId)
     : undefined;
   const videoGapClips = useMemo(
-    () =>
-      dropPreview && draggedClip
-        ? [...displayClips, { ...draggedClip, start: dropPreview.start }]
-        : displayClips,
+    () => {
+      const clipsById = new Map(
+        displayClips.map((clip) => [clip.id, clip]),
+      );
+      if (dropPreview && draggedClip) {
+        clipsById.set(draggedClip.id, {
+          ...draggedClip,
+          startUs: dropPreview.startUs,
+        });
+      }
+      return [...clipsById.values()];
+    },
     [displayClips, draggedClip, dropPreview],
   );
-  const videoGaps = useMemo(() => getVideoGaps(videoGapClips), [videoGapClips]);
+  const videoGaps = useMemo(
+    () =>
+      getCompositionVideoGaps(
+        createCompositionSnapshot({
+          canvasSize,
+          clips: videoGapClips,
+          tracks,
+        }),
+      ),
+    [canvasSize, tracks, videoGapClips],
+  );
   const dragWidth = draggedClip
-    ? durationToWidth(draggedClip.duration, pixelsPerSecond)
+    ? durationUsToWidth(draggedClip.durationUs, pixelsPerSecond)
     : 0;
   const draggedTrackVolume = draggedClip
     ? tracks.find(({ id }) => id === draggedClip.trackId)?.volume ?? 1
     : 1;
-  const contentDuration = Math.max(
-    getTimelineContentDuration(displayClips),
+  const contentDurationUs = Math.max(
+    getTimelineContentDurationUs(displayClips),
     dropPreview && draggedClip
-      ? dropPreview.rawStart + draggedClip.duration + 2
+      ? dropPreview.rawStartUs +
+        draggedClip.durationUs +
+        secondsToMicroseconds(2)
       : 0,
   );
   const laneViewportWidth = Math.max(0, viewportWidth);
-  const visibleTimeStart = Math.max(
-    0,
-    (scrollLeft - TIMELINE_CONTENT_PADDING_X) / pixelsPerSecond,
+  const visibleTimeStartUs = xToTimeUs(
+    scrollLeft - TIMELINE_CONTENT_PADDING_X,
+    pixelsPerSecond,
   );
-  const visibleTimeEnd = Math.max(
-    visibleTimeStart,
-    (scrollLeft + laneViewportWidth - TIMELINE_CONTENT_PADDING_X) /
+  const visibleTimeEndUs = Math.max(
+    visibleTimeStartUs,
+    xToTimeUs(
+      scrollLeft + laneViewportWidth - TIMELINE_CONTENT_PADDING_X,
       pixelsPerSecond,
+    ),
   );
   const contentLaneWidth =
-    durationToWidth(contentDuration, pixelsPerSecond) +
+    durationUsToWidth(contentDurationUs, pixelsPerSecond) +
     TIMELINE_CONTENT_PADDING_X * 2;
   const rulerWidth = Math.max(laneViewportWidth, contentLaneWidth);
-  const rulerDuration = Math.max(
-    contentDuration,
-    (rulerWidth - TIMELINE_CONTENT_PADDING_X * 2) / pixelsPerSecond,
+  const rulerDurationUs = Math.max(
+    contentDurationUs,
+    xToTimeUs(
+      rulerWidth - TIMELINE_CONTENT_PADDING_X * 2,
+      pixelsPerSecond,
+    ),
   );
-  const { majorInterval } = calcTickScale(pixelsPerSecond);
+  const { majorIntervalUs } = calcTickScale(pixelsPerSecond);
   const clipsByTrack = useMemo(() => {
     const grouped = new Map<string, typeof displayClips>();
     displayClips.forEach((clip) => {
@@ -144,11 +175,14 @@ export function TimelineViewport({
   } as CSSProperties;
   const gridStyle = {
     '--oc-timeline-lane-width': `${contentLaneWidth}px`,
-    '--oc-timeline-grid-step': `${majorInterval * pixelsPerSecond}px`,
+    '--oc-timeline-grid-step': `${durationUsToWidth(
+      majorIntervalUs,
+      pixelsPerSecond,
+    )}px`,
   } as CSSProperties;
   const playheadLeft =
     TIMELINE_CONTENT_PADDING_X +
-    timeToX(currentTime, pixelsPerSecond);
+    timeUsToX(currentTimeUs, pixelsPerSecond);
   const syncPlayheadHorizontalPosition = useCallback(() => {
     const viewport = viewportRef.current;
     const playhead = playheadRef.current;
@@ -248,13 +282,16 @@ export function TimelineViewport({
             pointerX -
             TIMELINE_CONTENT_PADDING_X,
         );
-        const anchorTime = timelineX / baseZoom.pixelsPerSecond;
+        const anchorTimeUs = xToTimeUs(
+          timelineX,
+          baseZoom.pixelsPerSecond,
+        );
         pendingZoomRef.current = {
           pixelsPerSecond: nextZoom,
           scrollLeft: Math.max(
             0,
-            TIMELINE_CONTENT_PADDING_X +
-              anchorTime * nextZoom -
+              TIMELINE_CONTENT_PADDING_X +
+              timeUsToX(anchorTimeUs, nextZoom) -
               pointerX,
           ),
         };
@@ -374,8 +411,8 @@ export function TimelineViewport({
           style={{ width: rulerWidth }}
         >
           <TimelineRuler
-            currentTime={currentTime}
-            duration={rulerDuration}
+            currentTimeUs={currentTimeUs}
+            durationUs={rulerDurationUs}
             gaps={videoGaps}
             onPointerDown={controller.beginScrub}
             pixelsPerSecond={pixelsPerSecond}
@@ -427,8 +464,8 @@ export function TimelineViewport({
                         style={{
                           left:
                             TIMELINE_CONTENT_PADDING_X +
-                            timeToX(
-                              dropPreview.originStart,
+                            timeUsToX(
+                              dropPreview.originStartUs,
                               pixelsPerSecond,
                             ),
                           width: dragWidth,
@@ -439,9 +476,9 @@ export function TimelineViewport({
                       <TimelineDragGhost
                         left={
                           TIMELINE_CONTENT_PADDING_X +
-                          timeToX(dropPreview.start, pixelsPerSecond)
+                          timeUsToX(dropPreview.startUs, pixelsPerSecond)
                         }
-                        snapped={dropPreview.snapTime !== null}
+                        snapped={dropPreview.snapTimeUs !== null}
                         trackChanged={dropPreview.originTrackId !== track.id}
                         width={dragWidth}
                       />
@@ -451,15 +488,15 @@ export function TimelineViewport({
                         canPaste={Boolean(
                           copiedClip && copiedClip.type === clip.type,
                         )}
-                        canSplitAt={(time) =>
-                          canSplitClipAtTime(clips, time, clip.id)
+                        canSplitAt={(timeUs) =>
+                          canSplitClipAtTime(clips, timeUs, clip.id)
                         }
                         clip={clip}
                         isSelected={selectedClipId === clip.id}
                         key={clip.id}
                         left={
                           TIMELINE_CONTENT_PADDING_X +
-                          timeToX(clip.start, pixelsPerSecond)
+                          timeUsToX(clip.startUs, pixelsPerSecond)
                         }
                         onMoveStart={controller.beginMove}
                         onCopy={() => store.getState().copySelectedClip()}
@@ -467,17 +504,17 @@ export function TimelineViewport({
                         onDownload={() => onDownloadClip?.(clip)}
                         onPaste={() => store.getState().pasteCopiedClip()}
                         onSelect={selectClip}
-                        onSplit={(time) =>
-                          store.getState().splitClipAtTime(clip.id, time)
+                        onSplit={(timeUs) =>
+                          store.getState().splitClipAtTime(clip.id, timeUs)
                         }
                         onTrimStart={controller.beginTrim}
                         onVolumeStart={controller.beginVolume}
                         pixelsPerSecond={pixelsPerSecond}
                         trackVolume={track.volume}
-                        visibleTimeEnd={visibleTimeEnd}
-                        visibleTimeStart={visibleTimeStart}
-                        width={durationToWidth(
-                          clip.duration,
+                        visibleTimeEndUs={visibleTimeEndUs}
+                        visibleTimeStartUs={visibleTimeStartUs}
+                        width={durationUsToWidth(
+                          clip.durationUs,
                           pixelsPerSecond,
                         )}
                       />
@@ -515,27 +552,27 @@ export function TimelineViewport({
               height={getTimelineClipHeight(draggedClip.type)}
               left={
                 TIMELINE_CONTENT_PADDING_X +
-                timeToX(dropPreview.rawStart, pixelsPerSecond)
+                timeUsToX(dropPreview.rawStartUs, pixelsPerSecond)
               }
               pixelsPerSecond={pixelsPerSecond}
-              timelineStart={dropPreview.rawStart}
+              timelineStartUs={dropPreview.rawStartUs}
               top={dropPreview.dragTop - TIMELINE_RULER_HEIGHT}
               trackVolume={draggedTrackVolume}
-              visibleTimeEnd={visibleTimeEnd}
-              visibleTimeStart={visibleTimeStart}
+              visibleTimeEndUs={visibleTimeEndUs}
+              visibleTimeStartUs={visibleTimeStartUs}
               width={dragWidth}
             />
           )}
 
-          {dropPreview?.snapTime !== null &&
-            dropPreview?.snapTime !== undefined && (
+          {dropPreview?.snapTimeUs !== null &&
+            dropPreview?.snapTimeUs !== undefined && (
               <div
                 aria-hidden='true'
                 className='oc-timeline-snap-line'
                 style={{
                   left:
                     TIMELINE_CONTENT_PADDING_X +
-                    timeToX(dropPreview.snapTime, pixelsPerSecond),
+                    timeUsToX(dropPreview.snapTimeUs, pixelsPerSecond),
                 }}
               />
             )}

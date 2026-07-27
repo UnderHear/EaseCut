@@ -1,5 +1,5 @@
 import type { TrackInsertTarget } from './timeline-tracks';
-import type { TimelineClipType, TimelineTrack } from '../types';
+import type { TimelineClipType, TimelineTrack } from './model';
 
 export const TIMELINE_RULER_HEIGHT = 32;
 export const TIMELINE_TRACK_HEIGHT = 56;

@@ -5,6 +5,7 @@ import {
   normalizeAudioPeaks,
   type DecodedAudioSample,
 } from './audio-waveform-peaks';
+import { secondsToMicroseconds } from '../core/time';
 
 const createSample = (
   channels: Float32Array[],
@@ -27,7 +28,7 @@ describe('audio waveform peaks', () => {
 
     accumulateAudioSamplePeaks(
       peaks,
-      2,
+      secondsToMicroseconds(2),
       createSample([
         new Float32Array([0.1, -0.4, 0.2, 0.1]),
         new Float32Array([0.3, 0.2, -0.8, 0.1]),
@@ -35,7 +36,7 @@ describe('audio waveform peaks', () => {
     );
     accumulateAudioSamplePeaks(
       peaks,
-      2,
+      secondsToMicroseconds(2),
       createSample([new Float32Array([0.5, 1, 0.25, 0])], {
         timestamp: 1,
       }),
@@ -54,14 +55,14 @@ describe('audio waveform peaks', () => {
 
     accumulateAudioSamplePeaks(
       peaks,
-      1,
+      secondsToMicroseconds(1),
       createSample([new Float32Array([1, 0.5, 0.25, 0.75])], {
         timestamp: -0.5,
       }),
     );
     accumulateAudioSamplePeaks(
       peaks,
-      1,
+      secondsToMicroseconds(1),
       createSample([new Float32Array([0.9])], { timestamp: 2 }),
     );
 

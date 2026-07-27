@@ -9,14 +9,18 @@ import {
   type RefObject,
 } from 'react';
 
-import { getTrackClips } from '../core/collision';
+import {
+  createCompositionSnapshot,
+  getCompositionActiveClips,
+} from '../core/composition';
+import { microsecondsToSeconds } from '../core/time';
 import {
   getPreviewInteractionUpdate,
   type PreviewInteractionMode,
   type PreviewResizeHandle,
   type PreviewSnapGuide,
 } from '../core/preview-snapping';
-import { MIN_CLIP_TRANSFORM_SIZE } from '../store/timeline-store';
+import { MIN_CLIP_TRANSFORM_SIZE } from '../core/timeline-commands';
 import { useTimelineStore } from '../store/timeline-store-context';
 import type {
   TimelineCanvasSize,
@@ -66,19 +70,15 @@ const canUseMediaElement = () =>
   typeof navigator === 'undefined' ||
   !navigator.userAgent.toLowerCase().includes('jsdom');
 
-const isClipActiveAtTime = (clip: TimelineClip, currentTime: number) =>
-  currentTime >= clip.start && currentTime < clip.start + clip.duration;
-
 const getOrderedActiveClips = (
   clips: TimelineClip[],
   tracks: TimelineTrack[],
-  currentTime: number,
-) =>
-  tracks.flatMap((track) =>
-    getTrackClips(clips, track.id).filter((clip) =>
-      isClipActiveAtTime(clip, currentTime),
-    ),
-  );
+  canvasSize: TimelineCanvasSize,
+  currentTimeUs: number,
+) => getCompositionActiveClips(
+  createCompositionSnapshot({ canvasSize, clips, tracks }),
+  currentTimeUs,
+);
 
 const getPreviewDrawKey = (
   canvas: HTMLCanvasElement,
@@ -360,7 +360,7 @@ export function PreviewPanel({
   const commitClipTransform = useTimelineStore(
     (state) => state.commitClipTransform,
   );
-  const currentTime = useTimelineStore((state) => state.currentTime);
+  const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const selectClip = useTimelineStore((state) => state.selectClip);
   const selectedClipId = useTimelineStore((state) => state.selectedClipId);
@@ -382,8 +382,8 @@ export function PreviewPanel({
     useState<TimelineCanvasSize | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const activeClips = useMemo(
-    () => getOrderedActiveClips(clips, tracks, currentTime),
-    [clips, currentTime, tracks],
+    () => getOrderedActiveClips(clips, tracks, canvasSize, currentTimeUs),
+    [canvasSize, clips, currentTimeUs, tracks],
   );
   const activeVideoClips = useMemo(
     () => activeClips.filter((clip) => clip.type === 'video'),
@@ -598,7 +598,9 @@ export function PreviewPanel({
       const media = mediaElementsRef.current.get(clip.id);
       if (!media || !previewObjectUrls[clip.src]) continue;
 
-      const targetTime = clip.trimStart + (currentTime - clip.start);
+      const targetTime = microsecondsToSeconds(
+        clip.trimStartUs + currentTimeUs - clip.startUs,
+      );
       const syncMediaTime = () => {
         if (Math.abs(media.currentTime - targetTime) > 0.08) {
           media.currentTime = targetTime;
@@ -628,7 +630,7 @@ export function PreviewPanel({
         cleanup();
       }
     };
-  }, [activeClips, currentTime, drawPreview, previewObjectUrls]);
+  }, [activeClips, currentTimeUs, drawPreview, previewObjectUrls]);
 
   useEffect(() => {
     if (!canUseMediaElement()) return;

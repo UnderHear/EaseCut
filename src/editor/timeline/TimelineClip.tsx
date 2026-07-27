@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 import {
-  FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+  FRAME_PREVIEW_CHUNK_DURATION_US,
   HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   useAudioWaveformSamples,
   useFramePreviewStrip,
@@ -27,7 +27,11 @@ import {
   type AudioWaveformRenderWindow,
 } from '../core/audio-waveform-bars';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
-import { roundTimelineTime } from '../core/timeline-math';
+import {
+  durationUsToWidth,
+  normalizeTimelineTimeUs,
+} from '../core/timeline-math';
+import { microsecondsToSeconds } from '../core/time';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
 import { formatTimelineTime } from '../util/format-timeline-time';
 import { AudioWaveformCanvas } from './AudioWaveformCanvas';
@@ -36,7 +40,7 @@ const AUDIO_VOLUME_INSET = 8;
 
 export type TimelineClipViewProps = {
   canPaste: boolean;
-  canSplitAt: (time: number) => boolean;
+  canSplitAt: (timeUs: number) => boolean;
   clip: TimelineClip;
   isSelected: boolean;
   left: number;
@@ -46,7 +50,7 @@ export type TimelineClipViewProps = {
   onMoveStart: (event: PointerEvent<HTMLElement>, clip: TimelineClip) => void;
   onPaste: () => void;
   onSelect: (clipId: string) => void;
-  onSplit: (time: number) => void;
+  onSplit: (timeUs: number) => void;
   onTrimStart: (
     event: PointerEvent<HTMLElement>,
     clip: TimelineClip,
@@ -55,8 +59,8 @@ export type TimelineClipViewProps = {
   onVolumeStart: (event: PointerEvent<HTMLElement>, trackId: string) => void;
   pixelsPerSecond: number;
   trackVolume: number;
-  visibleTimeEnd: number;
-  visibleTimeStart: number;
+  visibleTimeEndUs: number;
+  visibleTimeStartUs: number;
   width: number;
 };
 
@@ -65,82 +69,85 @@ const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
 const useTimelineClipPresentation = (
   clip: TimelineClip,
   pixelsPerSecond: number,
-  timelineStart: number,
+  timelineStartUs: number,
   trackVolume: number,
-  visibleTimeEnd: number,
-  visibleTimeStart: number,
+  visibleTimeEndUs: number,
+  visibleTimeStartUs: number,
 ) => {
   const previewRequest = useMemo<FramePreviewRequest | null>(() => {
     if (
       clip.type !== 'video' ||
-      timelineStart >= visibleTimeEnd ||
-      timelineStart + clip.duration <= visibleTimeStart
+      timelineStartUs >= visibleTimeEndUs ||
+      timelineStartUs + clip.durationUs <= visibleTimeStartUs
     ) {
       return null;
     }
 
-    const viewportDuration = Math.max(0, visibleTimeEnd - visibleTimeStart);
-    const sourceTimelineStart = timelineStart - clip.trimStart;
-    const rawRangeStart = Math.max(
+    const viewportDurationUs = Math.max(
       0,
-      visibleTimeStart - sourceTimelineStart - viewportDuration,
+      visibleTimeEndUs - visibleTimeStartUs,
     );
-    const rawRangeEnd = Math.min(
-      clip.sourceDuration,
-      visibleTimeEnd - sourceTimelineStart + viewportDuration,
+    const sourceTimelineStartUs = timelineStartUs - clip.trimStartUs;
+    const rawRangeStartUs = Math.max(
+      0,
+      visibleTimeStartUs - sourceTimelineStartUs - viewportDurationUs,
     );
-    const rangeStart = Math.max(
+    const rawRangeEndUs = Math.min(
+      clip.sourceDurationUs,
+      visibleTimeEndUs - sourceTimelineStartUs + viewportDurationUs,
+    );
+    const rangeStartUs = Math.max(
       0,
       Math.floor(
-        rawRangeStart / FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
-      ) * FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+        rawRangeStartUs / FRAME_PREVIEW_CHUNK_DURATION_US,
+      ) * FRAME_PREVIEW_CHUNK_DURATION_US,
     );
-    const rangeEnd = Math.min(
-      clip.sourceDuration,
-      Math.ceil(rawRangeEnd / FRAME_PREVIEW_CHUNK_DURATION_SECONDS) *
-        FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+    const rangeEndUs = Math.min(
+      clip.sourceDurationUs,
+      Math.ceil(rawRangeEndUs / FRAME_PREVIEW_CHUNK_DURATION_US) *
+        FRAME_PREVIEW_CHUNK_DURATION_US,
     );
-    if (rangeEnd <= rangeStart) return null;
+    if (rangeEndUs <= rangeStartUs) return null;
 
     return {
       pixelsPerSecond,
-      rangeEnd,
-      rangeStart,
-      sourceDuration: clip.sourceDuration,
+      rangeEndUs,
+      rangeStartUs,
+      sourceDurationUs: clip.sourceDurationUs,
       src: clip.src,
     };
   }, [
-    clip.duration,
-    clip.sourceDuration,
+    clip.durationUs,
+    clip.sourceDurationUs,
     clip.src,
-    clip.trimStart,
+    clip.trimStartUs,
     clip.type,
     pixelsPerSecond,
-    timelineStart,
-    visibleTimeEnd,
-    visibleTimeStart,
+    timelineStartUs,
+    visibleTimeEndUs,
+    visibleTimeStartUs,
   ]);
   const previewStrip = useFramePreviewStrip(previewRequest);
   const waveformRenderWindow = useMemo(
     () =>
       clip.type === 'audio'
         ? getAudioWaveformRenderWindow({
-            clipDuration: clip.duration,
+            clipDurationUs: clip.durationUs,
             pixelsPerSecond,
-            timelineStart,
-            trimStart: clip.trimStart,
-            visibleTimeEnd,
-            visibleTimeStart,
+            timelineStartUs,
+            trimStartUs: clip.trimStartUs,
+            visibleTimeEndUs,
+            visibleTimeStartUs,
           })
         : null,
     [
-      clip.duration,
-      clip.trimStart,
+      clip.durationUs,
+      clip.trimStartUs,
       clip.type,
       pixelsPerSecond,
-      timelineStart,
-      visibleTimeEnd,
-      visibleTimeStart,
+      timelineStartUs,
+      visibleTimeEndUs,
+      visibleTimeStartUs,
     ],
   );
   const waveformSamples = useAudioWaveformSamples(
@@ -150,7 +157,7 @@ const useTimelineClipPresentation = (
   );
 
   return {
-    previewOffset: clip.trimStart * pixelsPerSecond,
+    previewOffset: durationUsToWidth(clip.trimStartUs, pixelsPerSecond),
     previewStrip,
     volume: clampUnit(trackVolume),
     waveformRenderWindow,
@@ -215,8 +222,8 @@ function TimelineClipVisual({
             pixelsPerSecond={pixelsPerSecond}
             renderWidth={waveformRenderWindow.width}
             samples={waveformSamples}
-            sourceDuration={clip.sourceDuration}
-            sourceStart={waveformRenderWindow.sourceStart}
+            sourceDurationUs={clip.sourceDurationUs}
+            sourceStartUs={waveformRenderWindow.sourceStartUs}
             volume={volume}
           />
         ) : null}
@@ -228,9 +235,11 @@ function TimelineClipVisual({
         </span>
         <time
           className='oc-timeline-clip__duration'
-          dateTime={`PT${Math.max(0, clip.duration)}S`}
+          dateTime={`PT${microsecondsToSeconds(
+            Math.max(0, clip.durationUs),
+          )}S`}
         >
-          {formatTimelineTime(clip.duration)}
+          {formatTimelineTime(clip.durationUs)}
         </time>
       </header>
     </>
@@ -254,11 +263,11 @@ export function TimelineClipView({
   onVolumeStart,
   pixelsPerSecond,
   trackVolume,
-  visibleTimeEnd,
-  visibleTimeStart,
+  visibleTimeEndUs,
+  visibleTimeStartUs,
   width,
 }: TimelineClipViewProps) {
-  const [contextMenuTime, setContextMenuTime] = useState(clip.start);
+  const [contextMenuTimeUs, setContextMenuTimeUs] = useState(clip.startUs);
   const {
     previewOffset,
     previewStrip,
@@ -269,10 +278,10 @@ export function TimelineClipView({
     useTimelineClipPresentation(
       clip,
       pixelsPerSecond,
-      clip.start,
+      clip.startUs,
       trackVolume,
-      visibleTimeEnd,
-      visibleTimeStart,
+      visibleTimeEndUs,
+      visibleTimeStartUs,
     );
   const style = {
     '--oc-timeline-clip-volume-y': `${
@@ -290,16 +299,16 @@ export function TimelineClipView({
     };
   const isTrimmedAt = (edge: TimelineClipTrimEdge) =>
     edge === 'start'
-      ? clip.trimStart > 0
-      : clip.trimEnd < clip.sourceDuration;
+      ? clip.trimStartUs > 0
+      : clip.trimEndUs < clip.sourceDurationUs;
   const handleContextMenu = (event: MouseEvent<HTMLElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const pointerRatio =
       bounds.width > 0
         ? Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width))
         : 0;
-    setContextMenuTime(
-      roundTimelineTime(clip.start + clip.duration * pointerRatio),
+    setContextMenuTimeUs(
+      normalizeTimelineTimeUs(clip.startUs + clip.durationUs * pointerRatio),
     );
     onSelect(clip.id);
   };
@@ -371,8 +380,8 @@ export function TimelineClipView({
         >
           <ContextMenu.Item
             className='oc-clip-context-menu__item'
-            disabled={!canSplitAt(contextMenuTime)}
-            onSelect={() => onSplit(contextMenuTime)}
+            disabled={!canSplitAt(contextMenuTimeUs)}
+            onSelect={() => onSplit(contextMenuTimeUs)}
           >
             <SquareSplitHorizontal aria-hidden='true' />
             <span>分割</span>
@@ -420,11 +429,11 @@ type TimelineClipDragOverlayProps = {
   height: number;
   left: number;
   pixelsPerSecond: number;
-  timelineStart: number;
+  timelineStartUs: number;
   top: number;
   trackVolume: number;
-  visibleTimeEnd: number;
-  visibleTimeStart: number;
+  visibleTimeEndUs: number;
+  visibleTimeStartUs: number;
   width: number;
 };
 
@@ -433,11 +442,11 @@ export function TimelineClipDragOverlay({
   height,
   left,
   pixelsPerSecond,
-  timelineStart,
+  timelineStartUs,
   top,
   trackVolume,
-  visibleTimeEnd,
-  visibleTimeStart,
+  visibleTimeEndUs,
+  visibleTimeStartUs,
   width,
 }: TimelineClipDragOverlayProps) {
   const {
@@ -450,10 +459,10 @@ export function TimelineClipDragOverlay({
     useTimelineClipPresentation(
       clip,
       pixelsPerSecond,
-      timelineStart,
+      timelineStartUs,
       trackVolume,
-      visibleTimeEnd,
-      visibleTimeStart,
+      visibleTimeEndUs,
+      visibleTimeStartUs,
     );
   const style = {
     '--oc-timeline-clip-volume-y': `${

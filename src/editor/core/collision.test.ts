@@ -6,26 +6,27 @@ import {
   getPreservedGapInsertionLayout,
   snapClipMoveToCandidates,
 } from './collision';
-import type { TimelineClip } from '../types';
+import { secondsToMicroseconds } from './time';
+import type { TimelineClip } from './model';
 
 const createClip = (
   id: string,
-  start: number,
-  duration: number,
+  startSeconds: number,
+  durationSeconds: number,
 ): TimelineClip => ({
-  duration,
+  durationUs: secondsToMicroseconds(durationSeconds),
   id,
   name: id,
   sourceId: id,
-  sourceDuration: duration,
+  sourceDurationUs: secondsToMicroseconds(durationSeconds),
   src: `${id}.mp4`,
-  start,
+  startUs: secondsToMicroseconds(startSeconds),
   trackId: 'video-main',
-  trimEnd: duration,
-  trimStart: 0,
+  trimEndUs: secondsToMicroseconds(durationSeconds),
+  trimStartUs: 0,
   transform: { height: 720, width: 1280, x: 0, y: 0 },
   type: 'video',
-  zIndex: start,
+  zIndex: startSeconds,
 });
 
 describe('getInsertionIndex', () => {
@@ -49,15 +50,15 @@ describe('getPreservedGapInsertionLayout', () => {
       [createClip('a', 0, 2), createClip('b', 6, 2), draggedClip],
       draggedClip,
       1,
-      4,
+      secondsToMicroseconds(4),
     );
 
-    expect(layout.insertedStart).toBe(4);
+    expect(layout.insertedStartUs).toBe(secondsToMicroseconds(4));
     expect(layout.shiftedClipIds).toEqual([]);
-    expect(layout.clips.map((clip) => [clip.id, clip.start])).toEqual([
+    expect(layout.clips.map((clip) => [clip.id, clip.startUs])).toEqual([
       ['a', 0],
-      ['c', 4],
-      ['b', 6],
+      ['c', secondsToMicroseconds(4)],
+      ['b', secondsToMicroseconds(6)],
     ]);
   });
 
@@ -67,15 +68,15 @@ describe('getPreservedGapInsertionLayout', () => {
       [createClip('a', 0, 2), createClip('b', 6, 2), draggedClip],
       draggedClip,
       1,
-      5.5,
+      secondsToMicroseconds(5.5),
     );
 
-    expect(layout.insertedStart).toBe(5);
+    expect(layout.insertedStartUs).toBe(secondsToMicroseconds(5));
     expect(layout.shiftedClipIds).toEqual([]);
-    expect(layout.clips.map((clip) => [clip.id, clip.start])).toEqual([
+    expect(layout.clips.map((clip) => [clip.id, clip.startUs])).toEqual([
       ['a', 0],
-      ['c', 5],
-      ['b', 6],
+      ['c', secondsToMicroseconds(5)],
+      ['b', secondsToMicroseconds(6)],
     ]);
   });
 
@@ -88,12 +89,12 @@ describe('getPreservedGapInsertionLayout', () => {
       0,
     );
 
-    expect(layout.insertedStart).toBe(0);
+    expect(layout.insertedStartUs).toBe(0);
     expect(layout.shiftedClipIds).toEqual(['a', 'b']);
-    expect(layout.clips.map((clip) => [clip.id, clip.start])).toEqual([
+    expect(layout.clips.map((clip) => [clip.id, clip.startUs])).toEqual([
       ['c', 0],
-      ['a', 3.5],
-      ['b', 7.5],
+      ['a', secondsToMicroseconds(3.5)],
+      ['b', secondsToMicroseconds(7.5)],
     ]);
   });
 
@@ -103,15 +104,15 @@ describe('getPreservedGapInsertionLayout', () => {
       [createClip('a', 0, 4), createClip('b', 4, 5), draggedClip],
       draggedClip,
       2,
-      13,
+      secondsToMicroseconds(13),
     );
 
-    expect(layout.insertedStart).toBe(13);
+    expect(layout.insertedStartUs).toBe(secondsToMicroseconds(13));
     expect(layout.shiftedClipIds).toEqual([]);
-    expect(layout.clips.map((clip) => [clip.id, clip.start])).toEqual([
+    expect(layout.clips.map((clip) => [clip.id, clip.startUs])).toEqual([
       ['a', 0],
-      ['b', 4],
-      ['c', 13],
+      ['b', secondsToMicroseconds(4)],
+      ['c', secondsToMicroseconds(13)],
     ]);
   });
 
@@ -121,16 +122,16 @@ describe('getPreservedGapInsertionLayout', () => {
       [createClip('a', 0, 4), createClip('b', 4, 5), draggedClip],
       draggedClip,
       2,
-      13,
+      secondsToMicroseconds(13),
       { allowTrailingFreeStart: false },
     );
 
-    expect(layout.insertedStart).toBe(9);
+    expect(layout.insertedStartUs).toBe(secondsToMicroseconds(9));
     expect(layout.shiftedClipIds).toEqual([]);
-    expect(layout.clips.map((clip) => [clip.id, clip.start])).toEqual([
+    expect(layout.clips.map((clip) => [clip.id, clip.startUs])).toEqual([
       ['a', 0],
-      ['b', 4],
-      ['c', 9],
+      ['b', secondsToMicroseconds(4)],
+      ['c', secondsToMicroseconds(9)],
     ]);
   });
 });
@@ -144,48 +145,80 @@ describe('getCompactInsertionLayout', () => {
       1,
     );
 
-    expect(layout.insertedStart).toBe(2);
+    expect(layout.insertedStartUs).toBe(secondsToMicroseconds(2));
     expect(layout.shiftedClipIds).toEqual(['b']);
     expect(
-      layout.clips.map((clip) => [clip.id, clip.start, clip.zIndex]),
+      layout.clips.map((clip) => [clip.id, clip.startUs, clip.zIndex]),
     ).toEqual([
       ['a', 0, 0],
-      ['c', 2, 1],
-      ['b', 3, 2],
+      ['c', secondsToMicroseconds(2), 1],
+      ['b', secondsToMicroseconds(3), 2],
     ]);
   });
 });
 
 describe('snapClipMoveToCandidates', () => {
   it('snaps a moved clip by its start edge', () => {
-    expect(snapClipMoveToCandidates(3.95, 2, [4], 80, 6)).toEqual({
+    expect(
+      snapClipMoveToCandidates(
+        secondsToMicroseconds(3.95),
+        secondsToMicroseconds(2),
+        [secondsToMicroseconds(4)],
+        80,
+        6,
+      ),
+    ).toEqual({
       snappedEdge: 'start',
-      snappedStart: 4,
-      snappedTo: 4,
+      snappedStartUs: secondsToMicroseconds(4),
+      snappedToUs: secondsToMicroseconds(4),
     });
   });
 
   it('snaps a moved clip by its end edge', () => {
-    expect(snapClipMoveToCandidates(1.05, 3, [4], 80, 6)).toEqual({
+    expect(
+      snapClipMoveToCandidates(
+        secondsToMicroseconds(1.05),
+        secondsToMicroseconds(3),
+        [secondsToMicroseconds(4)],
+        80,
+        6,
+      ),
+    ).toEqual({
       snappedEdge: 'end',
-      snappedStart: 1,
-      snappedTo: 4,
+      snappedStartUs: secondsToMicroseconds(1),
+      snappedToUs: secondsToMicroseconds(4),
     });
   });
 
   it('chooses the closest edge and keeps start edge on an exact tie', () => {
-    expect(snapClipMoveToCandidates(1.05, 0.1, [1, 1.2], 80, 6)).toEqual({
+    expect(
+      snapClipMoveToCandidates(
+        secondsToMicroseconds(1.05),
+        secondsToMicroseconds(0.1),
+        [secondsToMicroseconds(1), secondsToMicroseconds(1.2)],
+        80,
+        6,
+      ),
+    ).toEqual({
       snappedEdge: 'start',
-      snappedStart: 1,
-      snappedTo: 1,
+      snappedStartUs: secondsToMicroseconds(1),
+      snappedToUs: secondsToMicroseconds(1),
     });
   });
 
   it('ignores end-edge snaps that would move the clip before zero', () => {
-    expect(snapClipMoveToCandidates(0, 2.05, [2], 80, 6)).toEqual({
+    expect(
+      snapClipMoveToCandidates(
+        0,
+        secondsToMicroseconds(2.05),
+        [secondsToMicroseconds(2)],
+        80,
+        6,
+      ),
+    ).toEqual({
       snappedEdge: null,
-      snappedStart: 0,
-      snappedTo: null,
+      snappedStartUs: 0,
+      snappedToUs: null,
     });
   });
 });

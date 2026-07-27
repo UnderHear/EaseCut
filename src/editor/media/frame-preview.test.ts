@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { secondsToMicroseconds } from '../core/time';
 import {
   createFramePreviewCache,
   type FramePreviewRequest,
@@ -11,9 +12,9 @@ const createRequest = (
   patch: Partial<FramePreviewRequest> = {},
 ): FramePreviewRequest => ({
   pixelsPerSecond: 80,
-  rangeEnd: 3,
-  rangeStart: 0,
-  sourceDuration: 10,
+  rangeEndUs: secondsToMicroseconds(3),
+  rangeStartUs: secondsToMicroseconds(0),
+  sourceDurationUs: secondsToMicroseconds(10),
   src: '/video.mp4',
   ...patch,
 });
@@ -137,8 +138,14 @@ describe('frame preview cache', () => {
     const firstSubscriber = vi.fn();
     const secondSubscriber = vi.fn();
 
-    first.subscribe(createRequest({ rangeEnd: 1 }), firstSubscriber);
-    second.subscribe(createRequest({ rangeEnd: 1 }), secondSubscriber);
+    first.subscribe(
+      createRequest({ rangeEndUs: secondsToMicroseconds(1) }),
+      firstSubscriber,
+    );
+    second.subscribe(
+      createRequest({ rangeEndUs: secondsToMicroseconds(1) }),
+      secondSubscriber,
+    );
 
     await vi.waitFor(() => {
       expect(firstSubscriber).toHaveBeenLastCalledWith(
@@ -162,7 +169,7 @@ describe('frame preview cache', () => {
     const cache = createFramePreviewCache(getObjectUrl, () => false);
     const firstSubscriber = vi.fn();
     const unsubscribe = cache.subscribe(
-      createRequest({ rangeEnd: 3 }),
+      createRequest({ rangeEndUs: secondsToMicroseconds(3) }),
       firstSubscriber,
     );
 
@@ -183,7 +190,10 @@ describe('frame preview cache', () => {
 
     const secondSubscriber = vi.fn();
     cache.subscribe(
-      createRequest({ rangeEnd: 6, rangeStart: 2 }),
+      createRequest({
+        rangeEndUs: secondsToMicroseconds(6),
+        rangeStartUs: secondsToMicroseconds(2),
+      }),
       secondSubscriber,
     );
     await vi.waitFor(() =>
@@ -416,7 +426,10 @@ describe('frame preview cache', () => {
       () => false,
     );
     const subscriber = vi.fn();
-    cache.subscribe(createRequest({ rangeEnd: 1 }), subscriber);
+    cache.subscribe(
+      createRequest({ rangeEndUs: secondsToMicroseconds(1) }),
+      subscriber,
+    );
     await vi.waitFor(() =>
       expect(
         (subscriber.mock.lastCall?.[0] as FramePreviewStrip).frames,

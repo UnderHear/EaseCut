@@ -1,3 +1,8 @@
+import {
+  isValidTimeUs,
+  MICROSECONDS_PER_SECOND,
+} from '../core/time';
+
 export type DecodedAudioSample = {
   allocationSize(options: {
     format: 'f32-planar';
@@ -18,12 +23,13 @@ export type DecodedAudioSample = {
 
 export const accumulateAudioSamplePeaks = (
   peaks: Float32Array,
-  durationSeconds: number,
+  durationUs: number,
   sample: DecodedAudioSample,
 ) => {
   if (
     peaks.length === 0 ||
-    durationSeconds <= 0 ||
+    !isValidTimeUs(durationUs) ||
+    durationUs === 0 ||
     sample.numberOfChannels <= 0 ||
     sample.numberOfFrames <= 0 ||
     sample.sampleRate <= 0
@@ -42,10 +48,13 @@ export const accumulateAudioSamplePeaks = (
   for (let channel = 0; channel < sample.numberOfChannels; channel += 1) {
     sample.copyTo(channelData, { ...options, planeIndex: channel });
     for (let frame = 0; frame < sample.numberOfFrames; frame += 1) {
-      const timestamp = sample.timestamp + frame / sample.sampleRate;
-      if (timestamp < 0 || timestamp >= durationSeconds) continue;
+      const timestampUs = Math.round(
+        (sample.timestamp + frame / sample.sampleRate) *
+          MICROSECONDS_PER_SECOND,
+      );
+      if (timestampUs < 0 || timestampUs >= durationUs) continue;
       const bucket = Math.floor(
-        (timestamp / durationSeconds) * peaks.length,
+        (timestampUs / durationUs) * peaks.length,
       );
       const value = channelData[frame] ?? 0;
       const peak = Number.isFinite(value) ? Math.abs(value) : 0;

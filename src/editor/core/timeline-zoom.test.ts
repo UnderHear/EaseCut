@@ -4,7 +4,12 @@ import {
   DEFAULT_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
   calcTickScale,
+  durationUsToWidth,
+  normalizeTimelineTimeUs,
+  timeUsToX,
+  xToTimeUs,
 } from './timeline-math';
+import { secondsToMicroseconds } from './time';
 import { createTimelineStore } from '../store/timeline-store';
 
 const timelineStore = createTimelineStore();
@@ -16,18 +21,18 @@ describe('timeline zoom scale', () => {
 
   it('keeps the major tick interval at least one second at max zoom', () => {
     const scale = calcTickScale(240);
-    const labels = [0, 1, 2].map(scale.formatTick);
+    const labels = [0, 1, 2].map(secondsToMicroseconds).map(scale.formatTick);
 
-    expect(scale.majorInterval).toBe(1);
+    expect(scale.majorIntervalUs).toBe(secondsToMicroseconds(1));
     expect(labels).toEqual(['00:00', '00:01', '00:02']);
   });
 
   it('keeps major tick cadence stable around previous zoom jump points', () => {
-    expect(calcTickScale(65).majorInterval).toBe(
-      calcTickScale(66).majorInterval,
+    expect(calcTickScale(65).majorIntervalUs).toBe(
+      calcTickScale(66).majorIntervalUs,
     );
-    expect(calcTickScale(130).majorInterval).toBe(
-      calcTickScale(131).majorInterval,
+    expect(calcTickScale(130).majorIntervalUs).toBe(
+      calcTickScale(131).majorIntervalUs,
     );
   });
 
@@ -41,5 +46,29 @@ describe('timeline zoom scale', () => {
 
     expect(MIN_PIXELS_PER_SECOND).toBe(10);
     expect(timelineStore.getState().pixelsPerSecond).toBe(10);
+  });
+});
+
+describe('timeline coordinates', () => {
+  it('converts integer microseconds at the pixels-per-second boundary', () => {
+    const timeUs = secondsToMicroseconds(2.5);
+
+    expect(timeUsToX(timeUs, 80)).toBe(200);
+    expect(durationUsToWidth(timeUs, 80)).toBe(200);
+    expect(xToTimeUs(200, 80)).toBe(timeUs);
+  });
+
+  it('keeps long timeline coordinates based on absolute time', () => {
+    const sixHoursUs = secondsToMicroseconds(6 * 60 * 60);
+    const x = timeUsToX(sixHoursUs, 240);
+
+    expect(xToTimeUs(x, 240)).toBe(sixHoursUs);
+  });
+
+  it('rejects invalid timeline times instead of silently resetting them', () => {
+    expect(() => normalizeTimelineTimeUs(Number.NaN)).toThrow(TypeError);
+    expect(() =>
+      normalizeTimelineTimeUs(Number.MAX_SAFE_INTEGER + 1),
+    ).toThrow(RangeError);
   });
 });

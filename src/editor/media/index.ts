@@ -11,7 +11,7 @@ export {
 } from './media-runtime';
 export {
   canGenerateFramePreviews,
-  FRAME_PREVIEW_CHUNK_DURATION_SECONDS,
+  FRAME_PREVIEW_CHUNK_DURATION_US,
   type FramePreviewFrame,
   type FramePreviewRequest,
   type FramePreviewStrip,

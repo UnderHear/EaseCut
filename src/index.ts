@@ -1,4 +1,13 @@
 export { VideoTimelineEditor } from './editor/VideoTimelineEditor';
+export {
+  frameIndexToTimeUs,
+  microsecondsToMilliseconds,
+  microsecondsToSeconds,
+  millisecondsToMicroseconds,
+  secondsToMicroseconds,
+  timeUsToFrameIndex,
+  type RationalFrameRate,
+} from './editor/core/time';
 import { createCompositionExportPayload as createDraftExportPayload } from './editor/core/export-schema';
 import type {
   CompositionExportPayload,

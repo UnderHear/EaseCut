@@ -1,7 +1,7 @@
 import type {
   TimelineCanvasSize,
   TimelineClipTransform,
-} from '../types';
+} from './model';
 
 export const PREVIEW_SNAP_THRESHOLD_PX = 6;
 

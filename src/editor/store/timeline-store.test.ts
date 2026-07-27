@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTrackClips } from '../core/collision';
+import { secondsToMicroseconds } from '../core/time';
 import {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
   createVideoTimelineDraft,
   MAIN_VIDEO_TRACK_ID,
   createTimelineStore,
 } from './timeline-store';
-import type { TimelineClip, VideoTimelineSource } from '../types';
+import type {
+  TimelineClip,
+  VideoTimelineDraft,
+  VideoTimelineSource,
+} from '../types';
 
 const timelineStore = createTimelineStore();
 
@@ -38,7 +43,7 @@ const resetStore = () => {
   timelineStore.getState().resetTimeline();
   timelineStore.setState({
     clips: createFixtureClips(),
-    currentTime: 0,
+    currentTimeUs: secondsToMicroseconds(0),
     future: [],
     isPlaying: false,
     past: [],
@@ -70,10 +75,10 @@ const resetToTwoVisualVideoTracks = () => {
 
   timelineStore.setState({
     clips: [
-      { ...clips[0], start: 0, trackId: MAIN_VIDEO_TRACK_ID, zIndex: 0 },
-      { ...clips[1], start: 0, trackId: 'video-overlay-1', zIndex: 0 },
+      { ...clips[0], startUs: secondsToMicroseconds(0), trackId: MAIN_VIDEO_TRACK_ID, zIndex: 0 },
+      { ...clips[1], startUs: secondsToMicroseconds(0), trackId: 'video-overlay-1', zIndex: 0 },
     ],
-    currentTime: 0,
+    currentTimeUs: secondsToMicroseconds(0),
     future: [],
     past: [],
     selectedClipId: null,
@@ -86,46 +91,46 @@ const resetToTwoVisualVideoTracks = () => {
 
 const createFixtureClips = (): TimelineClip[] => [
   {
-    duration: 4,
+    durationUs: secondsToMicroseconds(4),
     id: 'clip-video-1',
     name: 'video-1.mp4',
     sourceId: 'video-1',
-    sourceDuration: 4,
+    sourceDurationUs: secondsToMicroseconds(4),
     src: 'http://localhost/video-1.mp4',
-    start: 0,
+    startUs: secondsToMicroseconds(0),
     trackId: MAIN_VIDEO_TRACK_ID,
-    trimEnd: 4,
-    trimStart: 0,
+    trimEndUs: secondsToMicroseconds(4),
+    trimStartUs: secondsToMicroseconds(0),
     transform: { ...defaultClipTransform },
     type: 'video',
     zIndex: 0,
   },
   {
-    duration: 5,
+    durationUs: secondsToMicroseconds(5),
     id: 'clip-video-2',
     name: 'video-2.mp4',
     sourceId: 'video-2',
-    sourceDuration: 6,
+    sourceDurationUs: secondsToMicroseconds(6),
     src: 'http://localhost/video-2.mp4',
-    start: 4,
+    startUs: secondsToMicroseconds(4),
     trackId: MAIN_VIDEO_TRACK_ID,
-    trimEnd: 6,
-    trimStart: 1,
+    trimEndUs: secondsToMicroseconds(6),
+    trimStartUs: secondsToMicroseconds(1),
     transform: { ...defaultClipTransform },
     type: 'video',
     zIndex: 1,
   },
   {
-    duration: 3.5,
+    durationUs: secondsToMicroseconds(3.5),
     id: 'clip-video-3',
     name: 'video-3.mp4',
     sourceId: 'video-3',
-    sourceDuration: 4,
+    sourceDurationUs: secondsToMicroseconds(4),
     src: 'http://localhost/video-3.mp4',
-    start: 9,
+    startUs: secondsToMicroseconds(9),
     trackId: MAIN_VIDEO_TRACK_ID,
-    trimEnd: 4,
-    trimStart: 0.5,
+    trimEndUs: secondsToMicroseconds(4),
+    trimStartUs: secondsToMicroseconds(0.5),
     transform: { ...defaultClipTransform },
     type: 'video',
     zIndex: 2,
@@ -133,16 +138,16 @@ const createFixtureClips = (): TimelineClip[] => [
 ];
 
 const createAudioClip = (id: string, trackId: string): TimelineClip => ({
-  duration: 4,
+  durationUs: secondsToMicroseconds(4),
   id,
   name: `${id}.mp3`,
   sourceId: id,
-  sourceDuration: 4,
+  sourceDurationUs: secondsToMicroseconds(4),
   src: `http://localhost/${id}.mp3`,
-  start: 0,
+  startUs: secondsToMicroseconds(0),
   trackId,
-  trimEnd: 4,
-  trimStart: 0,
+  trimEndUs: secondsToMicroseconds(4),
+  trimStartUs: secondsToMicroseconds(0),
   transform: { ...defaultClipTransform },
   type: 'audio',
   zIndex: 0,
@@ -154,7 +159,7 @@ const resetToTwoVisualAudioTracks = () => {
       createAudioClip('clip-audio-a', 'audio-track-1'),
       createAudioClip('clip-audio-b', 'audio-track-2'),
     ],
-    currentTime: 0,
+    currentTimeUs: secondsToMicroseconds(0),
     future: [],
     past: [],
     selectedClipId: null,
@@ -172,8 +177,8 @@ const expectTrackClipsNotToOverlap = (trackId = MAIN_VIDEO_TRACK_ID) => {
     const currentClip = clips[index];
     const nextClip = clips[index + 1];
 
-    expect(currentClip.start + currentClip.duration).toBeLessThanOrEqual(
-      nextClip.start,
+    expect(currentClip.startUs + currentClip.durationUs).toBeLessThanOrEqual(
+      nextClip.startUs,
     );
   }
 };
@@ -223,7 +228,9 @@ describe('timelineStore video track layout', () => {
     expect(clips.every((clip) => clip.trackId === MAIN_VIDEO_TRACK_ID)).toBe(
       true,
     );
-    expect(clips.map((clip) => clip.start)).toEqual([0, 4, 9]);
+    expect(clips.map((clip) => clip.startUs)).toEqual(
+      [0, 4, 9].map(secondsToMicroseconds),
+    );
     expectTrackClipsNotToOverlap();
   });
 
@@ -252,7 +259,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().tracks).toEqual(draft.tracks);
     expect(timelineStore.getState().clips).toEqual(draft.clips);
-    expect(draft.schemaVersion).toBe(4);
+    expect(draft.schemaVersion).toBe(5);
   });
 
   it('compacts main-track gaps when restoring a saved composition draft', () => {
@@ -262,16 +269,16 @@ describe('timelineStore video track layout', () => {
       draft: {
         canvasSize: { height: 720, width: 1280 },
         clips: [
-          { ...clips[0], start: 2 },
-          { ...clips[1], start: 10 },
+          { ...clips[0], startUs: secondsToMicroseconds(2) },
+          { ...clips[1], startUs: secondsToMicroseconds(10) },
           {
             ...clips[2],
-            start: 7,
+            startUs: secondsToMicroseconds(7),
             trackId: 'video-overlay-1',
             zIndex: 0,
           },
         ],
-        schemaVersion: 4,
+        schemaVersion: 5,
         tracks: [
           createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
           createVideoTrack('video-overlay-1', '视频轨 2', 1),
@@ -279,63 +286,30 @@ describe('timelineStore video track layout', () => {
       },
     });
 
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-2', 4],
+      ['clip-video-2', secondsToMicroseconds(4)],
     ]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
-        (clip) => [clip.id, clip.start],
+        (clip) => [clip.id, clip.startUs],
       ),
-    ).toEqual([['clip-video-3', 7]]);
+    ).toEqual([['clip-video-3', secondsToMicroseconds(7)]]);
   });
 
-  it('restores a schema v1 draft and fills missing clip transforms and track volume', () => {
-    const legacyClip = { ...createFixtureClips()[0], transform: undefined };
+  it.each([1, 2, 3, 4])('rejects a schema v%s draft', (schemaVersion) => {
+    const validDraft = createVideoTimelineDraft(timelineStore.getState());
+    const previousState = timelineStore.getState();
 
-    timelineStore.getState().resetTimeline({
-      draft: {
-        canvasSize: { height: 1080, width: 1920 },
-        clips: [legacyClip],
-        schemaVersion: 1,
-        tracks: [
-          {
-            id: MAIN_VIDEO_TRACK_ID,
-            name: '主视频',
-            type: 'video',
-            zIndex: 0,
-          },
-        ],
-      },
-    });
-
-    expect(timelineStore.getState().clips[0]?.transform).toEqual({
-      height: 1080,
-      width: 1920,
-      x: 0,
-      y: 0,
-    });
-    expect(timelineStore.getState().tracks[0]?.volume).toBe(1);
-  });
-
-  it('restores a schema v2 draft and fills missing track volume', () => {
-    timelineStore.getState().resetTimeline({
-      draft: {
-        canvasSize: { height: 720, width: 1280 },
-        clips: createFixtureClips().slice(0, 1),
-        schemaVersion: 2,
-        tracks: [
-          {
-            id: MAIN_VIDEO_TRACK_ID,
-            name: '主视频',
-            type: 'video',
-            zIndex: 0,
-          },
-        ],
-      },
-    });
-
-    expect(timelineStore.getState().tracks[0]?.volume).toBe(1);
+    expect(() =>
+      timelineStore.getState().resetTimeline({
+        draft: {
+          ...validDraft,
+          schemaVersion,
+        } as unknown as VideoTimelineDraft,
+      }),
+    ).toThrow(`不支持的草稿版本：${schemaVersion}`);
+    expect(timelineStore.getState()).toBe(previousState);
   });
 
   it('compacts the main track after deleting the selected clip', () => {
@@ -344,9 +318,9 @@ describe('timelineStore video track layout', () => {
     state.selectClip('clip-video-2');
     state.deleteSelectedClip();
 
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-3', 4],
+      ['clip-video-3', secondsToMicroseconds(4)],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -354,15 +328,15 @@ describe('timelineStore video track layout', () => {
   it('compacts the main video track after dropping on the only video track', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 13,
+      freeStartUs: secondsToMicroseconds(13),
       insertionIndex: 2,
       target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-2', 0],
-      ['clip-video-3', 5],
-      ['clip-video-1', 8.5],
+      ['clip-video-3', secondsToMicroseconds(5)],
+      ['clip-video-1', secondsToMicroseconds(8.5)],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -370,15 +344,15 @@ describe('timelineStore video track layout', () => {
   it('compacts an overlapping same-track drop by insertion order', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-2',
-      freeStart: 7,
+      freeStartUs: secondsToMicroseconds(7),
       insertionIndex: 2,
       target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-3', 4],
-      ['clip-video-2', 7.5],
+      ['clip-video-3', secondsToMicroseconds(4)],
+      ['clip-video-2', secondsToMicroseconds(7.5)],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -386,15 +360,15 @@ describe('timelineStore video track layout', () => {
   it('uses the insertion index when dropping a later clip before earlier clips', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-3',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
 
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-3', 0],
-      ['clip-video-1', 3.5],
-      ['clip-video-2', 7.5],
+      ['clip-video-1', secondsToMicroseconds(3.5)],
+      ['clip-video-2', secondsToMicroseconds(7.5)],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -402,7 +376,7 @@ describe('timelineStore video track layout', () => {
   it('creates a dynamic video track from an insert target', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 2,
+      freeStartUs: secondsToMicroseconds(2),
       insertionIndex: 0,
       target: insertTarget('video', 1),
     });
@@ -420,7 +394,10 @@ describe('timelineStore video track layout', () => {
         .getState()
         .clips.find((clip) => clip.id === 'clip-video-1'),
     ).toEqual(
-      expect.objectContaining({ start: 2, trackId: 'video-overlay-1' }),
+      expect.objectContaining({
+        startUs: secondsToMicroseconds(2),
+        trackId: 'video-overlay-1',
+      }),
     );
   });
 
@@ -443,7 +420,7 @@ describe('timelineStore video track layout', () => {
   it('can insert a dynamic video track above the main video track', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 2,
+      freeStartUs: secondsToMicroseconds(2),
       insertionIndex: 0,
       target: insertTarget('video', 0),
     });
@@ -458,7 +435,7 @@ describe('timelineStore video track layout', () => {
 
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 2,
+      freeStartUs: secondsToMicroseconds(2),
       insertionIndex: 0,
       target: insertTarget('video', 0),
     });
@@ -483,13 +460,13 @@ describe('timelineStore video track layout', () => {
 
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 2,
+      freeStartUs: secondsToMicroseconds(2),
       insertionIndex: 0,
       target: insertTarget('video', 1),
     });
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 13,
+      freeStartUs: secondsToMicroseconds(13),
       insertionIndex: 2,
       target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
@@ -502,21 +479,24 @@ describe('timelineStore video track layout', () => {
         .getState()
         .clips.find((clip) => clip.id === 'clip-video-1'),
     ).toEqual(
-      expect.objectContaining({ start: 8.5, trackId: MAIN_VIDEO_TRACK_ID }),
+      expect.objectContaining({
+        startUs: secondsToMicroseconds(8.5),
+        trackId: MAIN_VIDEO_TRACK_ID,
+      }),
     );
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-2', 0],
-      ['clip-video-3', 5],
-      ['clip-video-1', 8.5],
+      ['clip-video-3', secondsToMicroseconds(5)],
+      ['clip-video-1', secondsToMicroseconds(8.5)],
     ]);
   });
 
-  it('removes an empty middle video track when moving a clip and restoring a legacy draft', () => {
+  it('removes an empty middle video track when moving a clip and restoring a draft', () => {
     resetToTwoVisualVideoTracks();
 
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-2',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: insertTarget('video', 2),
     });
@@ -570,13 +550,13 @@ describe('timelineStore video track layout', () => {
     const state = timelineStore.getState();
     state.commitClipDrop({
       clipId: 'clip-video-2',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: insertTarget('video', 2),
     });
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: existingTarget('video-overlay-2'),
     });
@@ -608,19 +588,19 @@ describe('timelineStore video track layout', () => {
 
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 2,
+      freeStartUs: secondsToMicroseconds(2),
       insertionIndex: 0,
       target: insertTarget('video', 1),
     });
     state.commitClipDrop({
       clipId: 'clip-video-2',
-      freeStart: 7,
+      freeStartUs: secondsToMicroseconds(7),
       insertionIndex: 1,
       target: existingTarget('video-overlay-1'),
     });
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 13,
+      freeStartUs: secondsToMicroseconds(13),
       insertionIndex: 1,
       target: existingTarget(MAIN_VIDEO_TRACK_ID),
     });
@@ -628,15 +608,15 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
       [MAIN_VIDEO_TRACK_ID, 'video-overlay-1'],
     );
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-3', 0],
-      ['clip-video-1', 3.5],
+      ['clip-video-1', secondsToMicroseconds(3.5)],
     ]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
-        (clip) => [clip.id, clip.start],
+        (clip) => [clip.id, clip.startUs],
       ),
-    ).toEqual([['clip-video-2', 7]]);
+    ).toEqual([['clip-video-2', secondsToMicroseconds(7)]]);
   });
 
   it('keeps the main video track after deleting every main-track clip', () => {
@@ -656,41 +636,48 @@ describe('timelineStore video track layout', () => {
   it('keeps split clips and neighbors contiguous', () => {
     const state = timelineStore.getState();
 
-    state.setCurrentTime(6);
+    state.setCurrentTimeUs(secondsToMicroseconds(6));
     state.splitAtPlayhead();
 
     const clips = getMainVideoClips();
 
     expect(clips).toHaveLength(4);
-    expect(clips.map((clip) => clip.start)).toEqual([0, 4, 6, 9]);
+    expect(clips.map((clip) => clip.startUs)).toEqual(
+      [0, 4, 6, 9].map(secondsToMicroseconds),
+    );
     expectTrackClipsNotToOverlap();
   });
 
   it('splits a specific clip at an explicit time without moving the playhead', () => {
     const state = timelineStore.getState();
 
-    state.setCurrentTime(1);
-    state.splitClipAtTime('clip-video-2', 6);
+    state.setCurrentTimeUs(secondsToMicroseconds(1));
+    state.splitClipAtTime('clip-video-2', secondsToMicroseconds(6));
 
-    expect(timelineStore.getState().currentTime).toBe(1);
-    expect(getMainVideoClips().map((clip) => [clip.start, clip.duration])).toEqual(
+    expect(timelineStore.getState().currentTimeUs).toBe(
+      secondsToMicroseconds(1),
+    );
+    expect(
+      getMainVideoClips().map((clip) => [clip.startUs, clip.durationUs]),
+    ).toEqual(
       [
         [0, 4],
         [4, 2],
         [6, 3],
         [9, 3.5],
-      ],
+      ].map(([start, duration]) => [
+        secondsToMicroseconds(start),
+        secondsToMicroseconds(duration),
+      ]),
     );
-    expect(timelineStore.getState().selectedClipId).toMatch(
-      /^clip-video-2-split-/,
-    );
+    expect(timelineStore.getState().selectedClipId).toBe('clip-video-2-split');
     expectTrackClipsNotToOverlap();
   });
 
   it('does not split a specific clip inside its minimum edge duration', () => {
     const state = timelineStore.getState();
 
-    state.splitClipAtTime('clip-video-2', 4.5);
+    state.splitClipAtTime('clip-video-2', secondsToMicroseconds(4.5));
 
     expect(getMainVideoClips()).toHaveLength(3);
     expect(timelineStore.getState().past).toHaveLength(0);
@@ -702,12 +689,14 @@ describe('timelineStore video track layout', () => {
     state.selectClip('clip-video-2');
     state.deleteSelectedClip();
     state.undo();
-    expect(getMainVideoClips().map((clip) => clip.start)).toEqual([0, 4, 9]);
+    expect(getMainVideoClips().map((clip) => clip.startUs)).toEqual(
+      [0, 4, 9].map(secondsToMicroseconds),
+    );
 
     state.redo();
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-3', 4],
+      ['clip-video-3', secondsToMicroseconds(4)],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -717,7 +706,7 @@ describe('timelineStore video track layout', () => {
 
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 2,
+      freeStartUs: secondsToMicroseconds(2),
       insertionIndex: 0,
       target: insertTarget('video', 1),
     });
@@ -781,7 +770,7 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().layoutRevision).toBe(revision + 1);
     revision = timelineStore.getState().layoutRevision;
 
-    timelineStore.getState().setCurrentTime(1);
+    timelineStore.getState().setCurrentTimeUs(secondsToMicroseconds(1));
     timelineStore.getState().splitAtPlayhead();
     expect(timelineStore.getState().layoutRevision).toBe(revision + 1);
   });
@@ -838,7 +827,7 @@ describe('timelineStore video track layout', () => {
     const revision = state.layoutRevision;
 
     state.selectClip('clip-video-1');
-    state.setCurrentTime(2);
+    state.setCurrentTimeUs(secondsToMicroseconds(2));
 
     expect(timelineStore.getState().layoutRevision).toBe(revision);
   });
@@ -890,7 +879,7 @@ describe('timelineStore video track layout', () => {
   it('exports dynamic video tracks as additional composition tracks', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 1,
+      freeStartUs: secondsToMicroseconds(1),
       insertionIndex: 0,
       target: insertTarget('video', 1),
     });
@@ -921,14 +910,14 @@ describe('timelineStore video track layout', () => {
 
     state.commitClipDrop({
       clipId: 'clip-video-1',
-      freeStart: 1,
+      freeStartUs: secondsToMicroseconds(1),
       insertionIndex: 0,
       target: insertTarget('video', 1),
     });
     state.toggleTrackMute('video-overlay-1');
     state.commitClipDrop({
       clipId: 'clip-video-2',
-      freeStart: 5,
+      freeStartUs: secondsToMicroseconds(5),
       insertionIndex: 1,
       target: existingTarget('video-overlay-1'),
     });
@@ -947,7 +936,7 @@ describe('timelineStore video track layout', () => {
   it('initializes the timeline from real video sources and exports the largest 16:9 canvas size', () => {
     const sources: VideoTimelineSource[] = [
       {
-        durationSeconds: 4,
+        durationUs: secondsToMicroseconds(4),
         fileName: 'first.mp4',
         height: 720,
         id: 'video-source-1',
@@ -956,7 +945,7 @@ describe('timelineStore video track layout', () => {
         width: 1280,
       },
       {
-        durationSeconds: 6.25,
+        durationUs: secondsToMicroseconds(6.25),
         fileName: 'second.mp4',
         height: 1080,
         id: 'video-source-2',
@@ -973,11 +962,11 @@ describe('timelineStore video track layout', () => {
         clip.id,
         clip.name,
         clip.src,
-        clip.start,
-        clip.duration,
-        clip.sourceDuration,
-        clip.trimStart,
-        clip.trimEnd,
+        clip.startUs,
+        clip.durationUs,
+        clip.sourceDurationUs,
+        clip.trimStartUs,
+        clip.trimEndUs,
         clip.transform,
       ]),
     ).toEqual([
@@ -986,10 +975,10 @@ describe('timelineStore video track layout', () => {
         'first.mp4',
         'http://localhost/first.mp4',
         0,
-        4,
-        4,
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(4),
         0,
-        4,
+        secondsToMicroseconds(4),
         {
           height: 1080,
           width: 1920,
@@ -1001,11 +990,11 @@ describe('timelineStore video track layout', () => {
         'clip-video-source-2',
         'second.mp4',
         'http://localhost/second.mp4',
-        4,
-        6.25,
-        6.25,
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(6.25),
+        secondsToMicroseconds(6.25),
         0,
-        6.25,
+        secondsToMicroseconds(6.25),
         {
           height: 1080,
           width: 1920,
@@ -1060,7 +1049,7 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().resetTimeline({
       sources: [
         {
-          durationSeconds: 4,
+          durationUs: secondsToMicroseconds(4),
           fileName: 'square.mp4',
           height: 1080,
           id: 'video-source-1',
@@ -1108,7 +1097,7 @@ describe('timelineStore video track layout', () => {
 
   it('repairs a default full-canvas draft transform when square source metadata arrives', () => {
     const source: VideoTimelineSource = {
-      durationSeconds: 4,
+      durationUs: secondsToMicroseconds(4),
       fileName: 'square.mp4',
       id: 'video-source-1',
       src: 'http://localhost/square.mp4',
@@ -1132,7 +1121,7 @@ describe('timelineStore video track layout', () => {
 
   it('preserves a manually edited draft transform when source metadata arrives', () => {
     const source: VideoTimelineSource = {
-      durationSeconds: 4,
+      durationUs: secondsToMicroseconds(4),
       fileName: 'square.mp4',
       id: 'video-source-1',
       src: 'http://localhost/square.mp4',
@@ -1172,11 +1161,13 @@ describe('timelineStore video track layout', () => {
 
     expect(
       getMainVideoClips().map((clip) => [
-        clip.start,
-        clip.duration,
-        clip.trimEnd,
+        clip.startUs,
+        clip.durationUs,
+        clip.trimEndUs,
       ]),
-    ).toEqual([[0, 5, 5]]);
+    ).toEqual([
+      [0, secondsToMicroseconds(5), secondsToMicroseconds(5)],
+    ]);
     expect(timelineStore.getState().createExportPayload()).toEqual({
       Canvas: { Height: 720, Width: 1280 },
       Track: [
@@ -1200,7 +1191,7 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().resetTimeline({
       sources: [
         {
-          durationSeconds: 4,
+          durationUs: secondsToMicroseconds(4),
           fileName: 'video.mp4',
           height: 720,
           id: 'video-source',
@@ -1209,7 +1200,7 @@ describe('timelineStore video track layout', () => {
           width: 1280,
         },
         {
-          durationSeconds: 10,
+          durationUs: secondsToMicroseconds(10),
           fileName: 'music.mp3',
           id: 'audio-music',
           src: 'http://localhost/music.mp3',
@@ -1217,7 +1208,7 @@ describe('timelineStore video track layout', () => {
           waveformSrc: 'http://localhost/music.mp3?download=1',
         },
         {
-          durationSeconds: 3,
+          durationUs: secondsToMicroseconds(3),
           fileName: 'voice.wav',
           id: 'audio-voice',
           src: 'http://localhost/voice.wav',
@@ -1236,7 +1227,7 @@ describe('timelineStore video track layout', () => {
       state.clips.map((clip) => [
         clip.sourceId,
         clip.trackId,
-        clip.start,
+        clip.startUs,
         clip.type,
       ]),
     ).toEqual([
@@ -1254,7 +1245,7 @@ describe('timelineStore video track layout', () => {
 
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-audio-b',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: insertTarget('audio', 3),
     });
@@ -1310,13 +1301,13 @@ describe('timelineStore video track layout', () => {
     const state = timelineStore.getState();
     state.commitClipDrop({
       clipId: 'clip-audio-b',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: insertTarget('audio', 3),
     });
     state.commitClipDrop({
       clipId: 'clip-audio-a',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: existingTarget('audio-track-3'),
     });
@@ -1371,13 +1362,13 @@ describe('timelineStore video track layout', () => {
     const state = timelineStore.getState();
     state.commitClipDrop({
       clipId: 'clip-audio-b',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 0,
       target: insertTarget('audio', 3),
     });
     state.commitClipDrop({
       clipId: 'clip-audio-b',
-      freeStart: 0,
+      freeStartUs: secondsToMicroseconds(0),
       insertionIndex: 1,
       target: existingTarget('audio-track-1'),
     });
@@ -1404,19 +1395,26 @@ describe('timelineStore video track layout', () => {
       .getState()
       .resetTimeline({ sources: [sourceWithoutDuration] });
     const draft = createVideoTimelineDraft(timelineStore.getState());
-    expect(timelineStore.getState().clips[0]?.duration).toBe(5);
+    expect(timelineStore.getState().clips[0]?.durationUs).toBe(
+      secondsToMicroseconds(5),
+    );
 
     timelineStore.getState().resetTimeline({
       draft,
-      sources: [{ ...sourceWithoutDuration, durationSeconds: 12.75 }],
+      sources: [
+        {
+          ...sourceWithoutDuration,
+          durationUs: secondsToMicroseconds(12.75),
+        },
+      ],
     });
 
     expect(timelineStore.getState().clips[0]).toEqual(
       expect.objectContaining({
-        duration: 12.75,
-        sourceDuration: 12.75,
-        trimEnd: 12.75,
-        trimStart: 0,
+        durationUs: secondsToMicroseconds(12.75),
+        sourceDurationUs: secondsToMicroseconds(12.75),
+        trimEndUs: secondsToMicroseconds(12.75),
+        trimStartUs: secondsToMicroseconds(0),
       }),
     );
   });
@@ -1433,27 +1431,42 @@ describe('timelineStore video track layout', () => {
       .getState()
       .resetTimeline({ sources: [sourceWithoutDuration] });
     timelineStore.getState().selectClip('clip-audio-music');
-    timelineStore.getState().setCurrentTime(2);
+    timelineStore.getState().setCurrentTimeUs(secondsToMicroseconds(2));
     timelineStore.getState().splitAtPlayhead();
     const draft = createVideoTimelineDraft(timelineStore.getState());
 
     timelineStore.getState().resetTimeline({
       draft,
-      sources: [{ ...sourceWithoutDuration, durationSeconds: 12.75 }],
+      sources: [
+        {
+          ...sourceWithoutDuration,
+          durationUs: secondsToMicroseconds(12.75),
+        },
+      ],
     });
 
     expect(
       timelineStore
         .getState()
         .clips.map((clip) => [
-          clip.duration,
-          clip.sourceDuration,
-          clip.trimStart,
-          clip.trimEnd,
+          clip.durationUs,
+          clip.sourceDurationUs,
+          clip.trimStartUs,
+          clip.trimEndUs,
         ]),
     ).toEqual([
-      [2, 12.75, 0, 2],
-      [3, 12.75, 2, 5],
+      [
+        secondsToMicroseconds(2),
+        secondsToMicroseconds(12.75),
+        0,
+        secondsToMicroseconds(2),
+      ],
+      [
+        secondsToMicroseconds(3),
+        secondsToMicroseconds(12.75),
+        secondsToMicroseconds(2),
+        secondsToMicroseconds(5),
+      ],
     ]);
   });
 
@@ -1461,7 +1474,7 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().resetTimeline({
       sources: [
         {
-          durationSeconds: 4,
+          durationUs: secondsToMicroseconds(4),
           fileName: 'first.mp4',
           id: 'video-source-1',
           src: 'http://localhost/first.mp4',
@@ -1475,7 +1488,7 @@ describe('timelineStore video track layout', () => {
       draft,
       sources: [
         {
-          durationSeconds: 6,
+          durationUs: secondsToMicroseconds(6),
           fileName: 'second.mp4',
           height: 1080,
           id: 'video-source-2',
@@ -1484,7 +1497,7 @@ describe('timelineStore video track layout', () => {
           width: 1080,
         },
         {
-          durationSeconds: 8,
+          durationUs: secondsToMicroseconds(8),
           fileName: 'music.mp3',
           id: 'audio-source-1',
           src: 'http://localhost/music.mp3',
@@ -1494,10 +1507,10 @@ describe('timelineStore video track layout', () => {
     });
 
     const state = timelineStore.getState();
-    expect(state.clips.map((clip) => [clip.sourceId, clip.start])).toEqual([
+    expect(state.clips.map((clip) => [clip.sourceId, clip.startUs])).toEqual([
       ['video-source-1', 0],
       ['audio-source-1', 0],
-      ['video-source-2', 4],
+      ['video-source-2', secondsToMicroseconds(4)],
     ]);
     expect(
       state.clips.find((clip) => clip.sourceId === 'video-source-2')?.transform,
@@ -1510,43 +1523,6 @@ describe('timelineStore video track layout', () => {
     expect(
       state.clips.filter((clip) => clip.sourceId === 'video-source-1'),
     ).toHaveLength(1);
-  });
-
-  it('migrates legacy clips to stable source ids from matching connected sources', () => {
-    const legacyClip = { ...createFixtureClips()[0], sourceId: undefined };
-
-    timelineStore.getState().resetTimeline({
-      draft: {
-        canvasSize: { height: 720, width: 1280 },
-        clips: [legacyClip],
-        schemaVersion: 3,
-        tracks: [
-          {
-            id: MAIN_VIDEO_TRACK_ID,
-            name: '视频轨',
-            type: 'video',
-            volume: 1,
-            zIndex: 0,
-          },
-        ],
-      },
-      sources: [
-        {
-          durationSeconds: 4,
-          fileName: 'video-1.mp4',
-          id: 'connected-source-id',
-          src: legacyClip.src,
-          type: 'video',
-        },
-      ],
-    });
-
-    expect(timelineStore.getState().clips[0]?.sourceId).toBe(
-      'connected-source-id',
-    );
-    expect(
-      createVideoTimelineDraft(timelineStore.getState()).schemaVersion,
-    ).toBe(4);
   });
 
   it('creates audio tracks only below video tracks and rejects cross-type drops', () => {
@@ -1583,7 +1559,7 @@ describe('timelineStore video track layout', () => {
 
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-audio',
-      freeStart: 2,
+      freeStartUs: secondsToMicroseconds(2),
       insertionIndex: 0,
       target: insertTarget('audio', 0),
     });
@@ -1657,14 +1633,14 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().resetTimeline({
       sources: [
         {
-          durationSeconds: 4,
+          durationUs: secondsToMicroseconds(4),
           fileName: 'video.mp4',
           id: 'video-source',
           src: 'http://localhost/video.mp4',
           type: 'video',
         },
         {
-          durationSeconds: 10,
+          durationUs: secondsToMicroseconds(10),
           fileName: 'music.mp3',
           id: 'audio-source',
           src: 'http://localhost/music.mp3',
@@ -1697,18 +1673,31 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'end',
-      trimEnd: 4,
-      trimStart: 1,
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(1),
     });
 
     const clips = getMainVideoClips();
-    expect(clips.map((clip) => [clip.id, clip.start, clip.duration])).toEqual([
-      ['clip-video-1', 0, 4],
-      ['clip-video-2', 4, 3],
-      ['clip-video-3', 7, 3.5],
+    expect(
+      clips.map((clip) => [clip.id, clip.startUs, clip.durationUs]),
+    ).toEqual([
+      ['clip-video-1', 0, secondsToMicroseconds(4)],
+      [
+        'clip-video-2',
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(3),
+      ],
+      [
+        'clip-video-3',
+        secondsToMicroseconds(7),
+        secondsToMicroseconds(3.5),
+      ],
     ]);
     expect(clips[1]).toEqual(
-      expect.objectContaining({ trimEnd: 4, trimStart: 1 }),
+      expect.objectContaining({
+        trimEndUs: secondsToMicroseconds(4),
+        trimStartUs: secondsToMicroseconds(1),
+      }),
     );
     expect(
       timelineStore.getState().createExportPayload().Track[0]?.slice(1),
@@ -1743,23 +1732,38 @@ describe('timelineStore video track layout', () => {
     state.commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'end',
-      trimEnd: 4,
-      trimStart: 1,
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(1),
     });
     state.commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'end',
-      trimEnd: 8,
-      trimStart: 1,
+      trimEndUs: secondsToMicroseconds(8),
+      trimStartUs: secondsToMicroseconds(1),
     });
 
     const clips = getMainVideoClips();
     expect(
-      clips.map((clip) => [clip.id, clip.start, clip.duration, clip.trimEnd]),
+      clips.map((clip) => [clip.id, clip.startUs, clip.durationUs, clip.trimEndUs]),
     ).toEqual([
-      ['clip-video-1', 0, 4, 4],
-      ['clip-video-2', 4, 5, 6],
-      ['clip-video-3', 9, 3.5, 4],
+      [
+        'clip-video-1',
+        0,
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(4),
+      ],
+      [
+        'clip-video-2',
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(5),
+        secondsToMicroseconds(6),
+      ],
+      [
+        'clip-video-3',
+        secondsToMicroseconds(9),
+        secondsToMicroseconds(3.5),
+        secondsToMicroseconds(4),
+      ],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -1768,23 +1772,41 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'start',
-      trimEnd: 6,
-      trimStart: 2,
+      trimEndUs: secondsToMicroseconds(6),
+      trimStartUs: secondsToMicroseconds(2),
     });
 
     const clips = getMainVideoClips();
     expect(
       clips.map((clip) => [
         clip.id,
-        clip.start,
-        clip.duration,
-        clip.trimStart,
-        clip.trimEnd,
+        clip.startUs,
+        clip.durationUs,
+        clip.trimStartUs,
+        clip.trimEndUs,
       ]),
     ).toEqual([
-      ['clip-video-1', 0, 4, 0, 4],
-      ['clip-video-2', 4, 4, 2, 6],
-      ['clip-video-3', 8, 3.5, 0.5, 4],
+      [
+        'clip-video-1',
+        0,
+        secondsToMicroseconds(4),
+        0,
+        secondsToMicroseconds(4),
+      ],
+      [
+        'clip-video-2',
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(2),
+        secondsToMicroseconds(6),
+      ],
+      [
+        'clip-video-3',
+        secondsToMicroseconds(8),
+        secondsToMicroseconds(3.5),
+        secondsToMicroseconds(0.5),
+        secondsToMicroseconds(4),
+      ],
     ]);
     expectTrackClipsNotToOverlap();
   });
@@ -1797,7 +1819,7 @@ describe('timelineStore video track layout', () => {
           ...createFixtureClips()[0],
           id: 'clip-overlay',
           src: 'http://localhost/overlay.mp4',
-          start: 0,
+          startUs: secondsToMicroseconds(0),
           trackId: 'video-overlay-1',
           zIndex: 0,
         },
@@ -1823,20 +1845,28 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'start',
-      trimEnd: 6,
-      trimStart: 2,
+      trimEndUs: secondsToMicroseconds(6),
+      trimStartUs: secondsToMicroseconds(2),
     });
 
     expect(
-      getMainVideoClips().map((clip) => [clip.id, clip.start, clip.duration]),
+      getMainVideoClips().map((clip) => [clip.id, clip.startUs, clip.durationUs]),
     ).toEqual([
-      ['clip-video-1', 0, 4],
-      ['clip-video-2', 4, 4],
-      ['clip-video-3', 8, 3.5],
+      ['clip-video-1', 0, secondsToMicroseconds(4)],
+      [
+        'clip-video-2',
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(4),
+      ],
+      [
+        'clip-video-3',
+        secondsToMicroseconds(8),
+        secondsToMicroseconds(3.5),
+      ],
     ]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
-        (clip) => [clip.id, clip.start],
+        (clip) => [clip.id, clip.startUs],
       ),
     ).toEqual([['clip-overlay', 0]]);
     expectTrackClipsNotToOverlap();
@@ -1848,47 +1878,57 @@ describe('timelineStore video track layout', () => {
     state.commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'start',
-      trimEnd: 6,
-      trimStart: 2,
+      trimEndUs: secondsToMicroseconds(6),
+      trimStartUs: secondsToMicroseconds(2),
     });
     state.commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'start',
-      trimEnd: 6,
-      trimStart: 0,
+      trimEndUs: secondsToMicroseconds(6),
+      trimStartUs: secondsToMicroseconds(0),
     });
 
     expect(
       getMainVideoClips().map((clip) => [
         clip.id,
-        clip.start,
-        clip.duration,
-        clip.trimStart,
+        clip.startUs,
+        clip.durationUs,
+        clip.trimStartUs,
       ]),
     ).toEqual([
-      ['clip-video-1', 0, 4, 0],
-      ['clip-video-2', 4, 6, 0],
-      ['clip-video-3', 10, 3.5, 0.5],
+      ['clip-video-1', 0, secondsToMicroseconds(4), 0],
+      [
+        'clip-video-2',
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(6),
+        0,
+      ],
+      [
+        'clip-video-3',
+        secondsToMicroseconds(10),
+        secondsToMicroseconds(3.5),
+        secondsToMicroseconds(0.5),
+      ],
     ]);
 
     state.commitClipTrim({
       clipId: 'clip-video-1',
       edge: 'start',
-      trimEnd: 4,
-      trimStart: 1,
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(1),
     });
     state.commitClipTrim({
       clipId: 'clip-video-1',
       edge: 'start',
-      trimEnd: 4,
-      trimStart: 0,
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(0),
     });
 
     expect(getMainVideoClips()[0]).toEqual(
       expect.objectContaining({
-        duration: 4,
-        start: 0,
-        trimStart: 0,
+        durationUs: secondsToMicroseconds(4),
+        startUs: secondsToMicroseconds(0),
+        trimStartUs: secondsToMicroseconds(0),
       }),
     );
     expectTrackClipsNotToOverlap();
@@ -1900,34 +1940,34 @@ describe('timelineStore video track layout', () => {
     state.commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'start',
-      trimEnd: 6,
-      trimStart: 5.8,
+      trimEndUs: secondsToMicroseconds(6),
+      trimStartUs: secondsToMicroseconds(5.8),
     });
 
     let clip = getMainVideoClips()[1];
     expect(clip).toEqual(
       expect.objectContaining({
-        duration: 0.6,
-        start: 4,
-        trimEnd: 6,
-        trimStart: 5.4,
+        durationUs: secondsToMicroseconds(0.6),
+        startUs: secondsToMicroseconds(4),
+        trimEndUs: secondsToMicroseconds(6),
+        trimStartUs: secondsToMicroseconds(5.4),
       }),
     );
 
     state.commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'end',
-      trimEnd: 20,
-      trimStart: 5.4,
+      trimEndUs: secondsToMicroseconds(20),
+      trimStartUs: secondsToMicroseconds(5.4),
     });
 
     clip = getMainVideoClips()[1];
     expect(clip).toEqual(
       expect.objectContaining({
-        duration: 0.6,
-        start: 4,
-        trimEnd: 6,
-        trimStart: 5.4,
+        durationUs: secondsToMicroseconds(0.6),
+        startUs: secondsToMicroseconds(4),
+        trimEndUs: secondsToMicroseconds(6),
+        trimStartUs: secondsToMicroseconds(5.4),
       }),
     );
     expectTrackClipsNotToOverlap();
@@ -1939,12 +1979,14 @@ describe('timelineStore video track layout', () => {
         if (clip.id === 'clip-video-2') {
           return {
             ...clip,
-            duration: 3,
-            trimEnd: 4,
-            trimStart: 1,
+            durationUs: secondsToMicroseconds(3),
+            trimEndUs: secondsToMicroseconds(4),
+            trimStartUs: secondsToMicroseconds(1),
           };
         }
-        if (clip.id === 'clip-video-3') return { ...clip, start: 7 };
+        if (clip.id === 'clip-video-3') {
+          return { ...clip, startUs: secondsToMicroseconds(7) };
+        }
         return clip;
       }),
     }));
@@ -1952,7 +1994,7 @@ describe('timelineStore video track layout', () => {
     const initialState = timelineStore.getState();
     manualStore.setState({
       clips: initialState.clips.map((clip) => ({ ...clip })),
-      currentTime: initialState.currentTime,
+      currentTimeUs: initialState.currentTimeUs,
       future: [],
       isPlaying: initialState.isPlaying,
       past: [],
@@ -1963,8 +2005,8 @@ describe('timelineStore video track layout', () => {
     manualStore.getState().commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'start',
-      trimEnd: 4,
-      trimStart: 0,
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(0),
     });
     const manuallyRestoredStart = manualStore
       .getState()
@@ -1972,8 +2014,8 @@ describe('timelineStore video track layout', () => {
     manualStore.getState().commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'end',
-      trimEnd: manuallyRestoredStart?.sourceDuration ?? 0,
-      trimStart: manuallyRestoredStart?.trimStart ?? 0,
+      trimEndUs: manuallyRestoredStart?.sourceDurationUs ?? 0,
+      trimStartUs: manuallyRestoredStart?.trimStartUs ?? 0,
     });
 
     timelineStore.getState().restoreClipTrim('clip-video-2');
@@ -1984,45 +2026,61 @@ describe('timelineStore video track layout', () => {
     expect(
       getMainVideoClips().find((clip) => clip.id === 'clip-video-2'),
     ).toEqual(
-      expect.objectContaining({ duration: 6, trimEnd: 6, trimStart: 0 }),
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(6),
+        trimEndUs: secondsToMicroseconds(6),
+        trimStartUs: 0,
+      }),
     );
     expect(getMainVideoClips().find((clip) => clip.id === 'clip-video-3'))
-      .toEqual(expect.objectContaining({ start: 10 }));
+      .toEqual(expect.objectContaining({ startUs: secondsToMicroseconds(10) }));
     expect(timelineStore.getState().past).toHaveLength(1);
     expectTrackClipsNotToOverlap();
 
     timelineStore.getState().undo();
     expect(getMainVideoClips().find((clip) => clip.id === 'clip-video-2'))
-      .toEqual(expect.objectContaining({ duration: 3, trimEnd: 4, trimStart: 1 }));
+      .toEqual(
+        expect.objectContaining({
+          durationUs: secondsToMicroseconds(3),
+          trimEndUs: secondsToMicroseconds(4),
+          trimStartUs: secondsToMicroseconds(1),
+        }),
+      );
     timelineStore.getState().redo();
     expect(getMainVideoClips().find((clip) => clip.id === 'clip-video-2'))
-      .toEqual(expect.objectContaining({ duration: 6, trimEnd: 6, trimStart: 0 }));
+      .toEqual(
+        expect.objectContaining({
+          durationUs: secondsToMicroseconds(6),
+          trimEndUs: secondsToMicroseconds(6),
+          trimStartUs: 0,
+        }),
+      );
   });
 
   it('restores an audio clip with the same layout as manually restoring both trim edges', () => {
     const audioTrackId = 'audio-track-restore';
     const leadingClip = {
       ...createAudioClip('clip-audio-leading', audioTrackId),
-      duration: 3,
-      sourceDuration: 3,
-      trimEnd: 3,
+      durationUs: secondsToMicroseconds(3),
+      sourceDurationUs: secondsToMicroseconds(3),
+      trimEndUs: secondsToMicroseconds(3),
       zIndex: 0,
     };
     const restoredClip = {
       ...createAudioClip('clip-audio-restore', audioTrackId),
-      duration: 3,
-      sourceDuration: 6,
-      start: 3,
-      trimEnd: 4,
-      trimStart: 1,
+      durationUs: secondsToMicroseconds(3),
+      sourceDurationUs: secondsToMicroseconds(6),
+      startUs: secondsToMicroseconds(3),
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(1),
       zIndex: 1,
     };
     const followingClip = {
       ...createAudioClip('clip-audio-following', audioTrackId),
-      duration: 2,
-      sourceDuration: 2,
-      start: 6,
-      trimEnd: 2,
+      durationUs: secondsToMicroseconds(2),
+      sourceDurationUs: secondsToMicroseconds(2),
+      startUs: secondsToMicroseconds(6),
+      trimEndUs: secondsToMicroseconds(2),
       zIndex: 2,
     };
     const tracks = [
@@ -2031,7 +2089,7 @@ describe('timelineStore video track layout', () => {
     ];
     timelineStore.setState({
       clips: [leadingClip, restoredClip, followingClip],
-      currentTime: 0,
+      currentTimeUs: secondsToMicroseconds(0),
       future: [],
       isPlaying: false,
       past: [],
@@ -2041,7 +2099,7 @@ describe('timelineStore video track layout', () => {
     const manualStore = createTimelineStore();
     manualStore.setState({
       clips: timelineStore.getState().clips.map((clip) => ({ ...clip })),
-      currentTime: 0,
+      currentTimeUs: secondsToMicroseconds(0),
       future: [],
       isPlaying: false,
       past: [],
@@ -2052,8 +2110,8 @@ describe('timelineStore video track layout', () => {
     manualStore.getState().commitClipTrim({
       clipId: restoredClip.id,
       edge: 'start',
-      trimEnd: 4,
-      trimStart: 0,
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(0),
     });
     const manuallyRestoredStart = manualStore
       .getState()
@@ -2061,8 +2119,8 @@ describe('timelineStore video track layout', () => {
     manualStore.getState().commitClipTrim({
       clipId: restoredClip.id,
       edge: 'end',
-      trimEnd: manuallyRestoredStart?.sourceDuration ?? 0,
-      trimStart: manuallyRestoredStart?.trimStart ?? 0,
+      trimEndUs: manuallyRestoredStart?.sourceDurationUs ?? 0,
+      trimStartUs: manuallyRestoredStart?.trimStartUs ?? 0,
     });
 
     timelineStore.getState().restoreClipTrim(restoredClip.id);
@@ -2073,15 +2131,33 @@ describe('timelineStore video track layout', () => {
     expect(
       getTrackClips(timelineStore.getState().clips, audioTrackId).map((clip) => [
         clip.id,
-        clip.start,
-        clip.duration,
-        clip.trimStart,
-        clip.trimEnd,
+        clip.startUs,
+        clip.durationUs,
+        clip.trimStartUs,
+        clip.trimEndUs,
       ]),
     ).toEqual([
-      ['clip-audio-leading', 0, 3, 0, 3],
-      ['clip-audio-restore', 3, 5, 1, 6],
-      ['clip-audio-following', 8, 2, 0, 2],
+      [
+        'clip-audio-leading',
+        0,
+        secondsToMicroseconds(3),
+        0,
+        secondsToMicroseconds(3),
+      ],
+      [
+        'clip-audio-restore',
+        secondsToMicroseconds(3),
+        secondsToMicroseconds(5),
+        secondsToMicroseconds(1),
+        secondsToMicroseconds(6),
+      ],
+      [
+        'clip-audio-following',
+        secondsToMicroseconds(8),
+        secondsToMicroseconds(2),
+        0,
+        secondsToMicroseconds(2),
+      ],
     ]);
     expect(timelineStore.getState().past).toHaveLength(1);
     expectTrackClipsNotToOverlap(audioTrackId);
@@ -2102,20 +2178,20 @@ describe('timelineStore video track layout', () => {
     state.commitClipTrim({
       clipId: 'clip-video-2',
       edge: 'end',
-      trimEnd: 4,
-      trimStart: 1,
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(1),
     });
-    expect(getMainVideoClips()[1]?.trimEnd).toBe(4);
-    expect(getMainVideoClips()[2]?.start).toBe(7);
+    expect(getMainVideoClips()[1]?.trimEndUs).toBe(secondsToMicroseconds(4));
+    expect(getMainVideoClips()[2]?.startUs).toBe(secondsToMicroseconds(7));
 
     state.undo();
-    expect(getMainVideoClips()[1]?.trimEnd).toBe(6);
-    expect(getMainVideoClips()[2]?.start).toBe(9);
+    expect(getMainVideoClips()[1]?.trimEndUs).toBe(secondsToMicroseconds(6));
+    expect(getMainVideoClips()[2]?.startUs).toBe(secondsToMicroseconds(9));
     expectTrackClipsNotToOverlap();
 
     state.redo();
-    expect(getMainVideoClips()[1]?.trimEnd).toBe(4);
-    expect(getMainVideoClips()[2]?.start).toBe(7);
+    expect(getMainVideoClips()[1]?.trimEndUs).toBe(secondsToMicroseconds(4));
+    expect(getMainVideoClips()[2]?.startUs).toBe(secondsToMicroseconds(7));
     expectTrackClipsNotToOverlap();
   });
 });
@@ -2157,12 +2233,15 @@ describe('timelineStore clip copy and paste', () => {
       clips: [
         ...state.clips.map((clip) =>
           clip.id === 'clip-video-2'
-            ? { ...clip, start: 6 }
+            ? { ...clip, startUs: secondsToMicroseconds(6) }
             : clip.id === 'clip-video-3'
-              ? { ...clip, start: 13 }
+              ? { ...clip, startUs: secondsToMicroseconds(13) }
               : clip,
         ),
-        { ...createAudioClip('clip-audio', 'audio-track-1'), start: 4 },
+        {
+          ...createAudioClip('clip-audio', 'audio-track-1'),
+          startUs: secondsToMicroseconds(4),
+        },
       ],
       tracks: [
         ...state.tracks,
@@ -2179,25 +2258,25 @@ describe('timelineStore clip copy and paste', () => {
     timelineStore.getState().pasteCopiedClip();
 
     expect(
-      getMainVideoClips().map((clip) => [clip.id, clip.start, clip.zIndex]),
+      getMainVideoClips().map((clip) => [clip.id, clip.startUs, clip.zIndex]),
     ).toEqual([
       ['clip-video-1', 0, 0],
-      ['clip-video-1-copy', 4, 1],
-      ['clip-video-2', 8, 2],
-      ['clip-video-3', 13, 3],
+      ['clip-video-1-copy', secondsToMicroseconds(4), 1],
+      ['clip-video-2', secondsToMicroseconds(8), 2],
+      ['clip-video-3', secondsToMicroseconds(13), 3],
     ]);
     expect(timelineStore.getState().selectedClipId).toBe('clip-video-1-copy');
     expect(
       timelineStore.getState().clips.find((clip) => clip.id === 'clip-audio')
-        ?.start,
-    ).toBe(4);
+        ?.startUs,
+    ).toBe(secondsToMicroseconds(4));
     expect(
       timelineStore.getState().clips.find((clip) => clip.id === 'clip-video-1-copy'),
     ).toEqual(
       expect.objectContaining({
         ...originalClip,
         id: 'clip-video-1-copy',
-        start: 4,
+        startUs: secondsToMicroseconds(4),
         zIndex: 1,
       }),
     );
@@ -2211,13 +2290,13 @@ describe('timelineStore clip copy and paste', () => {
     timelineStore.getState().pasteCopiedClip();
 
     expect(
-      getMainVideoClips().map((clip) => [clip.id, clip.start]),
+      getMainVideoClips().map((clip) => [clip.id, clip.startUs]),
     ).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-1-copy', 4],
-      ['clip-video-1-copy-2', 8],
-      ['clip-video-2', 12],
-      ['clip-video-3', 17],
+      ['clip-video-1-copy', secondsToMicroseconds(4)],
+      ['clip-video-1-copy-2', secondsToMicroseconds(8)],
+      ['clip-video-2', secondsToMicroseconds(12)],
+      ['clip-video-3', secondsToMicroseconds(17)],
     ]);
     expect(timelineStore.getState().selectedClipId).toBe('clip-video-1-copy-2');
   });
@@ -2233,13 +2312,13 @@ describe('timelineStore clip copy and paste', () => {
         {
           ...state.clips[0]!,
           id: 'clip-overlay',
-          start: 0,
+          startUs: secondsToMicroseconds(0),
           trackId: 'video-overlay-1',
         },
         {
           ...state.clips[1]!,
           id: 'clip-overlay-next',
-          start: 6,
+          startUs: secondsToMicroseconds(6),
           trackId: 'video-overlay-1',
           zIndex: 1,
         },
@@ -2256,19 +2335,19 @@ describe('timelineStore clip copy and paste', () => {
     expect(timelineStore.getState().clips).toHaveLength(6);
     expect(
       getTrackClips(timelineStore.getState().clips, 'video-overlay-1').map(
-        (clip) => [clip.id, clip.start],
+        (clip) => [clip.id, clip.startUs],
       ),
     ).toEqual([
       ['clip-overlay', 0],
-      ['clip-video-1-copy', 4],
-      ['clip-overlay-next', 10],
+      ['clip-video-1-copy', secondsToMicroseconds(4)],
+      ['clip-overlay-next', secondsToMicroseconds(8)],
     ]);
     expect(timelineStore.getState().clips.find((clip) => clip.id === 'clip-video-1-copy'))
       .toEqual(expect.objectContaining({ trackId: 'video-overlay-1' }));
-    expect(getMainVideoClips().map((clip) => [clip.id, clip.start])).toEqual([
+    expect(getMainVideoClips().map((clip) => [clip.id, clip.startUs])).toEqual([
       ['clip-video-1', 0],
-      ['clip-video-2', 4],
-      ['clip-video-3', 9],
+      ['clip-video-2', secondsToMicroseconds(4)],
+      ['clip-video-3', secondsToMicroseconds(9)],
     ]);
   });
 
@@ -2282,16 +2361,16 @@ describe('timelineStore clip copy and paste', () => {
 
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-1').map(
-        (clip) => [clip.id, clip.start],
+        (clip) => [clip.id, clip.startUs],
       ),
     ).toEqual([['clip-audio-a', 0]]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-2').map(
-        (clip) => [clip.id, clip.start],
+        (clip) => [clip.id, clip.startUs],
       ),
     ).toEqual([
       ['clip-audio-b', 0],
-      ['clip-audio-a-copy', 4],
+      ['clip-audio-a-copy', secondsToMicroseconds(4)],
     ]);
     expect(timelineStore.getState().selectedClipId).toBe('clip-audio-a-copy');
   });
@@ -2300,7 +2379,10 @@ describe('timelineStore clip copy and paste', () => {
     timelineStore.setState((state) => ({
       clips: [
         ...state.clips,
-        { ...createAudioClip('clip-audio-target', 'audio-track-1'), start: 4 },
+        {
+          ...createAudioClip('clip-audio-target', 'audio-track-1'),
+          startUs: secondsToMicroseconds(4),
+        },
       ],
       tracks: [
         ...state.tracks,
@@ -2319,7 +2401,7 @@ describe('timelineStore clip copy and paste', () => {
     timelineStore.setState((state) => ({
       clips: [
         ...state.clips,
-        { ...createFixtureClips()[0], id: 'clip-video-target', start: 0 },
+        { ...createFixtureClips()[0], id: 'clip-video-target', startUs: secondsToMicroseconds(0) },
       ],
     }));
     timelineStore.getState().selectClip('clip-audio-a');
@@ -2352,7 +2434,7 @@ describe('timelineStore clip copy and paste', () => {
 
 describe('createTimelineStore source syncing', () => {
   const source: VideoTimelineSource = {
-    durationSeconds: 4,
+    durationUs: secondsToMicroseconds(4),
     fileName: 'source.mp4',
     height: 720,
     id: 'source-1',
@@ -2391,11 +2473,11 @@ describe('createTimelineStore source syncing', () => {
     store.getState().deleteSelectedClip();
     expect(store.getState().clips).toHaveLength(0);
 
-    store.getState().syncSources([{ ...source, durationSeconds: 8 }]);
+    store.getState().syncSources([{ ...source, durationUs: secondsToMicroseconds(8) }]);
     expect(store.getState().clips).toHaveLength(0);
   });
 
-  it('projects refreshed source identity into current, past, and future clips', () => {
+  it('refreshes current source identity without rewriting edit history', () => {
     const store = createTimelineStore({
       sources: [{ ...source, waveformSrc: 'https://example.com/old-waveform' }],
     });
@@ -2428,32 +2510,7 @@ describe('createTimelineStore source syncing', () => {
     expect(store.getState().clips[0]).toEqual(
       expect.objectContaining(expectedIdentity),
     );
-    expect(store.getState().past[0]?.clips[0]).toEqual(
-      expect.objectContaining(expectedIdentity),
-    );
-    expect(store.getState().future[0]?.clips[0]).toEqual(
-      expect.objectContaining(expectedIdentity),
-    );
-
-    store.getState().undo();
-    expect(store.getState().clips[0]).toEqual(
-      expect.objectContaining({ ...expectedIdentity, transform: initialTransform }),
-    );
-
-    store.getState().redo();
-    expect(store.getState().clips[0]).toEqual(
-      expect.objectContaining({
-        ...expectedIdentity,
-        transform: { ...initialTransform, x: 10 },
-      }),
-    );
-
-    store.getState().redo();
-    expect(store.getState().clips[0]).toEqual(
-      expect.objectContaining({
-        ...expectedIdentity,
-        transform: { ...initialTransform, x: 20 },
-      }),
-    );
+    expect(store.getState().past[0]?.clips[0]?.src).toBe(source.src);
+    expect(store.getState().future[0]?.clips[0]?.src).toBe(source.src);
   });
 });

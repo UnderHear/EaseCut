@@ -1,7 +1,7 @@
 import type {
   TimelineTrack,
   TimelineTrackVolume,
-} from '../types';
+} from './model';
 
 export const MAIN_VIDEO_TRACK_ID = 'video-main';
 export const DYNAMIC_VIDEO_TRACK_ID_PREFIX = 'video-overlay-';

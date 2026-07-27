@@ -1,15 +1,15 @@
-import type { TimelineClip } from '../types';
-import { roundTimelineTime, timeToX } from './timeline-math';
+import type { TimelineClip } from './model';
+import { normalizeTimelineTimeUs, timeUsToX } from './timeline-math';
 
 type ClipMoveSnapEdge = 'start' | 'end';
 
 type ClosestSnapCandidate = {
   distancePx: number;
-  snappedTo: number;
+  snappedToUs: number;
 };
 type ClipInsertionLayout = {
   clips: TimelineClip[];
-  insertedStart: number;
+  insertedStartUs: number;
   shiftedClipIds: string[];
 };
 
@@ -21,7 +21,7 @@ const SNAP_DISTANCE_EPSILON = 1e-9;
 
 export const sortClipsByStart = (clips: TimelineClip[]) =>
   [...clips].sort(
-    (left, right) => left.start - right.start || left.zIndex - right.zIndex,
+    (left, right) => left.startUs - right.startUs || left.zIndex - right.zIndex,
   );
 
 export const getTrackClips = (clips: TimelineClip[], trackId: string) =>
@@ -31,8 +31,12 @@ export const layoutTrackSequentially = (clips: TimelineClip[]) => {
   let cursor = 0;
 
   return clips.map((clip, zIndex) => {
-    const nextClip = { ...clip, start: roundTimelineTime(cursor), zIndex };
-    cursor += clip.duration;
+    const nextClip = {
+      ...clip,
+      startUs: normalizeTimelineTimeUs(cursor),
+      zIndex,
+    };
+    cursor += clip.durationUs;
     return nextClip;
   });
 };
@@ -51,7 +55,7 @@ export const relayoutTrackInClipSet = (
 
 export const getTimelineDuration = (clips: TimelineClip[]) =>
   clips.reduce(
-    (duration, clip) => Math.max(duration, clip.start + clip.duration),
+    (duration, clip) => Math.max(duration, clip.startUs + clip.durationUs),
     0,
   );
 
@@ -70,8 +74,8 @@ export const getInsertionIndex = (
 
   for (let index = 0; index < candidates.length; index += 1) {
     const targetClip = candidates[index];
-    const targetClipCenterX = timeToX(
-      targetClip.start + targetClip.duration / 2,
+    const targetClipCenterX = timeUsToX(
+      targetClip.startUs + targetClip.durationUs / 2,
       pixelsPerSecond,
     );
     const draggedEdgeX =
@@ -89,7 +93,7 @@ export const getPreservedGapInsertionLayout = (
   trackClips: TimelineClip[],
   draggedClip: TimelineClip,
   insertionIndex: number,
-  candidateStart: number,
+  candidateStartUs: number,
   options: PreservedGapInsertionLayoutOptions = {},
 ): ClipInsertionLayout => {
   const candidates = sortClipsByStart(trackClips).filter(
@@ -102,27 +106,29 @@ export const getPreservedGapInsertionLayout = (
   const previousClip = candidates[safeInsertionIndex - 1];
   const nextClip = candidates[safeInsertionIndex];
   const previousEnd = previousClip
-    ? roundTimelineTime(previousClip.start + previousClip.duration)
+    ? normalizeTimelineTimeUs(previousClip.startUs + previousClip.durationUs)
     : 0;
-  const safeCandidateStart = roundTimelineTime(Math.max(0, candidateStart));
+  const safeCandidateStart = normalizeTimelineTimeUs(
+    Math.max(0, candidateStartUs),
+  );
   const allowTrailingFreeStart = options.allowTrailingFreeStart ?? true;
-  const insertedStart = nextClip
-    ? roundTimelineTime(
-        nextClip.start - draggedClip.duration >= previousEnd
+  const insertedStartUs = nextClip
+    ? normalizeTimelineTimeUs(
+        nextClip.startUs - draggedClip.durationUs >= previousEnd
           ? Math.min(
               Math.max(safeCandidateStart, previousEnd),
-              nextClip.start - draggedClip.duration,
+              nextClip.startUs - draggedClip.durationUs,
             )
           : previousEnd,
       )
-    : roundTimelineTime(
+    : normalizeTimelineTimeUs(
         allowTrailingFreeStart
           ? Math.max(previousEnd, safeCandidateStart)
           : previousEnd,
       );
   const orderedClips = [
     ...candidates.slice(0, safeInsertionIndex),
-    { ...draggedClip, start: insertedStart },
+    { ...draggedClip, startUs: insertedStartUs },
     ...candidates.slice(safeInsertionIndex),
   ];
   const shiftedClipIds: string[] = [];
@@ -131,22 +137,22 @@ export const getPreservedGapInsertionLayout = (
   const clips = orderedClips.map((clip, index) => {
     const nextStart =
       index <= safeInsertionIndex
-        ? clip.start
-        : roundTimelineTime(Math.max(clip.start, cursor));
+        ? clip.startUs
+        : normalizeTimelineTimeUs(Math.max(clip.startUs, cursor));
 
-    cursor = roundTimelineTime(nextStart + clip.duration);
+    cursor = normalizeTimelineTimeUs(nextStart + clip.durationUs);
 
-    if (nextStart === clip.start && clip.zIndex === index) {
+    if (nextStart === clip.startUs && clip.zIndex === index) {
       return clip;
     }
 
-    if (nextStart !== clip.start) shiftedClipIds.push(clip.id);
-    return { ...clip, start: nextStart, zIndex: index };
+    if (nextStart !== clip.startUs) shiftedClipIds.push(clip.id);
+    return { ...clip, startUs: nextStart, zIndex: index };
   });
 
   return {
     clips,
-    insertedStart,
+    insertedStartUs,
     shiftedClipIds,
   };
 };
@@ -169,22 +175,22 @@ export const getCompactInsertionLayout = (
     ...candidates.slice(safeInsertionIndex),
   ];
   const originalStarts = new Map(
-    orderedClips.map((clip) => [clip.id, clip.start]),
+    orderedClips.map((clip) => [clip.id, clip.startUs]),
   );
   const clips = layoutTrackSequentially(orderedClips);
-  const insertedStart =
-    clips.find((clip) => clip.id === draggedClip.id)?.start ?? 0;
+  const insertedStartUs =
+    clips.find((clip) => clip.id === draggedClip.id)?.startUs ?? 0;
   const shiftedClipIds = clips
     .filter(
       (clip) =>
         clip.id !== draggedClip.id &&
-        clip.start !== originalStarts.get(clip.id),
+        clip.startUs !== originalStarts.get(clip.id),
     )
     .map((clip) => clip.id);
 
   return {
     clips,
-    insertedStart,
+    insertedStartUs,
     shiftedClipIds,
   };
 };
@@ -193,7 +199,7 @@ export const planClipInsertion = (
   trackClips: TimelineClip[],
   draggedClip: TimelineClip,
   insertionIndex: number,
-  candidateStart: number,
+  candidateStartUs: number,
   compact: boolean,
 ) =>
   compact
@@ -202,7 +208,7 @@ export const planClipInsertion = (
         trackClips,
         draggedClip,
         insertionIndex,
-        candidateStart,
+        candidateStartUs,
       );
 
 export const getClipSnapCandidates = (
@@ -211,12 +217,12 @@ export const getClipSnapCandidates = (
 ) => [
   0,
   ...clips.flatMap((clip) =>
-    clip.id === draggedClipId ? [] : [clip.start, clip.start + clip.duration],
+    clip.id === draggedClipId ? [] : [clip.startUs, clip.startUs + clip.durationUs],
   ),
 ];
 
 const getClosestSnapCandidate = (
-  time: number,
+  timeUs: number,
   candidates: number[],
   pixelsPerSecond: number,
   thresholdPx: number,
@@ -225,7 +231,8 @@ const getClosestSnapCandidate = (
 
   for (const candidate of candidates) {
     const distance = Math.abs(
-      timeToX(candidate, pixelsPerSecond) - timeToX(time, pixelsPerSecond),
+      timeUsToX(candidate, pixelsPerSecond) -
+        timeUsToX(timeUs, pixelsPerSecond),
     );
     if (
       distance <= thresholdPx &&
@@ -234,7 +241,7 @@ const getClosestSnapCandidate = (
     ) {
       closestCandidate = {
         distancePx: distance,
-        snappedTo: candidate,
+        snappedToUs: candidate,
       };
     }
   }
@@ -242,13 +249,13 @@ const getClosestSnapCandidate = (
   return closestCandidate;
 };
 
-export const snapTimeToCandidates = (
-  time: number,
+export const snapTimeUsToCandidates = (
+  timeUs: number,
   candidates: number[],
   pixelsPerSecond: number,
   thresholdPx: number,
 ) => {
-  const safeTime = Math.max(0, time);
+  const safeTime = Math.max(0, timeUs);
   const closestCandidate = getClosestSnapCandidate(
     safeTime,
     candidates,
@@ -257,29 +264,31 @@ export const snapTimeToCandidates = (
   );
 
   return {
-    snappedTime: roundTimelineTime(closestCandidate?.snappedTo ?? safeTime),
-    snappedTo: closestCandidate?.snappedTo ?? null,
+    snappedTimeUs: normalizeTimelineTimeUs(
+      closestCandidate?.snappedToUs ?? safeTime,
+    ),
+    snappedToUs: closestCandidate?.snappedToUs ?? null,
   };
 };
 
 export const snapClipMoveToCandidates = (
-  start: number,
-  duration: number,
+  startUs: number,
+  durationUs: number,
   candidates: number[],
   pixelsPerSecond: number,
   thresholdPx: number,
 ) => {
-  const safeStart = Math.max(0, start);
+  const safeStart = Math.max(0, startUs);
   let closestSnap: {
     distancePx: number;
     snappedEdge: ClipMoveSnapEdge;
-    snappedStart: number;
-    snappedTo: number;
+    snappedStartUs: number;
+    snappedToUs: number;
   } | null = null;
 
   const snapAnchors = [
     { edge: 'start' as const, time: safeStart },
-    { edge: 'end' as const, time: safeStart + duration },
+    { edge: 'end' as const, time: safeStart + durationUs },
   ];
 
   for (const { edge, time } of snapAnchors) {
@@ -291,11 +300,11 @@ export const snapClipMoveToCandidates = (
     );
     if (!closestCandidate) continue;
 
-    const snappedStart =
+    const snappedStartUs =
       edge === 'start'
-        ? closestCandidate.snappedTo
-        : closestCandidate.snappedTo - duration;
-    if (snappedStart < 0) continue;
+        ? closestCandidate.snappedToUs
+        : closestCandidate.snappedToUs - durationUs;
+    if (snappedStartUs < 0) continue;
 
     if (
       !closestSnap ||
@@ -305,15 +314,17 @@ export const snapClipMoveToCandidates = (
       closestSnap = {
         distancePx: closestCandidate.distancePx,
         snappedEdge: edge,
-        snappedStart,
-        snappedTo: closestCandidate.snappedTo,
+        snappedStartUs,
+        snappedToUs: closestCandidate.snappedToUs,
       };
     }
   }
 
   return {
     snappedEdge: closestSnap?.snappedEdge ?? null,
-    snappedStart: roundTimelineTime(closestSnap?.snappedStart ?? safeStart),
-    snappedTo: closestSnap?.snappedTo ?? null,
+    snappedStartUs: normalizeTimelineTimeUs(
+      closestSnap?.snappedStartUs ?? safeStart,
+    ),
+    snappedToUs: closestSnap?.snappedToUs ?? null,
   };
 };

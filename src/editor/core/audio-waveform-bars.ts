@@ -1,3 +1,5 @@
+import { MICROSECONDS_PER_SECOND } from './time';
+
 export const AUDIO_WAVEFORM_BAR_SPACING_PIXELS = 2;
 
 const AUDIO_WAVEFORM_BAR_WIDTH_PIXELS = 1;
@@ -11,7 +13,7 @@ export type AudioWaveformBar = Readonly<{
 
 export type AudioWaveformRenderWindow = Readonly<{
   left: number;
-  sourceStart: number;
+  sourceStartUs: number;
   width: number;
 }>;
 
@@ -24,19 +26,19 @@ export type AudioWaveformBitmapSize = Readonly<{
 type AudioWaveformBarOptions = Readonly<{
   height: number;
   pixelsPerSecond: number;
-  sourceDuration: number;
-  sourceStart: number;
+  sourceDurationUs: number;
+  sourceStartUs: number;
   volume: number;
   width: number;
 }>;
 
 type AudioWaveformRenderWindowOptions = Readonly<{
-  clipDuration: number;
+  clipDurationUs: number;
   pixelsPerSecond: number;
-  timelineStart: number;
-  trimStart: number;
-  visibleTimeEnd: number;
-  visibleTimeStart: number;
+  timelineStartUs: number;
+  trimStartUs: number;
+  visibleTimeEndUs: number;
+  visibleTimeStartUs: number;
 }>;
 
 const clampUnit = (value: number) =>
@@ -72,23 +74,25 @@ const interpolatePeak = (samples: readonly number[], samplePosition: number) => 
 
 const getSourceRangePeak = (
   samples: readonly number[],
-  sourceDuration: number,
-  sourceRangeStart: number,
-  sourceRangeEnd: number,
+  sourceDurationUs: number,
+  sourceRangeStartUs: number,
+  sourceRangeEndUs: number,
 ) => {
-  const safeStart = Math.min(
-    sourceDuration,
-    Math.max(0, sourceRangeStart),
+  const safeStartUs = Math.min(
+    sourceDurationUs,
+    Math.max(0, sourceRangeStartUs),
   );
-  const safeEnd = Math.min(
-    sourceDuration,
-    Math.max(safeStart, sourceRangeEnd),
+  const safeEndUs = Math.min(
+    sourceDurationUs,
+    Math.max(safeStartUs, sourceRangeEndUs),
   );
-  const sampleRangeStart = (safeStart / sourceDuration) * samples.length;
-  const sampleRangeEnd = (safeEnd / sourceDuration) * samples.length;
+  const sampleRangeStart =
+    (safeStartUs / sourceDurationUs) * samples.length;
+  const sampleRangeEnd = (safeEndUs / sourceDurationUs) * samples.length;
 
   if (sampleRangeEnd - sampleRangeStart < 1) {
-    const center = ((safeStart + safeEnd) / 2 / sourceDuration) *
+    const center =
+      ((safeStartUs + safeEndUs) / 2 / sourceDurationUs) *
       Math.max(0, samples.length - 1);
     return interpolatePeak(samples, center);
   }
@@ -107,51 +111,55 @@ const getSourceRangePeak = (
  * overscan prevents a partially visible edge bar from blinking while scrolling.
  */
 export const getAudioWaveformRenderWindow = ({
-  clipDuration,
+  clipDurationUs,
   pixelsPerSecond,
-  timelineStart,
-  trimStart,
-  visibleTimeEnd,
-  visibleTimeStart,
+  timelineStartUs,
+  trimStartUs,
+  visibleTimeEndUs,
+  visibleTimeStartUs,
 }: AudioWaveformRenderWindowOptions): AudioWaveformRenderWindow | null => {
   if (
     ![
-      clipDuration,
+      clipDurationUs,
       pixelsPerSecond,
-      timelineStart,
-      trimStart,
-      visibleTimeEnd,
-      visibleTimeStart,
+      timelineStartUs,
+      trimStartUs,
+      visibleTimeEndUs,
+      visibleTimeStartUs,
     ].every(Number.isFinite) ||
-    clipDuration <= 0 ||
+    clipDurationUs <= 0 ||
     pixelsPerSecond <= 0 ||
-    visibleTimeEnd <= visibleTimeStart
+    visibleTimeEndUs <= visibleTimeStartUs
   ) {
     return null;
   }
 
-  const visibleClipStart = Math.max(timelineStart, visibleTimeStart);
-  const visibleClipEnd = Math.min(
-    timelineStart + clipDuration,
-    visibleTimeEnd,
+  const visibleClipStartUs = Math.max(timelineStartUs, visibleTimeStartUs);
+  const visibleClipEndUs = Math.min(
+    timelineStartUs + clipDurationUs,
+    visibleTimeEndUs,
   );
-  if (visibleClipEnd <= visibleClipStart) return null;
+  if (visibleClipEndUs <= visibleClipStartUs) return null;
 
-  const clipWidth = clipDuration * pixelsPerSecond;
+  const clipWidth =
+    (clipDurationUs / MICROSECONDS_PER_SECOND) * pixelsPerSecond;
   const left = Math.max(
     0,
-    (visibleClipStart - timelineStart) * pixelsPerSecond -
+    ((visibleClipStartUs - timelineStartUs) / MICROSECONDS_PER_SECOND) *
+      pixelsPerSecond -
       AUDIO_WAVEFORM_BAR_SPACING_PIXELS,
   );
   const right = Math.min(
     clipWidth,
-    (visibleClipEnd - timelineStart) * pixelsPerSecond +
+    ((visibleClipEndUs - timelineStartUs) / MICROSECONDS_PER_SECOND) *
+      pixelsPerSecond +
       AUDIO_WAVEFORM_BAR_SPACING_PIXELS,
   );
 
   return {
     left,
-    sourceStart: trimStart + left / pixelsPerSecond,
+    sourceStartUs:
+      trimStartUs + (left / pixelsPerSecond) * MICROSECONDS_PER_SECOND,
     width: Math.max(0, right - left),
   };
 };
@@ -165,26 +173,27 @@ export const getAudioWaveformBars = (
   {
     height,
     pixelsPerSecond,
-    sourceDuration,
-    sourceStart,
+    sourceDurationUs,
+    sourceStartUs,
     volume,
     width,
   }: AudioWaveformBarOptions,
 ): AudioWaveformBar[] => {
   if (
     samples.length === 0 ||
-    ![height, pixelsPerSecond, sourceDuration, sourceStart, width].every(
+    ![height, pixelsPerSecond, sourceDurationUs, sourceStartUs, width].every(
       Number.isFinite,
     ) ||
     height <= 0 ||
     pixelsPerSecond <= 0 ||
-    sourceDuration <= 0 ||
+    sourceDurationUs <= 0 ||
     width <= 0
   ) {
     return [];
   }
 
-  const sourceStartPixels = sourceStart * pixelsPerSecond;
+  const sourceStartPixels =
+    (sourceStartUs / MICROSECONDS_PER_SECOND) * pixelsPerSecond;
   const firstBarIndex =
     Math.floor(sourceStartPixels / AUDIO_WAVEFORM_BAR_SPACING_PIXELS) - 1;
   const lastBarIndex =
@@ -197,18 +206,22 @@ export const getAudioWaveformBars = (
   const bars: AudioWaveformBar[] = [];
 
   for (let barIndex = firstBarIndex; barIndex <= lastBarIndex; barIndex += 1) {
-    const sourceRangeStart =
-      (barIndex * AUDIO_WAVEFORM_BAR_SPACING_PIXELS) / pixelsPerSecond;
-    const sourceRangeEnd =
+    const sourceRangeStartUs =
+      ((barIndex * AUDIO_WAVEFORM_BAR_SPACING_PIXELS) / pixelsPerSecond) *
+      MICROSECONDS_PER_SECOND;
+    const sourceRangeEndUs =
       ((barIndex + 1) * AUDIO_WAVEFORM_BAR_SPACING_PIXELS) /
-      pixelsPerSecond;
-    if (sourceRangeEnd <= 0 || sourceRangeStart >= sourceDuration) continue;
+      pixelsPerSecond *
+      MICROSECONDS_PER_SECOND;
+    if (sourceRangeEndUs <= 0 || sourceRangeStartUs >= sourceDurationUs) {
+      continue;
+    }
 
     const peak = getSourceRangePeak(
       samples,
-      sourceDuration,
-      sourceRangeStart,
-      sourceRangeEnd,
+      sourceDurationUs,
+      sourceRangeStartUs,
+      sourceRangeEndUs,
     );
     const barHeight = peak * gain * maxBarHeight;
     bars.push({

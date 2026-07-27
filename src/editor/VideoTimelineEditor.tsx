@@ -10,6 +10,7 @@ import * as Toast from '@radix-ui/react-toast';
 import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
+import { millisecondsToMicroseconds } from './core/time';
 import { MediaRuntimeProvider, useMediaRuntime } from './media';
 import {
   createTimelineStore,
@@ -37,8 +38,8 @@ const isPositiveNumber = (value: number | undefined) =>
 
 const hasCompleteSourceMetadata = (source: VideoTimelineSource) =>
   source.type === 'audio'
-    ? isPositiveNumber(source.durationSeconds)
-    : isPositiveNumber(source.durationSeconds) &&
+    ? isPositiveNumber(source.durationUs)
+    : isPositiveNumber(source.durationUs) &&
       isPositiveNumber(source.height) &&
       isPositiveNumber(source.width);
 
@@ -229,9 +230,9 @@ function VideoTimelineEditorView({
 
           return {
             ...source,
-            ...(!isPositiveNumber(source.durationSeconds) &&
-            isPositiveNumber(metadata.durationSeconds)
-              ? { durationSeconds: metadata.durationSeconds }
+            ...(!isPositiveNumber(source.durationUs) &&
+            isPositiveNumber(metadata.durationUs)
+              ? { durationUs: metadata.durationUs }
               : {}),
             ...(!isPositiveNumber(source.height) &&
             isPositiveNumber(metadata.height)
@@ -275,17 +276,19 @@ function VideoTimelineEditorView({
     const tick = (frameAt: number) => {
       const state = store.getState();
       const duration = selectTimelineDuration(state);
-      const elapsedSeconds = (frameAt - lastFrameAt) / 1000;
-      const nextTime = state.currentTime + elapsedSeconds;
+      const elapsedUs = millisecondsToMicroseconds(
+        Math.max(0, frameAt - lastFrameAt),
+      );
+      const nextTimeUs = state.currentTimeUs + elapsedUs;
       lastFrameAt = frameAt;
 
-      if (nextTime >= duration) {
-        state.setCurrentTime(duration);
+      if (nextTimeUs >= duration) {
+        state.setCurrentTimeUs(duration);
         state.setIsPlaying(false);
         return;
       }
 
-      state.setCurrentTime(nextTime);
+      state.setCurrentTimeUs(nextTimeUs);
       animationFrame = requestAnimationFrame(tick);
     };
 
@@ -394,13 +397,17 @@ function VideoTimelineEditorView({
     if (commandKey && !event.altKey && !event.shiftKey && key === 'arrowleft') {
       event.preventDefault();
       event.stopPropagation();
-      state.setCurrentTime(state.currentTime - 0.1);
+      state.setCurrentTimeUs(
+        Math.max(0, state.currentTimeUs - millisecondsToMicroseconds(100)),
+      );
       return;
     }
     if (commandKey && !event.altKey && !event.shiftKey && key === 'arrowright') {
       event.preventDefault();
       event.stopPropagation();
-      state.setCurrentTime(state.currentTime + 0.1);
+      state.setCurrentTimeUs(
+        state.currentTimeUs + millisecondsToMicroseconds(100),
+      );
       return;
     }
     if (commandKey && !event.altKey && !event.shiftKey && key === 'c') {

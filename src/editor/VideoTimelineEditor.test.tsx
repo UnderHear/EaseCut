@@ -9,6 +9,7 @@ import {
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { secondsToMicroseconds } from './core/time';
 import type {
   TimelineClip,
   VideoTimelineDraft,
@@ -38,7 +39,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
       onRequestPreviewFullscreen: () => void;
     }) => {
       const clips = useTimelineStore((state) => state.clips);
-      const currentTime = useTimelineStore((state) => state.currentTime);
+      const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
       const isPlaying = useTimelineStore((state) => state.isPlaying);
       const selectedClipId = useTimelineStore((state) => state.selectedClipId);
       const selectClip = useTimelineStore((state) => state.selectClip);
@@ -60,8 +61,8 @@ vi.mock('./timeline/TimelinePanel', async () => {
           />
           <div
             data-clip-count={clips.length}
-            data-current-time={currentTime}
-            data-first-duration={firstClip?.duration ?? ''}
+            data-current-time={currentTimeUs}
+            data-first-duration={firstClip?.durationUs ?? ''}
             data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
             data-first-track-volume={firstClipTrack?.volume ?? ''}
             data-playing={String(isPlaying)}
@@ -106,7 +107,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
 import { VideoTimelineEditor } from './VideoTimelineEditor';
 
 const videoSource: VideoTimelineSource = {
-  durationSeconds: 5,
+  durationUs: secondsToMicroseconds(5),
   fileName: 'video.mp4',
   height: 720,
   id: 'video-1',
@@ -116,7 +117,7 @@ const videoSource: VideoTimelineSource = {
 };
 
 const audioSource: VideoTimelineSource = {
-  durationSeconds: 4,
+  durationUs: secondsToMicroseconds(4),
   fileName: 'music.mp3',
   id: 'audio-1',
   src: '/music.mp3',
@@ -461,19 +462,21 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('fills a missing audio duration through the injected metadata loader', async () => {
-    const loadMetadata = vi.fn().mockResolvedValue({ durationSeconds: 9 });
+    const loadMetadata = vi.fn().mockResolvedValue({
+      durationUs: secondsToMicroseconds(9),
+    });
     const loadBlob = vi.fn();
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob, loadMetadata }}
-        sources={[{ ...audioSource, durationSeconds: undefined }]}
+        sources={[{ ...audioSource, durationUs: undefined }]}
       />,
     );
 
     await waitFor(() =>
       expect(screen.getByTestId('timeline-state')).toHaveAttribute(
         'data-first-duration',
-        '9',
+        String(secondsToMicroseconds(9)),
       ),
     );
     expect(loadMetadata).toHaveBeenCalledOnce();
@@ -492,7 +495,7 @@ describe('VideoTimelineEditor', () => {
       type: 'video',
     };
     const loadMetadata = vi.fn().mockResolvedValue({
-      durationSeconds: 6,
+      durationUs: secondsToMicroseconds(6),
       height: 1080,
       width: 1080,
     });
@@ -595,7 +598,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
-        sources={[{ ...audioSource, durationSeconds: undefined }]}
+        sources={[{ ...audioSource, durationUs: undefined }]}
       />,
     );
 
@@ -673,7 +676,10 @@ describe('VideoTimelineEditor', () => {
     if (!editor) throw new Error('编辑器根节点未渲染');
 
     fireEvent.keyDown(editor, { ctrlKey: true, key: 'ArrowRight' });
-    expect(state).toHaveAttribute('data-current-time', '0.1');
+    expect(state).toHaveAttribute(
+      'data-current-time',
+      String(secondsToMicroseconds(0.1)),
+    );
 
     fireEvent.keyDown(editor, { ctrlKey: true, key: 'ArrowLeft' });
     expect(state).toHaveAttribute('data-current-time', '0');

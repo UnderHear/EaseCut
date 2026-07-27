@@ -6,9 +6,8 @@ import {
   DEFAULT_PIXELS_PER_SECOND,
   TIMELINE_ZOOM_STEP,
 } from '../core/timeline-math';
-import {
-  MAIN_VIDEO_TRACK_ID,
-} from '../store/timeline-store';
+import { secondsToMicroseconds } from '../core/time';
+import { MAIN_VIDEO_TRACK_ID } from '../store/timeline-store';
 import type { TimelineClip, TimelineTrack } from '../types';
 import {
   renderWithEditorProviders,
@@ -56,17 +55,17 @@ const overlayVideoTrack: TimelineTrack = {
 };
 
 const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
-  duration: 4,
+  durationUs: secondsToMicroseconds(4),
   id: 'video-clip',
   name: 'opening.mp4',
-  sourceDuration: 6,
+  sourceDurationUs: secondsToMicroseconds(6),
   sourceId: 'video-source',
   src: '/opening.mp4',
-  start: 0,
+  startUs: 0,
   trackId: MAIN_VIDEO_TRACK_ID,
   transform: { height: 720, width: 1280, x: 0, y: 0 },
-  trimEnd: 4,
-  trimStart: 0,
+  trimEndUs: secondsToMicroseconds(4),
+  trimStartUs: 0,
   type: 'video',
   zIndex: 0,
   ...patch,
@@ -74,15 +73,15 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
 
 const videoClip = createClip({});
 const audioClip = createClip({
-  duration: 3,
+  durationUs: secondsToMicroseconds(3),
   id: 'audio-clip',
   name: 'background.mp3',
-  sourceDuration: 3,
+  sourceDurationUs: secondsToMicroseconds(3),
   sourceId: 'audio-source',
   src: '/background.mp3',
-  start: 1,
+  startUs: secondsToMicroseconds(1),
   trackId: audioTrack.id,
-  trimEnd: 3,
+  trimEndUs: secondsToMicroseconds(3),
   type: 'audio',
 });
 
@@ -172,7 +171,7 @@ describe('TimelineViewport DOM interactions', () => {
     resetTestTimelineStore();
     testTimelineStore.setState({
       clips: [videoClip, audioClip],
-      currentTime: 0,
+      currentTimeUs: 0,
       future: [],
       isPlaying: false,
       past: [],
@@ -441,12 +440,15 @@ describe('TimelineViewport DOM interactions', () => {
   it('highlights video gaps in the corner and ruler at the current zoom', () => {
     testTimelineStore.setState({
       clips: [
-        createClip({ duration: 2, trimEnd: 2 }),
+        createClip({
+          durationUs: secondsToMicroseconds(2),
+          trimEndUs: secondsToMicroseconds(2),
+        }),
         createClip({
           id: 'video-clip-2',
           name: 'ending.mp4',
           sourceId: 'video-source-2',
-          start: 4,
+          startUs: secondsToMicroseconds(4),
         }),
       ],
     });
@@ -486,7 +488,7 @@ describe('TimelineViewport DOM interactions', () => {
           id: 'video-clip-2',
           name: 'ending.mp4',
           sourceId: 'video-source-2',
-          start: 4,
+          startUs: secondsToMicroseconds(4),
         }),
       ],
     });
@@ -511,13 +513,13 @@ describe('TimelineViewport DOM interactions', () => {
           id: 'video-clip-2',
           name: 'middle.mp4',
           sourceId: 'video-source-2',
-          start: 4,
+          startUs: secondsToMicroseconds(4),
         }),
         createClip({
           id: 'overlay-clip',
           name: 'ending.mp4',
           sourceId: 'overlay-source',
-          start: 8,
+          startUs: secondsToMicroseconds(8),
           trackId: overlayVideoTrack.id,
         }),
       ],
@@ -548,7 +550,9 @@ describe('TimelineViewport DOM interactions', () => {
     });
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
-    ).toEqual(expect.objectContaining({ duration: 4 }));
+    ).toEqual(
+      expect.objectContaining({ durationUs: secondsToMicroseconds(4) }),
+    );
 
     fireEvent.pointerCancel(window, { pointerId: 27 });
     expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
@@ -559,7 +563,7 @@ describe('TimelineViewport DOM interactions', () => {
       id: 'overlay-clip',
       name: 'ending.mp4',
       sourceId: 'overlay-source',
-      start: 4,
+      startUs: secondsToMicroseconds(4),
       trackId: overlayVideoTrack.id,
     });
     testTimelineStore.setState({
@@ -591,7 +595,9 @@ describe('TimelineViewport DOM interactions', () => {
     });
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === overlayClip.id),
-    ).toEqual(expect.objectContaining({ start: 4 }));
+    ).toEqual(
+      expect.objectContaining({ startUs: secondsToMicroseconds(4) }),
+    );
 
     fireEvent.pointerCancel(window, { pointerId: 28 });
     expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
@@ -607,7 +613,9 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 10,
       pointerId: 1,
     });
-    expect(testTimelineStore.getState().currentTime).toBe(2.5);
+    expect(testTimelineStore.getState().currentTimeUs).toBe(
+      secondsToMicroseconds(2.5),
+    );
     expect(testTimelineStore.getState().selectedClipId).toBeNull();
     expect(document.querySelector('.oc-timeline-shell')).toHaveAttribute(
       'data-scrubbing',
@@ -634,7 +642,9 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 2,
     });
 
-    expect(testTimelineStore.getState().currentTime).toBe(4);
+    expect(testTimelineStore.getState().currentTimeUs).toBe(
+      secondsToMicroseconds(4),
+    );
     const playhead = document.querySelector('.oc-timeline-playhead');
     expect(playhead).toHaveStyle({ left: '332px' });
     expect(playhead?.children).toHaveLength(2);
@@ -767,7 +777,9 @@ describe('TimelineViewport DOM interactions', () => {
   });
 
   it('keeps a pointer-anchored playhead stable while zooming', () => {
-    testTimelineStore.setState({ currentTime: 2.4 });
+    testTimelineStore.setState({
+      currentTimeUs: secondsToMicroseconds(2.4),
+    });
     const { viewport } = renderTimeline();
     const playhead = document.querySelector('.oc-timeline-playhead');
 
@@ -788,7 +800,7 @@ describe('TimelineViewport DOM interactions', () => {
 
     act(() => {
       testTimelineStore.setState({
-        currentTime: 9,
+        currentTimeUs: secondsToMicroseconds(9),
         isPlaying: true,
       });
     });
@@ -834,12 +846,14 @@ describe('TimelineViewport DOM interactions', () => {
     ).not.toBeInTheDocument();
     expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith({
       clipId: audioClip.id,
-      duration: 3,
-      start: 5,
+      durationUs: secondsToMicroseconds(3),
+      startUs: secondsToMicroseconds(5),
     });
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
-    ).toEqual(expect.objectContaining({ start: 1 }));
+    ).toEqual(
+      expect.objectContaining({ startUs: secondsToMicroseconds(1) }),
+    );
     fireEvent.pointerUp(window, {
       clientX: 528,
       clientY: 100,
@@ -848,7 +862,12 @@ describe('TimelineViewport DOM interactions', () => {
 
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
-    ).toEqual(expect.objectContaining({ start: 5, trackId: audioTrack.id }));
+    ).toEqual(
+      expect.objectContaining({
+        startUs: secondsToMicroseconds(5),
+        trackId: audioTrack.id,
+      }),
+    );
     expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith(null);
     expect(testTimelineStore.getState().past).toHaveLength(1);
   });
@@ -963,7 +982,10 @@ describe('TimelineViewport DOM interactions', () => {
   });
 
   it('splits a clip at the context-menu pointer without moving the playhead', () => {
-    testTimelineStore.setState({ currentTime: 0.25, selectedClipId: null });
+    testTimelineStore.setState({
+      currentTimeUs: secondsToMicroseconds(0.25),
+      selectedClipId: null,
+    });
     renderTimeline();
     const clip = screen.getByRole('article', {
       name: 'video clip: opening.mp4',
@@ -982,15 +1004,17 @@ describe('TimelineViewport DOM interactions', () => {
     });
     fireEvent.click(splitItem);
 
-    expect(testTimelineStore.getState().currentTime).toBe(0.25);
+    expect(testTimelineStore.getState().currentTimeUs).toBe(
+      secondsToMicroseconds(0.25),
+    );
     expect(
       testTimelineStore
         .getState()
         .clips.filter(({ type }) => type === 'video')
-        .map(({ duration, start }) => [start, duration]),
+        .map(({ durationUs, startUs }) => [startUs, durationUs]),
     ).toEqual([
-      [0, 2],
-      [2, 2],
+      [0, secondsToMicroseconds(2)],
+      [secondsToMicroseconds(2), secondsToMicroseconds(2)],
     ]);
   });
 
@@ -1103,7 +1127,12 @@ describe('TimelineViewport DOM interactions', () => {
 
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
-    ).toEqual(expect.objectContaining({ start: 1, zIndex: 0 }));
+    ).toEqual(
+      expect.objectContaining({
+        startUs: secondsToMicroseconds(1),
+        zIndex: 0,
+      }),
+    );
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
@@ -1146,7 +1175,12 @@ describe('TimelineViewport DOM interactions', () => {
     expect(testTimelineStore.getState().tracks).toHaveLength(2);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
-    ).toEqual(expect.objectContaining({ start: 1, trackId: audioTrack.id }));
+    ).toEqual(
+      expect.objectContaining({
+        startUs: secondsToMicroseconds(1),
+        trackId: audioTrack.id,
+      }),
+    );
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
@@ -1196,7 +1230,10 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
     ).toEqual(
-      expect.objectContaining({ start: 2.65, trackId: 'audio-track-2' }),
+      expect.objectContaining({
+        startUs: secondsToMicroseconds(2.65),
+        trackId: 'audio-track-2',
+      }),
     );
   });
 
@@ -1251,7 +1288,7 @@ describe('TimelineViewport DOM interactions', () => {
       id: 'remaining-audio-clip',
       name: 'remaining.mp3',
       sourceId: 'remaining-audio-source',
-      start: 5,
+      startUs: secondsToMicroseconds(5),
     });
     testTimelineStore.setState({
       clips: [videoClip, audioClip, remainingAudioClip],
@@ -1361,7 +1398,7 @@ describe('TimelineViewport DOM interactions', () => {
       id: 'remaining-audio-clip',
       name: 'remaining.mp3',
       sourceId: 'remaining-audio-source',
-      start: 5,
+      startUs: secondsToMicroseconds(5),
     });
     const secondTrackClip = createClip({
       ...audioClip,
@@ -1555,7 +1592,12 @@ describe('TimelineViewport DOM interactions', () => {
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
-    ).toEqual(expect.objectContaining({ trackId: audioTrack.id, start: 1 }));
+    ).toEqual(
+      expect.objectContaining({
+        startUs: secondsToMicroseconds(1),
+        trackId: audioTrack.id,
+      }),
+    );
   });
 
   it('does not create a track when a gap drag is canceled', () => {
@@ -1711,12 +1753,14 @@ describe('TimelineViewport DOM interactions', () => {
     );
     expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith({
       clipId: videoClip.id,
-      duration: 3,
-      start: 0,
+      durationUs: secondsToMicroseconds(3),
+      startUs: 0,
     });
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
-    ).toEqual(expect.objectContaining({ duration: 4 }));
+    ).toEqual(
+      expect.objectContaining({ durationUs: secondsToMicroseconds(4) }),
+    );
     fireEvent.pointerUp(window, {
       clientX: 348,
       clientY: 50,
@@ -1726,7 +1770,11 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
     ).toEqual(
-      expect.objectContaining({ duration: 3, trimEnd: 3, trimStart: 0 }),
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(3),
+        trimEndUs: secondsToMicroseconds(3),
+        trimStartUs: 0,
+      }),
     );
     expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith(null);
     expect(testTimelineStore.getState().past).toHaveLength(1);
@@ -1738,17 +1786,17 @@ describe('TimelineViewport DOM interactions', () => {
         if (clip.id === videoClip.id) {
           return {
             ...clip,
-            duration: 3,
-            trimEnd: 4,
-            trimStart: 1,
+            durationUs: secondsToMicroseconds(3),
+            trimEndUs: secondsToMicroseconds(4),
+            trimStartUs: secondsToMicroseconds(1),
           };
         }
         if (clip.id === audioClip.id) {
           return {
             ...clip,
-            duration: 2,
-            trimEnd: 2.5,
-            trimStart: 0.5,
+            durationUs: secondsToMicroseconds(2),
+            trimEndUs: secondsToMicroseconds(2.5),
+            trimStartUs: secondsToMicroseconds(0.5),
           };
         }
         return clip;
@@ -1764,7 +1812,11 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
     ).toEqual(
-      expect.objectContaining({ duration: 6, trimEnd: 6, trimStart: 0 }),
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(6),
+        trimEndUs: secondsToMicroseconds(6),
+        trimStartUs: 0,
+      }),
     );
     expect(testTimelineStore.getState().past).toHaveLength(1);
 
@@ -1776,7 +1828,11 @@ describe('TimelineViewport DOM interactions', () => {
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
     ).toEqual(
-      expect.objectContaining({ duration: 3, trimEnd: 3, trimStart: 0 }),
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(3),
+        trimEndUs: secondsToMicroseconds(3),
+        trimStartUs: 0,
+      }),
     );
     expect(testTimelineStore.getState().past).toHaveLength(2);
   });

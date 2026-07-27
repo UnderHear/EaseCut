@@ -10,8 +10,8 @@ type AudioWaveformCanvasProps = {
   pixelsPerSecond: number;
   renderWidth: number;
   samples: readonly number[];
-  sourceDuration: number;
-  sourceStart: number;
+  sourceDurationUs: number;
+  sourceStartUs: number;
   volume: number;
 };
 
@@ -22,8 +22,8 @@ export function AudioWaveformCanvas({
   pixelsPerSecond,
   renderWidth,
   samples,
-  sourceDuration,
-  sourceStart,
+  sourceDurationUs,
+  sourceStartUs,
   volume,
 }: AudioWaveformCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -68,8 +68,8 @@ export function AudioWaveformCanvas({
         {
           height: bounds.height,
           pixelsPerSecond,
-          sourceDuration,
-          sourceStart,
+          sourceDurationUs,
+          sourceStartUs,
           volume,
           width: bounds.width,
         },
@@ -96,7 +96,14 @@ export function AudioWaveformCanvas({
       if (!resizeObserver) window.removeEventListener('resize', scheduleDraw);
       if (animationFrame !== 0) cancelAnimationFrame(animationFrame);
     };
-  }, [pixelsPerSecond, renderWidth, samples, sourceDuration, sourceStart, volume]);
+  }, [
+    pixelsPerSecond,
+    renderWidth,
+    samples,
+    sourceDurationUs,
+    sourceStartUs,
+    volume,
+  ]);
 
   return (
     <canvas

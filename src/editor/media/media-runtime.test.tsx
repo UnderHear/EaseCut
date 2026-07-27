@@ -6,6 +6,7 @@ import type {
   VideoTimelineMediaLoader,
   VideoTimelineSource,
 } from '../types';
+import { secondsToMicroseconds } from '../core/time';
 import {
   MediaRuntimeProvider,
   createMediaRuntime,
@@ -178,7 +179,7 @@ describe('MediaRuntime', () => {
     const loader: VideoTimelineMediaLoader = {
       loadBlob: vi.fn(),
       loadMetadata: vi.fn().mockResolvedValue({
-        durationSeconds: 12,
+        durationUs: secondsToMicroseconds(12),
         height: 1080,
         width: 1920,
       }),
@@ -190,7 +191,7 @@ describe('MediaRuntime', () => {
 
     expect(second).toBe(first);
     await expect(first).resolves.toEqual({
-      durationSeconds: 12,
+      durationUs: secondsToMicroseconds(12),
       height: 1080,
       width: 1920,
     });
@@ -201,10 +202,40 @@ describe('MediaRuntime', () => {
     expect(loader.loadBlob).not.toHaveBeenCalled();
   });
 
+  it('rejects fractional microseconds returned by a metadata loader', async () => {
+    const loader: VideoTimelineMediaLoader = {
+      loadBlob: vi.fn(),
+      loadMetadata: vi.fn().mockResolvedValue({
+        durationUs: 1_000_000.5,
+      }),
+    };
+    const runtime = createMediaRuntime(loader, [source]);
+
+    await expect(runtime.getMetadata(source.src)).rejects.toThrow(
+      'durationUs 必须是正安全整数',
+    );
+    runtime.dispose();
+  });
+
+  it('converts browser media duration from seconds to microseconds', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    installFramePreviewElementMocks();
+    const loader: VideoTimelineMediaLoader = {
+      loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
+    };
+    const runtime = createMediaRuntime(loader, [source]);
+
+    await expect(runtime.getMetadata(source.src)).resolves.toEqual({
+      durationUs: secondsToMicroseconds(10),
+    });
+
+    runtime.dispose();
+  });
+
   it('uses complete source metadata without calling either loader hook', async () => {
     const completeSource: VideoTimelineSource = {
       ...source,
-      durationSeconds: 12,
+      durationUs: secondsToMicroseconds(12),
       height: 1080,
       width: 1920,
     };
@@ -215,7 +246,7 @@ describe('MediaRuntime', () => {
     const runtime = createMediaRuntime(loader, [completeSource]);
 
     await expect(runtime.getMetadata(completeSource.src)).resolves.toEqual({
-      durationSeconds: 12,
+      durationUs: secondsToMicroseconds(12),
       height: 1080,
       width: 1920,
     });
@@ -230,7 +261,7 @@ describe('MediaRuntime', () => {
         .fn()
         .mockRejectedValueOnce(new Error('metadata unavailable'))
         .mockResolvedValueOnce({
-          durationSeconds: 12,
+          durationUs: secondsToMicroseconds(12),
           height: 1080,
           width: 1920,
         }),
@@ -241,7 +272,7 @@ describe('MediaRuntime', () => {
       'metadata unavailable',
     );
     await expect(runtime.getMetadata(source.src)).resolves.toEqual({
-      durationSeconds: 12,
+      durationUs: secondsToMicroseconds(12),
       height: 1080,
       width: 1920,
     });
@@ -329,9 +360,9 @@ describe('MediaRuntime', () => {
     };
     const createRequest = (pixelsPerSecond: number): FramePreviewRequest => ({
       pixelsPerSecond,
-      rangeEnd: 3,
-      rangeStart: 0,
-      sourceDuration: 10,
+      rangeEndUs: secondsToMicroseconds(3),
+      rangeStartUs: secondsToMicroseconds(0),
+      sourceDurationUs: secondsToMicroseconds(10),
       src: source.src,
     });
 

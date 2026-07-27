@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { TimelineClipTransform } from '../types';
+import type { TimelineClipTransform } from './model';
 import {
   getPreviewInteractionUpdate,
   PREVIEW_SNAP_THRESHOLD_PX,

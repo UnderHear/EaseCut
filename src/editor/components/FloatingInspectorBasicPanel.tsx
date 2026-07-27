@@ -1,6 +1,7 @@
 import * as Separator from '@radix-ui/react-separator';
 import type { ReactNode } from 'react';
 
+import { microsecondsToSeconds } from '../core/time';
 import { useTimelineStore } from '../store/timeline-store-context';
 import type { TimelineClip, TimelineClipTimingPreview } from '../types';
 import { InputNumber } from './ui/InputNumber';
@@ -50,11 +51,11 @@ export function FloatingInspectorBasicPanel({
             </div>
             <div>
               <dt>开始时间</dt>
-              <dd>{timing.start.toFixed(2)} 秒</dd>
+              <dd>{microsecondsToSeconds(timing.startUs).toFixed(2)} 秒</dd>
             </div>
             <div>
               <dt>时长</dt>
-              <dd>{timing.duration.toFixed(2)} 秒</dd>
+              <dd>{microsecondsToSeconds(timing.durationUs).toFixed(2)} 秒</dd>
             </div>
           </dl>
         </section>
