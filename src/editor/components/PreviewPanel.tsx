@@ -639,7 +639,7 @@ export function PreviewPanel({
       const media = mediaElementsRef.current.get(clip.id);
       if (!media || !previewObjectUrls[clip.src]) continue;
 
-      const volume = trackById.get(clip.trackId)?.volume ?? 1;
+      const volume = trackById.get(clip.trackId)?.muted ? 0 : clip.volume;
       media.muted = volume === 0;
       media.volume = volume;
     }
@@ -846,7 +846,7 @@ export function PreviewPanel({
           <div aria-hidden className='oc-preview-panel__media'>
             {activeClips.map((clip) => {
               const commonProps = {
-                muted: trackById.get(clip.trackId)?.volume === 0,
+                muted: trackById.get(clip.trackId)?.muted || clip.volume === 0,
                 onLoadedData: () => drawPreview(interactionRef.current),
                 onSeeked: () => drawPreview(interactionRef.current),
                 preload: 'auto' as const,

@@ -17,11 +17,8 @@ export function FloatingInspectorBasicPanel({
   clip,
   timing,
 }: FloatingInspectorBasicPanelProps) {
-  const track = useTimelineStore(
-    (state) => state.tracks.find((item) => item.id === clip.trackId) ?? null,
-  );
-  const commitTrackVolume = useTimelineStore(
-    (state) => state.commitTrackVolume,
+  const commitClipVolume = useTimelineStore(
+    (state) => state.commitClipVolume,
   );
 
   return (
@@ -60,35 +57,29 @@ export function FloatingInspectorBasicPanel({
           </dl>
         </section>
 
-        {track && (
-          <>
-            <Separator.Root
-              className='oc-floating-inspector__separator'
-              decorative
-              orientation='horizontal'
-            />
-            <section className='oc-floating-inspector__section'>
-              <h3>音量</h3>
-              <div className='oc-floating-inspector__number-field'>
-                <span>轨道音量</span>
-                <InputNumber
-                  label='轨道音量'
-                  max={100}
-                  min={0}
-                  onCommit={(value) =>
-                    commitTrackVolume(
-                      track.id,
-                      track.volume,
-                      value / 100,
-                    )
-                  }
-                  suffix='%'
-                  value={Math.round(track.volume * 100)}
-                />
-              </div>
-            </section>
-          </>
-        )}
+        <>
+          <Separator.Root
+            className='oc-floating-inspector__separator'
+            decorative
+            orientation='horizontal'
+          />
+          <section className='oc-floating-inspector__section'>
+            <h3>音量</h3>
+            <div className='oc-floating-inspector__number-field'>
+              <span>片段音量</span>
+              <InputNumber
+                label='片段音量'
+                max={100}
+                min={0}
+                onCommit={(value) =>
+                  commitClipVolume(clip.id, clip.volume, value / 100)
+                }
+                suffix='%'
+                value={Math.round(clip.volume * 100)}
+              />
+            </div>
+          </section>
+        </>
 
         {children}
       </div>

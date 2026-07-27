@@ -124,9 +124,6 @@ export function TimelineViewport({
   const dragWidth = draggedClip
     ? durationUsToWidth(draggedClip.durationUs, pixelsPerSecond)
     : 0;
-  const draggedTrackVolume = draggedClip
-    ? tracks.find(({ id }) => id === draggedClip.trackId)?.volume ?? 1
-    : 1;
   const contentDurationUs = Math.max(
     getTimelineContentDurationUs(displayClips),
     dropPreview && draggedClip
@@ -355,7 +352,7 @@ export function TimelineViewport({
         <div className='oc-timeline-controls-stack' ref={controlsStackRef}>
           {trackLayouts.map(({ height, track }) => {
             const isMainVideoTrack = track.id === MAIN_VIDEO_TRACK_ID;
-            const muted = track.volume === 0;
+            const muted = track.muted;
             const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
             const trackLabel =
               isMainVideoTrack
@@ -512,7 +509,6 @@ export function TimelineViewport({
                         onTrimStart={controller.beginTrim}
                         onVolumeStart={controller.beginVolume}
                         pixelsPerSecond={pixelsPerSecond}
-                        trackVolume={track.volume}
                         visibleTimeEndUs={visibleTimeEndUs}
                         visibleTimeStartUs={visibleTimeStartUs}
                         width={durationUsToWidth(
@@ -559,7 +555,6 @@ export function TimelineViewport({
               pixelsPerSecond={pixelsPerSecond}
               timelineStartUs={dropPreview.rawStartUs}
               top={dropPreview.dragTop - TIMELINE_RULER_HEIGHT}
-              trackVolume={draggedTrackVolume}
               visibleTimeEndUs={visibleTimeEndUs}
               visibleTimeStartUs={visibleTimeStartUs}
               width={dragWidth}

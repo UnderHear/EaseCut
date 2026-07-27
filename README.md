@@ -100,9 +100,11 @@ type VideoTimelineSource = {
 
 后续向 `sources` 加入新 ID 会将素材追加到当前时间线。移除 source 不会自动删除已编辑片段，避免宿主数据刷新导致工程内容丢失。
 
-项目草稿只接受 `schemaVersion: 5`。草稿中的
+项目草稿只接受 `schemaVersion: 6`。草稿中的
 `startUs`、`durationUs`、`sourceDurationUs`、`trimStartUs` 和 `trimEndUs`
 均为整数微秒；浏览器媒体元素使用的浮点秒只在媒体边界换算。
+每个 clip 持有独立的 `volume`（`0` 至 `1`）；轨道仅持有 `muted`，静音时不会改写
+clip 的已保存音量。
 
 ## 私有媒体加载
 

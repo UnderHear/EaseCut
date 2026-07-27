@@ -39,5 +39,5 @@ export type {
   VideoTimelineSource,
   VideoTimelineTrack,
   VideoTimelineTrackDraft,
-  VideoTimelineTrackVolume,
+  VideoTimelineClipVolume,
 } from './editor/types';

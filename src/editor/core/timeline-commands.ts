@@ -8,6 +8,7 @@ import {
 import type {
   TimelineClip,
   TimelineClipTransform,
+  TimelineClipVolume,
   TimelineTrack,
 } from './model';
 import { normalizeTimelineTimeUs } from './timeline-math';
@@ -21,6 +22,9 @@ import { secondsToMicroseconds } from './time';
 
 export const MIN_CLIP_DURATION_US = secondsToMicroseconds(0.6);
 export const MIN_CLIP_TRANSFORM_SIZE = 40;
+
+export const normalizeClipVolume = (volume: number): TimelineClipVolume =>
+  Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
 
 export const normalizeClipTransform = (
   transform: TimelineClipTransform,
@@ -75,7 +79,12 @@ const derivedId = (clips: readonly TimelineClip[], base: string) => {
 };
 
 export const normalizeTimelineClips = (clips: TimelineClip[]) =>
-  sortClipsByStart(relayoutTrackInClipSet(clips, MAIN_VIDEO_TRACK_ID));
+  sortClipsByStart(
+    relayoutTrackInClipSet(clips, MAIN_VIDEO_TRACK_ID).map((clip) => ({
+      ...clip,
+      volume: normalizeClipVolume(clip.volume),
+    })),
+  );
 
 export const removeEmptyTimelineTracks = (
   tracks: TimelineTrack[],

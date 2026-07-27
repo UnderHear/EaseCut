@@ -17,7 +17,7 @@ export type CompositionSnapshotInput = Readonly<{
 export type CompositionSnapshot = Readonly<{
   canvasSize: TimelineCanvasSize;
   clips: readonly TimelineClip[];
-  schemaVersion: 5;
+  schemaVersion: 6;
   tracks: readonly TimelineTrack[];
 }>;
 
@@ -48,9 +48,7 @@ const validateTrack = (track: TimelineTrack) => {
     !track.id ||
     !track.name ||
     !Number.isInteger(track.zIndex) ||
-    !Number.isFinite(track.volume) ||
-    track.volume < 0 ||
-    track.volume > 1
+    typeof track.muted !== 'boolean'
   ) {
     throw new TypeError(`轨道 ${track.id || '<unknown>'} 无效`);
   }
@@ -82,6 +80,9 @@ const validateClip = (
   }
   if (
     !Number.isInteger(clip.zIndex) ||
+    !Number.isFinite(clip.volume) ||
+    clip.volume < 0 ||
+    clip.volume > 1 ||
     ![
       clip.transform.height,
       clip.transform.width,
@@ -98,7 +99,7 @@ const validateClip = (
 export const createCompositionSnapshot = (
   input: CompositionSnapshotInput,
 ): CompositionSnapshot => {
-  if (input.schemaVersion !== undefined && input.schemaVersion !== 5) {
+  if (input.schemaVersion !== undefined && input.schemaVersion !== 6) {
     throw new RangeError(`不支持的草稿版本：${input.schemaVersion}`);
   }
   if (
@@ -143,7 +144,7 @@ export const createCompositionSnapshot = (
   return {
     canvasSize: { ...input.canvasSize },
     clips,
-    schemaVersion: 5,
+    schemaVersion: 6,
     tracks,
   };
 };
@@ -186,10 +187,10 @@ export const evaluateCompositionAt = (
       sourceTimeUs: clip.trimStartUs + timeUs - clip.startUs,
       track,
       transform: clip.transform,
-      volume: track.volume,
+      volume: track.muted ? 0 : clip.volume,
     };
     if (clip.type === 'video') videoLayers.push(layer);
-    if (track.volume > 0) audioLayers.push(layer);
+    if (!track.muted && clip.volume > 0) audioLayers.push(layer);
   }
 
   return { audioLayers, timeUs, videoLayers };

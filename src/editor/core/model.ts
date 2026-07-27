@@ -1,12 +1,12 @@
 export type TimelineMediaType = 'video' | 'audio';
 export type TimelineClipTrimEdge = 'start' | 'end';
-export type TimelineTrackVolume = number;
+export type TimelineClipVolume = number;
 
 export type TimelineTrack = {
   id: string;
+  muted: boolean;
   name: string;
   type: TimelineMediaType;
-  volume: TimelineTrackVolume;
   zIndex: number;
 };
 
@@ -30,6 +30,7 @@ export type TimelineClip = {
   trimEndUs: number;
   trimStartUs: number;
   type: TimelineMediaType;
+  volume: TimelineClipVolume;
   waveformSrc?: string;
   zIndex: number;
 };
@@ -42,7 +43,7 @@ export type TimelineCanvasSize = {
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
-  schemaVersion: 5;
+  schemaVersion: 6;
   tracks: TimelineTrack[];
 };
 
@@ -79,7 +80,7 @@ export type CompositionExportTransform = {
 
 export type CompositionExportVolume = {
   Type: 'a_volume';
-  Volume: TimelineTrackVolume;
+  Volume: TimelineClipVolume;
 };
 
 export type CompositionExportClip = {

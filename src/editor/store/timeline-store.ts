@@ -8,6 +8,7 @@ import {
   findClipAtTime,
   MIN_CLIP_DURATION_US,
   moveClip,
+  normalizeClipVolume,
   normalizeClipTransform,
   normalizeTimelineClips,
   pasteClip,
@@ -25,7 +26,6 @@ import {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
   MAIN_VIDEO_TRACK_ID,
   normalizeTimelineTracks,
-  normalizeTrackVolume,
 } from '../core/timeline-tracks';
 export {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
@@ -34,7 +34,6 @@ export {
   MAIN_VIDEO_TRACK_ID,
   isDynamicVideoTrack,
   normalizeTimelineTracks,
-  normalizeTrackVolume,
   type TrackDropTarget,
   type TrackInsertTarget,
 } from '../core/timeline-tracks';
@@ -44,6 +43,7 @@ export {
   getTrimmedClip,
   getTrimmedTimelineClips,
   MIN_CLIP_TRANSFORM_SIZE,
+  normalizeClipVolume,
   normalizeClipTransform,
   normalizeTimelineClips,
 } from '../core/timeline-commands';
@@ -65,7 +65,7 @@ import type {
   VideoTimelineSource,
 } from '../types';
 
-export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 5;
+export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 6;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
   width: 1280,
@@ -75,9 +75,9 @@ export const MIN_SPLIT_CLIP_DURATION_US = MIN_CLIP_DURATION_US;
 
 const defaultTracks: TimelineTrack[] = [{
   id: MAIN_VIDEO_TRACK_ID,
+  muted: false,
   name: '视频轨',
   type: 'video',
-  volume: 1,
   zIndex: 0,
 }];
 
@@ -118,8 +118,8 @@ export type TimelineActions = {
   commitClipDrop: (params: CommitClipDropParams) => void;
   commitClipTransform: (params: CommitClipTransformParams) => void;
   commitClipTrim: (params: CommitClipTrimParams) => void;
-  commitTrackVolume: (
-    trackId: string,
+  commitClipVolume: (
+    clipId: string,
     previousVolume: number,
     volume: number,
   ) => void;
@@ -134,7 +134,7 @@ export type TimelineActions = {
   setCurrentTimeUs: (timeUs: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setPixelsPerSecond: (pixelsPerSecond: number) => void;
-  setTrackVolume: (trackId: string, volume: number) => void;
+  setClipVolume: (clipId: string, volume: number) => void;
   splitAtPlayhead: () => void;
   splitClipAtTime: (clipId: string, timeUs: number) => void;
   syncSources: (sources: VideoTimelineSource[]) => void;
@@ -220,9 +220,9 @@ const createTrackForSource = (
   zIndex: number,
 ): TimelineTrack => ({
   id: source.type === 'video' ? MAIN_VIDEO_TRACK_ID : audioTrackId(source.id),
+  muted: false,
   name: source.type === 'video' ? '视频轨' : source.fileName,
   type: source.type,
-  volume: 1,
   zIndex,
 });
 
@@ -247,6 +247,7 @@ export const createTimelineClipsFromSources = (
       trimEndUs: durationUs,
       trimStartUs: 0,
       type: source.type,
+      volume: 1,
       ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
       zIndex: 0,
     };
@@ -444,6 +445,7 @@ function mergeSources(
       trimEndUs: durationUs,
       trimStartUs: 0,
       type: source.type,
+      volume: 1,
       ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
       zIndex: 0,
     });
@@ -490,10 +492,10 @@ export const createTimelineStore = (
 
       commitClipTrim: (command) => commit(trimClip(asEdit(get()), command)),
 
-      commitTrackVolume: (trackId, previousVolume, volume) => {
+      commitClipVolume: (clipId, previousVolume, volume) => {
         const state = get();
-        const nextVolume = normalizeTrackVolume(volume);
-        const previous = normalizeTrackVolume(previousVolume);
+        const nextVolume = normalizeClipVolume(volume);
+        const previous = normalizeClipVolume(previousVolume);
         if (nextVolume === previous) return;
         set({
           future: [],
@@ -501,13 +503,13 @@ export const createTimelineStore = (
             ...state.past,
             {
               ...createSnapshot(state),
-              tracks: state.tracks.map((track) =>
-                track.id === trackId ? { ...track, volume: previous } : track,
+              clips: state.clips.map((clip) =>
+                clip.id === clipId ? { ...clip, volume: previous } : clip,
               ),
             },
           ],
-          tracks: state.tracks.map((track) =>
-            track.id === trackId ? { ...track, volume: nextVolume } : track,
+          clips: state.clips.map((clip) =>
+            clip.id === clipId ? { ...clip, volume: nextVolume } : clip,
           ),
         });
       },
@@ -609,12 +611,12 @@ export const createTimelineStore = (
           ),
         }),
 
-      setTrackVolume: (trackId, volume) =>
+      setClipVolume: (clipId, volume) =>
         set((state) => ({
-          tracks: state.tracks.map((track) =>
-            track.id === trackId
-              ? { ...track, volume: normalizeTrackVolume(volume) }
-              : track,
+          clips: state.clips.map((clip) =>
+            clip.id === clipId
+              ? { ...clip, volume: normalizeClipVolume(volume) }
+              : clip,
           ),
         })),
 
@@ -669,9 +671,7 @@ export const createTimelineStore = (
           future: [],
           past: [...state.past, createSnapshot(state)],
           tracks: state.tracks.map((track) =>
-            track.id === trackId
-              ? { ...track, volume: track.volume === 0 ? 1 : 0 }
-              : track,
+            track.id === trackId ? { ...track, muted: !track.muted } : track,
           ),
         });
       },
@@ -705,10 +705,8 @@ export const selectTimelineDuration = (
 export const selectHasAudibleMedia = (
   state: Pick<TimelineState, 'clips' | 'tracks'>,
 ) => {
-  const audibleTrackIds = new Set(
-    state.tracks
-      .filter((track) => track.volume > 0)
-      .map((track) => track.id),
+  const tracksById = new Map(state.tracks.map((track) => [track.id, track]));
+  return state.clips.some(
+    (clip) => !tracksById.get(clip.trackId)?.muted && clip.volume > 0,
   );
-  return state.clips.some((clip) => audibleTrackIds.has(clip.trackId));
 };

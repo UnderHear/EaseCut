@@ -26,6 +26,7 @@ const createClip = (
   trimStartUs: 0,
   transform: { height: 720, width: 1280, x: 0, y: 0 },
   type: 'video',
+  volume: 1,
   zIndex: startSeconds,
 });
 

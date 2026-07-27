@@ -47,11 +47,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
       const toggleTrackMute = useTimelineStore(
         (state) => state.toggleTrackMute,
       );
-      const tracks = useTimelineStore((state) => state.tracks);
       const firstClip = clips[0];
-      const firstClipTrack = tracks.find(
-        (track) => track.id === firstClip?.trackId,
-      );
 
       return (
         <>
@@ -64,7 +60,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
             data-current-time={currentTimeUs}
             data-first-duration={firstClip?.durationUs ?? ''}
             data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
-            data-first-track-volume={firstClipTrack?.volume ?? ''}
+            data-first-clip-volume={firstClip?.volume ?? ''}
             data-playing={String(isPlaying)}
             data-selected-clip-id={selectedClipId ?? ''}
             data-testid='timeline-state'
@@ -341,16 +337,16 @@ describe('VideoTimelineEditor', () => {
       screen.getByRole('button', { name: '测试：切换首个片段静音' }),
     );
     expect(screen.getByTestId('timeline-state')).toHaveAttribute(
-      'data-first-track-volume',
-      '0',
+      'data-first-clip-volume',
+      '1',
     );
     await user.click(screen.getByRole('button', { name: '导出视频' }));
 
     await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
     const request = onExport.mock.calls[0][0];
     expect(
-      request.draft.tracks.find((track) => track.type === 'audio')?.volume,
-    ).toBe(0);
+      request.draft.tracks.find((track) => track.type === 'audio')?.muted,
+    ).toBe(true);
     expect(request.payload.Track.flat()).toEqual([
       expect.objectContaining({
         Extra: expect.arrayContaining([{ Type: 'a_volume', Volume: 0 }]),
@@ -636,8 +632,8 @@ describe('VideoTimelineEditor', () => {
     expect(
       onDraftChange.mock.calls[0][0].tracks.find(
         (track) => track.type === 'audio',
-      )?.volume,
-    ).toBe(0);
+      )?.muted,
+    ).toBe(true);
   });
 
   it('handles shortcuts only when they originate inside the focused editor', async () => {
@@ -757,14 +753,14 @@ describe('VideoTimelineEditor', () => {
     await user.click(
       screen.getByRole('button', { name: '测试：切换首个片段静音' }),
     );
-    expect(state).toHaveAttribute('data-first-track-volume', '0');
+    expect(state).toHaveAttribute('data-first-clip-volume', '1');
 
     editor.focus();
     fireEvent.keyDown(editor, { ctrlKey: true, key: 'z' });
-    expect(state).toHaveAttribute('data-first-track-volume', '1');
+    expect(state).toHaveAttribute('data-first-clip-volume', '1');
 
     fireEvent.keyDown(editor, { ctrlKey: true, key: 'y' });
-    expect(state).toHaveAttribute('data-first-track-volume', '0');
+    expect(state).toHaveAttribute('data-first-clip-volume', '1');
   });
 
   it('keeps playback state isolated between two editor instances', async () => {

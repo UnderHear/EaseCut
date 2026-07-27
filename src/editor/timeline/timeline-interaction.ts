@@ -66,12 +66,12 @@ export type ScrubGesture = {
 };
 
 export type VolumeGesture = {
+  clipId: string;
   height: number;
   kind: 'volume';
   pointerId: number;
   previousVolume: number;
   top: number;
-  trackId: string;
 };
 
 export type TimelineGesture =

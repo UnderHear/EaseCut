@@ -20,16 +20,17 @@ const createValidDraft = (): VideoTimelineDraft => ({
       trimStartUs: 0,
       transform: { height: 720, width: 1280, x: 0, y: 0 },
       type: 'video',
+      volume: 1,
       zIndex: 0,
     },
   ],
-  schemaVersion: 5,
+  schemaVersion: 6,
   tracks: [
     {
       id: MAIN_VIDEO_TRACK_ID,
       name: '视频轨',
       type: 'video',
-      volume: 1,
+      muted: false,
       zIndex: 0,
     },
   ],
@@ -59,6 +60,12 @@ describe('timeline draft validation', () => {
       label: '片段和轨道媒体类型不一致',
       mutate: (draft: VideoTimelineDraft) => {
         draft.tracks[0]!.type = 'audio';
+      },
+    },
+    {
+      label: '片段音量超出范围',
+      mutate: (draft: VideoTimelineDraft) => {
+        draft.clips[0]!.volume = 1.01;
       },
     },
   ])('明确拒绝$label', ({ mutate }) => {

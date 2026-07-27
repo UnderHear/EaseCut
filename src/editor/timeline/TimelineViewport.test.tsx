@@ -38,7 +38,7 @@ const videoTrack: TimelineTrack = {
   id: MAIN_VIDEO_TRACK_ID,
   name: '视频轨',
   type: 'video',
-  volume: 1,
+  muted: false,
   zIndex: 0,
 };
 
@@ -46,7 +46,7 @@ const audioTrack: TimelineTrack = {
   id: 'audio-track-1',
   name: '音频轨 1',
   type: 'audio',
-  volume: 0.5,
+  muted: false,
   zIndex: 1,
 };
 
@@ -54,7 +54,7 @@ const overlayVideoTrack: TimelineTrack = {
   id: 'video-overlay-1',
   name: '视频轨',
   type: 'video',
-  volume: 1,
+  muted: false,
   zIndex: 1,
 };
 
@@ -71,6 +71,7 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
   trimEndUs: secondsToMicroseconds(4),
   trimStartUs: 0,
   type: 'video',
+  volume: 1,
   zIndex: 0,
   ...patch,
 });
@@ -87,6 +88,7 @@ const audioClip = createClip({
   trackId: audioTrack.id,
   trimEndUs: secondsToMicroseconds(3),
   type: 'audio',
+  volume: 0.5,
 });
 
 const createRect = ({
@@ -1938,10 +1940,23 @@ describe('TimelineViewport DOM interactions', () => {
   });
 
   it('adjusts audio volume by pointer position and commits the gesture', () => {
-    renderTimeline();
-    const audio = screen.getByRole('article', {
-      name: 'audio clip: background.mp3',
+    testTimelineStore.setState({
+      clips: [
+        videoClip,
+        audioClip,
+        {
+          ...audioClip,
+          id: 'audio-clip-independent',
+          startUs: secondsToMicroseconds(5),
+          volume: 0.2,
+        },
+      ],
     });
+    renderTimeline();
+    const audio = document.querySelector<HTMLElement>(
+      '[data-clip-id="audio-clip"]',
+    );
+    if (!audio) throw new Error('Expected primary audio clip');
     vi.spyOn(audio, 'getBoundingClientRect').mockReturnValue(
       createRect({ height: 32, left: 188, top: 82, width: 240 }),
     );
@@ -1961,7 +1976,12 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 11,
     });
 
-    expect(testTimelineStore.getState().tracks[1]?.volume).toBe(1);
+    expect(testTimelineStore.getState().clips.find((clip) => clip.id === audioClip.id)?.volume).toBe(1);
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'audio-clip-independent')?.volume,
+    ).toBe(0.2);
     expect(
       screen.getByRole('button', {
         name: 'Adjust background.mp3 volume, 100 percent',
@@ -1978,7 +1998,7 @@ describe('TimelineViewport DOM interactions', () => {
 
   it('keeps the audio gain stable when grabbing its current volume line', () => {
     testTimelineStore.setState({
-      tracks: [videoTrack, { ...audioTrack, volume: 0.75 }],
+      clips: [videoClip, { ...audioClip, volume: 0.75 }],
     });
     renderTimeline();
     const audio = screen.getByRole('article', {
@@ -2003,7 +2023,7 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 13,
     });
 
-    expect(testTimelineStore.getState().tracks[1]?.volume).toBe(0.75);
+    expect(testTimelineStore.getState().clips.find((clip) => clip.id === audioClip.id)?.volume).toBe(0.75);
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 });

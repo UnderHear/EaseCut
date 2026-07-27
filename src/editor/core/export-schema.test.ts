@@ -25,6 +25,7 @@ describe('createCompositionExportPayload', () => {
           trimEndUs: 2_500_500,
           trimStartUs: 500_500,
           type: 'video',
+          volume: 0.75,
           zIndex: 0,
         },
         {
@@ -40,23 +41,24 @@ describe('createCompositionExportPayload', () => {
           trimEndUs: 1_000_499,
           trimStartUs: 499,
           type: 'audio',
+          volume: 0.25,
           zIndex: 0,
         },
       ],
-      schemaVersion: 5,
+      schemaVersion: 6,
       tracks: [
         {
           id: 'audio-track',
           name: '音频轨',
           type: 'audio',
-          volume: 0.25,
+          muted: false,
           zIndex: 10,
         },
         {
           id: 'video-track',
           name: '视频轨',
           type: 'video',
-          volume: 0.75,
+          muted: false,
           zIndex: 0,
         },
       ],
@@ -114,15 +116,16 @@ describe('createCompositionExportPayload', () => {
         trimEndUs: 1_000,
         trimStartUs: 0,
         type: 'video' as const,
+        volume: id === 'z' ? 0.3 : 0.8,
         zIndex: 0,
       })),
-      schemaVersion: 5,
+      schemaVersion: 6,
       tracks: [
         {
           id: 'video',
           name: '视频',
           type: 'video',
-          volume: 1,
+          muted: false,
           zIndex: 0,
         },
       ],
@@ -133,6 +136,14 @@ describe('createCompositionExportPayload', () => {
         ({ Source }) => Source,
       ),
     ).toEqual(['a.mp4', 'z.mp4']);
+    expect(
+      createCompositionExportPayload(draft).Track[0]?.map((clip) =>
+        clip.Extra.find((extra) => extra.Type === 'a_volume'),
+      ),
+    ).toEqual([
+      { Type: 'a_volume', Volume: 0.8 },
+      { Type: 'a_volume', Volume: 0.3 },
+    ]);
   });
 
   it('keeps preview source time consistent with snapshot export trim semantics', () => {
@@ -151,14 +162,15 @@ describe('createCompositionExportPayload', () => {
         trimEndUs: 4_000_000,
         trimStartUs: 1_000_000,
         type: 'video',
+        volume: 1,
         zIndex: 0,
       }],
-      schemaVersion: 5,
+      schemaVersion: 6,
       tracks: [{
         id: 'video-track',
         name: '视频轨',
         type: 'video',
-        volume: 1,
+        muted: false,
         zIndex: 0,
       }],
     };

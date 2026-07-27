@@ -55,28 +55,28 @@ const mainTrack: TimelineTrack = {
   id: MAIN_VIDEO_TRACK_ID,
   name: '视频轨',
   type: 'video',
-  volume: 1,
+  muted: false,
   zIndex: 0,
 };
 const overlayTrack: TimelineTrack = {
   id: 'video-overlay-1',
   name: '视频轨 2',
   type: 'video',
-  volume: 1,
+  muted: false,
   zIndex: 1,
 };
 const targetTrack: TimelineTrack = {
   id: 'video-overlay-2',
   name: '视频轨 3',
   type: 'video',
-  volume: 1,
+  muted: false,
   zIndex: 2,
 };
 const audioTrack: TimelineTrack = {
   id: 'audio-track-1',
   name: '音频轨 1',
   type: 'audio',
-  volume: 0.35,
+  muted: false,
   zIndex: 2,
 };
 
@@ -93,6 +93,7 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
   trimStartUs: 0,
   transform: { height: 720, width: 1280, x: 0, y: 0 },
   type: 'video',
+  volume: 1,
   zIndex: 0,
   ...patch,
 });
@@ -396,6 +397,7 @@ describe('PreviewPanel', () => {
           trackId: audioTrack.id,
           transform: { height: 720, width: 1280, x: 0, y: 0 },
           type: 'audio',
+          volume: 0.35,
           zIndex: 0,
         }),
       ],

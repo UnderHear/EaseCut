@@ -15,7 +15,7 @@ const videoTrack: TimelineTrack = {
   id: 'video-track',
   name: '视频轨 1',
   type: 'video',
-  volume: 0.8,
+  muted: false,
   zIndex: 0,
 };
 
@@ -32,6 +32,7 @@ const videoClip: TimelineClip = {
   trimEndUs: secondsToMicroseconds(5),
   trimStartUs: secondsToMicroseconds(0.5),
   type: 'video',
+  volume: 0.8,
   zIndex: 0,
 };
 
@@ -39,7 +40,7 @@ const audioTrack: TimelineTrack = {
   id: 'audio-track',
   name: '音频轨 1',
   type: 'audio',
-  volume: 0.65,
+  muted: false,
   zIndex: 1,
 };
 
@@ -56,6 +57,7 @@ const audioClip: TimelineClip = {
   trimEndUs: secondsToMicroseconds(8),
   trimStartUs: secondsToMicroseconds(2),
   type: 'audio',
+  volume: 1,
   zIndex: 0,
 };
 
@@ -93,7 +95,7 @@ describe('FloatingInspector', () => {
     expect(screen.queryByText('视频轨 1')).not.toBeInTheDocument();
     expect(screen.getByText('1.25 秒')).toBeVisible();
     expect(screen.getByText('4.50 秒')).toBeVisible();
-    expect(screen.getByLabelText('轨道音量')).toHaveValue(80);
+    expect(screen.getByLabelText('片段音量')).toHaveValue(80);
     expect(screen.getByLabelText('X 位置')).toHaveValue(35);
     expect(screen.getByLabelText('Y 位置')).toHaveValue(20);
     expect(screen.getByLabelText('宽度')).toHaveValue(640);
@@ -146,7 +148,7 @@ describe('FloatingInspector', () => {
     expect(rail.querySelector('.lucide-film')).not.toBeInTheDocument();
     expect(screen.getByText('sample.mp3')).toBeVisible();
     expect(screen.getByText('音频')).toBeVisible();
-    expect(screen.getByLabelText('轨道音量')).toHaveValue(65);
+    expect(screen.getByLabelText('片段音量')).toHaveValue(100);
     expect(screen.queryByRole('button', { name: '背景' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '变速' })).not.toBeInTheDocument();
     expect(screen.queryByText('转换')).not.toBeInTheDocument();
@@ -158,7 +160,7 @@ describe('FloatingInspector', () => {
     ).toHaveLength(2);
   });
 
-  it('commits transform and track volume edits through the timeline store', async () => {
+  it('commits transform and clip volume edits through the timeline store', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(<FloatingInspector />);
 
@@ -170,12 +172,12 @@ describe('FloatingInspector', () => {
     expect(testTimelineStore.getState().clips[0]?.transform.x).toBe(160);
     expect(testTimelineStore.getState().past).toHaveLength(1);
 
-    const volumeInput = screen.getByLabelText('轨道音量');
+    const volumeInput = screen.getByLabelText('片段音量');
     await user.clear(volumeInput);
     await user.type(volumeInput, '45');
     await user.tab();
 
-    expect(testTimelineStore.getState().tracks[0]?.volume).toBe(0.45);
+    expect(testTimelineStore.getState().clips[0]?.volume).toBe(0.45);
     expect(testTimelineStore.getState().past).toHaveLength(2);
   });
 

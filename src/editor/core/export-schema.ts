@@ -28,7 +28,7 @@ const createPayload = (
         };
         const volume = {
           Type: 'a_volume' as const,
-          Volume: track.volume,
+          Volume: track.muted ? 0 : clip.volume,
         };
 
         return {

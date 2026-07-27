@@ -58,7 +58,7 @@ const createVideoTrack = (id: string, name: string, zIndex: number) => ({
   id,
   name,
   type: 'video' as const,
-  volume: 1,
+  muted: false,
   zIndex,
 });
 
@@ -66,7 +66,7 @@ const createAudioTrack = (id: string, name: string, zIndex: number) => ({
   id,
   name,
   type: 'audio' as const,
-  volume: 1,
+  muted: false,
   zIndex,
 });
 
@@ -103,6 +103,7 @@ const createFixtureClips = (): TimelineClip[] => [
     trimStartUs: secondsToMicroseconds(0),
     transform: { ...defaultClipTransform },
     type: 'video',
+    volume: 1,
     zIndex: 0,
   },
   {
@@ -118,6 +119,7 @@ const createFixtureClips = (): TimelineClip[] => [
     trimStartUs: secondsToMicroseconds(1),
     transform: { ...defaultClipTransform },
     type: 'video',
+    volume: 1,
     zIndex: 1,
   },
   {
@@ -133,6 +135,7 @@ const createFixtureClips = (): TimelineClip[] => [
     trimStartUs: secondsToMicroseconds(0.5),
     transform: { ...defaultClipTransform },
     type: 'video',
+    volume: 1,
     zIndex: 2,
   },
 ];
@@ -150,6 +153,7 @@ const createAudioClip = (id: string, trackId: string): TimelineClip => ({
   trimStartUs: secondsToMicroseconds(0),
   transform: { ...defaultClipTransform },
   type: 'audio',
+  volume: 1,
   zIndex: 0,
 });
 
@@ -196,7 +200,7 @@ describe('timelineStore video track layout', () => {
         id: MAIN_VIDEO_TRACK_ID,
         name: '视频轨',
         type: 'video',
-        volume: 1,
+        muted: false,
         zIndex: 0,
       },
     ]);
@@ -243,7 +247,7 @@ describe('timelineStore video track layout', () => {
           id: MAIN_VIDEO_TRACK_ID,
           name: '主视频',
           type: 'video',
-          volume: 0,
+          muted: false,
           zIndex: 0,
         },
       ],
@@ -259,7 +263,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().tracks).toEqual(draft.tracks);
     expect(timelineStore.getState().clips).toEqual(draft.clips);
-    expect(draft.schemaVersion).toBe(5);
+    expect(draft.schemaVersion).toBe(6);
   });
 
   it('compacts main-track gaps when restoring a saved composition draft', () => {
@@ -278,7 +282,7 @@ describe('timelineStore video track layout', () => {
             zIndex: 0,
           },
         ],
-        schemaVersion: 5,
+        schemaVersion: 6,
         tracks: [
           createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
           createVideoTrack('video-overlay-1', '视频轨 2', 1),
@@ -297,7 +301,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual([['clip-video-3', secondsToMicroseconds(7)]]);
   });
 
-  it.each([1, 2, 3, 4])('rejects a schema v%s draft', (schemaVersion) => {
+  it.each([1, 2, 3, 4, 5])('rejects a schema v%s draft', (schemaVersion) => {
     const validDraft = createVideoTimelineDraft(timelineStore.getState());
     const previousState = timelineStore.getState();
 
@@ -740,18 +744,18 @@ describe('timelineStore video track layout', () => {
     const layoutRevision = state.layoutRevision;
 
     state.toggleTrackMute(MAIN_VIDEO_TRACK_ID);
-    expect(timelineStore.getState().tracks[0]?.volume).toBe(0);
+    expect(timelineStore.getState().tracks[0]?.muted).toBe(true);
     expect(
       createVideoTimelineDraft(timelineStore.getState()).tracks[0]
-        ?.volume,
-    ).toBe(0);
+        ?.muted,
+    ).toBe(true);
     expect(timelineStore.getState().layoutRevision).toBe(layoutRevision);
 
     state.undo();
-    expect(timelineStore.getState().tracks[0]?.volume).toBe(1);
+    expect(timelineStore.getState().tracks[0]?.muted).toBe(false);
 
     state.redo();
-    expect(timelineStore.getState().tracks[0]?.volume).toBe(0);
+    expect(timelineStore.getState().tracks[0]?.muted).toBe(true);
   });
 
   it('increments layout revision after layout-changing actions', () => {
@@ -1544,14 +1548,14 @@ describe('timelineStore video track layout', () => {
           id: MAIN_VIDEO_TRACK_ID,
           name: '视频轨',
           type: 'video',
-          volume: 1,
+          muted: false,
           zIndex: 0,
         },
         {
           id: 'audio-source-track-audio-source',
           name: 'music.mp3',
           type: 'audio',
-          volume: 1,
+          muted: false,
           zIndex: 1,
         },
       ],
@@ -1602,31 +1606,42 @@ describe('timelineStore video track layout', () => {
           id: MAIN_VIDEO_TRACK_ID,
           name: '视频轨',
           type: 'video',
-          volume: 1,
+          muted: false,
           zIndex: 0,
         },
         {
           id: 'audio-track',
           name: '音频轨',
           type: 'audio',
-          volume: 1,
+          muted: false,
           zIndex: 1,
         },
       ],
     });
 
     const state = timelineStore.getState();
-    state.setTrackVolume('audio-track', 0.374);
-    expect(timelineStore.getState().tracks[1]?.volume).toBe(0.37);
+    const audioClip = state.clips.find((clip) => clip.id === 'clip-audio');
+    if (!audioClip) throw new Error('Expected audio clip');
+    state.setClipVolume(audioClip.id, 0.374);
+    expect(
+      timelineStore.getState().clips.find((clip) => clip.id === audioClip.id)
+        ?.volume,
+    ).toBe(0.37);
     expect(timelineStore.getState().past).toHaveLength(0);
 
-    state.commitTrackVolume('audio-track', 1, 0.374);
+    state.commitClipVolume(audioClip.id, 1, 0.374);
     expect(timelineStore.getState().past).toHaveLength(1);
 
     state.undo();
-    expect(timelineStore.getState().tracks[1]?.volume).toBe(1);
+    expect(
+      timelineStore.getState().clips.find((clip) => clip.id === audioClip.id)
+        ?.volume,
+    ).toBe(1);
     state.redo();
-    expect(timelineStore.getState().tracks[1]?.volume).toBe(0.37);
+    expect(
+      timelineStore.getState().clips.find((clip) => clip.id === audioClip.id)
+        ?.volume,
+    ).toBe(0.37);
   });
 
   it('exports audio tracks after video tracks without transform extras', () => {
@@ -1652,7 +1667,10 @@ describe('timelineStore video track layout', () => {
       .getState()
       .tracks.find((track) => track.type === 'audio');
     expect(audioTrack).toBeDefined();
-    timelineStore.getState().setTrackVolume(audioTrack?.id ?? '', 0.45);
+    const audioClip = timelineStore
+      .getState()
+      .clips.find((clip) => clip.trackId === audioTrack?.id);
+    timelineStore.getState().setClipVolume(audioClip?.id ?? '', 0.45);
 
     const payload = timelineStore.getState().createExportPayload();
     expect(payload.Track[0]?.[0]?.Type).toBe('video');
@@ -1821,6 +1839,7 @@ describe('timelineStore video track layout', () => {
           src: 'http://localhost/overlay.mp4',
           startUs: secondsToMicroseconds(0),
           trackId: 'video-overlay-1',
+          volume: 1,
           zIndex: 0,
         },
       ],
@@ -1829,14 +1848,14 @@ describe('timelineStore video track layout', () => {
           id: MAIN_VIDEO_TRACK_ID,
           name: '视频轨',
           type: 'video',
-          volume: 1,
+          muted: false,
           zIndex: 0,
         },
         {
           id: 'video-overlay-1',
           name: '视频轨 2',
           type: 'video',
-          volume: 1,
+          muted: false,
           zIndex: 1,
         },
       ],

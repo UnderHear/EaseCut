@@ -186,8 +186,8 @@ export function useTimelineController({
       if (gesture.kind === 'volume') {
         store
           .getState()
-          .setTrackVolume(
-            gesture.trackId,
+          .setClipVolume(
+            gesture.clipId,
             getVolumeAtPointer(gesture, event.clientY),
           );
       }
@@ -217,14 +217,14 @@ export function useTimelineController({
       if (gesture.kind === 'volume') {
         const state = store.getState();
         if (commit) {
-          state.commitTrackVolume(
-            gesture.trackId,
+          state.commitClipVolume(
+            gesture.clipId,
             gesture.previousVolume,
-            state.tracks.find(({ id }) => id === gesture.trackId)?.volume ??
+            state.clips.find(({ id }) => id === gesture.clipId)?.volume ??
               gesture.previousVolume,
           );
         } else {
-          state.setTrackVolume(gesture.trackId, gesture.previousVolume);
+          state.setClipVolume(gesture.clipId, gesture.previousVolume);
         }
       }
       if (gesture.kind === 'move') {
@@ -410,28 +410,27 @@ export function useTimelineController({
 
   const beginVolume = (
     event: ReactPointerEvent<HTMLElement>,
-    trackId: string,
+    clip: TimelineClip,
   ) => {
     if (event.button !== 0) return;
     lastCompletedClipClickRef.current = null;
-    const track = tracks.find(({ id }) => id === trackId);
     const rect = event.currentTarget.parentElement?.getBoundingClientRect();
-    if (!track || !rect) return;
+    if (!rect) return;
 
     event.preventDefault();
     event.stopPropagation();
     store.getState().setIsPlaying(false);
     const next: VolumeGesture = {
+      clipId: clip.id,
       height: rect.height,
       kind: 'volume',
       pointerId: event.pointerId,
-      previousVolume: track.volume,
+      previousVolume: clip.volume,
       top: rect.top,
-      trackId,
     };
     store
       .getState()
-      .setTrackVolume(trackId, getVolumeAtPointer(next, event.clientY));
+      .setClipVolume(clip.id, getVolumeAtPointer(next, event.clientY));
     gridRef.current?.setPointerCapture?.(event.pointerId);
     setGesture(next);
   };

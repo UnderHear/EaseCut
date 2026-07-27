@@ -15,7 +15,7 @@ const createTrack = (
   id,
   name: type === 'video' ? '视频轨' : `音频轨 ${zIndex}`,
   type,
-  volume: 1,
+  muted: false,
   zIndex,
 });
 
@@ -36,7 +36,7 @@ describe('timeline track creation', () => {
       expect.objectContaining({
         id: 'video-overlay-2',
         type: 'video',
-        volume: 1,
+        muted: false,
         zIndex: 1,
       }),
     );

@@ -8,7 +8,7 @@ import type {
   TimelineMediaType,
   TimelineProject,
   TimelineTrack,
-  TimelineTrackVolume,
+  TimelineClipVolume,
 } from './core/model';
 
 export type {
@@ -20,12 +20,12 @@ export type {
   TimelineProject,
   TimelineSnapshot,
   TimelineTrack,
-  TimelineTrackVolume,
+  TimelineClipVolume,
 } from './core/model';
 
 export type VideoTimelineMediaType = TimelineMediaType;
 export type VideoTimelineClipTrimEdge = 'start' | 'end';
-export type VideoTimelineTrackVolume = TimelineTrackVolume;
+export type VideoTimelineClipVolume = TimelineClipVolume;
 export type VideoTimelineTrack = TimelineTrack;
 export type VideoTimelineTrackDraft = TimelineTrack;
 export type VideoTimelineClipTransform = TimelineClipTransform;

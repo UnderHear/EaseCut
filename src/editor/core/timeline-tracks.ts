@@ -1,7 +1,4 @@
-import type {
-  TimelineTrack,
-  TimelineTrackVolume,
-} from './model';
+import type { TimelineTrack } from './model';
 
 export const MAIN_VIDEO_TRACK_ID = 'video-main';
 export const DYNAMIC_VIDEO_TRACK_ID_PREFIX = 'video-overlay-';
@@ -17,16 +14,12 @@ export type TrackDropTarget =
   | { kind: 'existing'; trackId: string }
   | { insert: TrackInsertTarget; kind: 'insert' };
 
-export const normalizeTrackVolume = (volume: number): TimelineTrackVolume =>
-  Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
-
 export const normalizeTimelineTracks = (tracks: TimelineTrack[]) =>
   [
     ...tracks.filter((track) => track.type === 'video'),
     ...tracks.filter((track) => track.type === 'audio'),
   ].map((track, zIndex) => ({
     ...track,
-    volume: normalizeTrackVolume(track.volume),
     zIndex,
   }));
 
@@ -73,9 +66,9 @@ const createTimelineTrack = (
   id: string,
 ): TimelineTrack => ({
   id,
+  muted: false,
   name: type === 'video' ? '视频轨' : getNextAudioTrackName(tracks),
   type,
-  volume: 1,
   zIndex: getNextTrackZIndex(tracks),
 });
 

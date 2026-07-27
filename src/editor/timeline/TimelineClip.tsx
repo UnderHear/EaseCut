@@ -56,9 +56,8 @@ export type TimelineClipViewProps = {
     clip: TimelineClip,
     edge: TimelineClipTrimEdge,
   ) => void;
-  onVolumeStart: (event: PointerEvent<HTMLElement>, trackId: string) => void;
+  onVolumeStart: (event: PointerEvent<HTMLElement>, clip: TimelineClip) => void;
   pixelsPerSecond: number;
-  trackVolume: number;
   visibleTimeEndUs: number;
   visibleTimeStartUs: number;
   width: number;
@@ -70,7 +69,6 @@ const useTimelineClipPresentation = (
   clip: TimelineClip,
   pixelsPerSecond: number,
   timelineStartUs: number,
-  trackVolume: number,
   visibleTimeEndUs: number,
   visibleTimeStartUs: number,
 ) => {
@@ -158,7 +156,7 @@ const useTimelineClipPresentation = (
 
   return {
     previewStrip,
-    volume: clampUnit(trackVolume),
+    volume: clampUnit(clip.volume),
     waveformRenderWindow,
     waveformSamples,
   };
@@ -258,7 +256,6 @@ export function TimelineClipView({
   onTrimStart,
   onVolumeStart,
   pixelsPerSecond,
-  trackVolume,
   visibleTimeEndUs,
   visibleTimeStartUs,
   width,
@@ -274,7 +271,6 @@ export function TimelineClipView({
       clip,
       pixelsPerSecond,
       clip.startUs,
-      trackVolume,
       visibleTimeEndUs,
       visibleTimeStartUs,
     );
@@ -342,7 +338,7 @@ export function TimelineClipView({
               className='oc-timeline-clip__volume'
               onPointerDown={(event) => {
                 event.stopPropagation();
-                if (event.button === 0) onVolumeStart(event, clip.trackId);
+                if (event.button === 0) onVolumeStart(event, clip);
               }}
               type='button'
             >
@@ -425,7 +421,6 @@ type TimelineClipDragOverlayProps = {
   pixelsPerSecond: number;
   timelineStartUs: number;
   top: number;
-  trackVolume: number;
   visibleTimeEndUs: number;
   visibleTimeStartUs: number;
   width: number;
@@ -438,7 +433,6 @@ export function TimelineClipDragOverlay({
   pixelsPerSecond,
   timelineStartUs,
   top,
-  trackVolume,
   visibleTimeEndUs,
   visibleTimeStartUs,
   width,
@@ -453,7 +447,6 @@ export function TimelineClipDragOverlay({
       clip,
       pixelsPerSecond,
       timelineStartUs,
-      trackVolume,
       visibleTimeEndUs,
       visibleTimeStartUs,
     );

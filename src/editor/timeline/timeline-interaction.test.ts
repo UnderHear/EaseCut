@@ -20,7 +20,7 @@ const createTrack = (
   id,
   name: id,
   type,
-  volume: 1,
+  muted: false,
   zIndex,
 });
 
