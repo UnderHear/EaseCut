@@ -269,7 +269,7 @@ export function TimelineToolbar({
         </ToolbarButton>
         <input
           aria-label='时间轴缩放'
-          className='oc-timeline-toolbar__zoom'
+          className='oc-range-input oc-timeline-toolbar__zoom'
           max={MAX_PIXELS_PER_SECOND}
           min={MIN_PIXELS_PER_SECOND}
           onChange={(event) => setPixelsPerSecond(Number(event.target.value))}

@@ -63,6 +63,7 @@ export function FloatingInspectorSpeedPanel({
             <input
               aria-label='播放速度滑块'
               aria-valuetext={`${draftSpeed} 倍`}
+              className='oc-range-input'
               max={MAX_CLIP_SPEED}
               min={MIN_CLIP_SPEED}
               onBlur={commitDraftSpeed}
@@ -82,13 +83,6 @@ export function FloatingInspectorSpeedPanel({
               type='range'
               value={draftSpeed}
             />
-            <div className='oc-floating-inspector__speed-range'>
-              <span>{MIN_CLIP_SPEED}x</span>
-              <span>{MAX_CLIP_SPEED}x</span>
-            </div>
-          </div>
-          <div className='oc-floating-inspector__number-field'>
-            <span>固定倍速</span>
             <InputNumber
               label='播放速度'
               max={MAX_CLIP_SPEED}

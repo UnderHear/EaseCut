@@ -468,23 +468,21 @@
 }
 
 .oc-floating-inspector__speed-control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
 }
 
-.oc-floating-inspector__speed-control input[type='range'] {
+.oc-range-input {
+  height: 18px;
+  accent-color: #ffffff;
+  cursor: pointer;
+}
+
+.oc-floating-inspector__speed-control .oc-range-input {
   width: 100%;
-  accent-color: var(--oc-accent);
-}
-
-.oc-floating-inspector__speed-range {
-  display: flex;
-  justify-content: space-between;
-  color: var(--oc-text-muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 
 .oc-floating-inspector__rail {
@@ -597,10 +595,7 @@
 .oc-timeline-toolbar__zoom {
   width: min(120px, 10vw);
   min-width: 64px;
-  height: 18px;
   margin: 0 3px;
-  accent-color: #ffffff;
-  cursor: pointer;
 }
 
 .oc-import-dialog__backdrop {
