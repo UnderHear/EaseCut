@@ -943,6 +943,66 @@ describe('TimelineViewport DOM interactions', () => {
     expect(viewport.scrollLeft).toBe(140);
   });
 
+  it('reuses fixed waveform tiles while scrolling during playback', () => {
+    const longAudioClip = createClip({
+      durationUs: secondsToMicroseconds(60),
+      id: 'long-audio-clip',
+      name: 'long-background.mp3',
+      sourceDurationUs: secondsToMicroseconds(60),
+      sourceId: 'long-audio-source',
+      src: '/long-background.mp3',
+      startUs: 0,
+      trackId: audioTrack.id,
+      trimEndUs: secondsToMicroseconds(60),
+      type: 'audio',
+      volume: 0.5,
+    });
+    testTimelineStore.setState({
+      clips: [videoClip, longAudioClip],
+      currentTimeUs: secondsToMicroseconds(5),
+      isPlaying: true,
+    });
+    const { viewport } = renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'audio clip: long-background.mp3',
+    });
+    const initialTileZero = clip.querySelector<HTMLCanvasElement>(
+      '[data-waveform-tile-index="0"]',
+    );
+    const initialTileOne = clip.querySelector<HTMLCanvasElement>(
+      '[data-waveform-tile-index="1"]',
+    );
+    if (!initialTileZero || !initialTileOne) {
+      throw new Error('initial waveform tiles were not rendered');
+    }
+    initialTileZero.width = 2_048;
+    initialTileZero.height = 72;
+
+    for (const [scrollLeft, currentTimeUs] of [
+      [360, secondsToMicroseconds(5.1)],
+      [400, secondsToMicroseconds(5.2)],
+      [440, secondsToMicroseconds(5.6)],
+    ] as const) {
+      viewport.scrollLeft = scrollLeft;
+      fireEvent.scroll(viewport);
+      act(() => {
+        testTimelineStore.setState({ currentTimeUs });
+      });
+
+      const tileZero = clip.querySelector<HTMLCanvasElement>(
+        '[data-waveform-tile-index="0"]',
+      );
+      const tileOne = clip.querySelector<HTMLCanvasElement>(
+        '[data-waveform-tile-index="1"]',
+      );
+      expect(tileZero).toBe(initialTileZero);
+      expect(tileOne).toBe(initialTileOne);
+      expect(tileZero).toHaveStyle({ left: '0px', width: '1024px' });
+      expect(tileZero?.width).toBe(2_048);
+      expect(tileZero?.height).toBe(72);
+    }
+  });
+
   it('commits a same-track clip move on pointer release', () => {
     const onClipTimingPreviewChange = vi.fn();
     const { shell } = renderTimeline({ onClipTimingPreviewChange });

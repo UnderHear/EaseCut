@@ -23,8 +23,8 @@ import {
   type FramePreviewStrip,
 } from '../media';
 import {
-  getAudioWaveformRenderWindow,
-  type AudioWaveformRenderWindow,
+  getAudioWaveformTiles,
+  type AudioWaveformTile,
 } from '../core/audio-waveform-bars';
 import {
   getSpeedAdjustedPixelsPerSecond,
@@ -150,10 +150,10 @@ const useTimelineClipPresentation = (
     visibleTimeStartUs,
   ]);
   const previewStrip = useFramePreviewStrip(previewRequest);
-  const waveformRenderWindow = useMemo(
+  const waveformTiles = useMemo(
     () =>
       clip.type === 'audio'
-        ? getAudioWaveformRenderWindow({
+        ? getAudioWaveformTiles({
             clipDurationUs: clip.durationUs,
             pixelsPerSecond,
             speed: clip.speed,
@@ -162,7 +162,7 @@ const useTimelineClipPresentation = (
             visibleTimeEndUs,
             visibleTimeStartUs,
           })
-        : null,
+        : [],
     [
       clip.durationUs,
       clip.speed,
@@ -176,14 +176,14 @@ const useTimelineClipPresentation = (
   );
   const waveformSamples = useAudioWaveformSamples(
     clip.waveformSrc ?? clip.src,
-    waveformRenderWindow !== null,
+    waveformTiles.length > 0,
     HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   );
 
   return {
     previewStrip,
     volume: clampUnit(clip.volume),
-    waveformRenderWindow,
+    waveformTiles,
     waveformSamples,
   };
 };
@@ -192,7 +192,7 @@ type TimelineClipVisualProps = {
   clip: TimelineClip;
   pixelsPerSecond: number;
   previewStrip: FramePreviewStrip | null;
-  waveformRenderWindow: AudioWaveformRenderWindow | null;
+  waveformTiles: readonly AudioWaveformTile[];
   waveformSamples: readonly number[];
   volume: number;
 };
@@ -201,7 +201,7 @@ function TimelineClipVisual({
   clip,
   pixelsPerSecond,
   previewStrip,
-  waveformRenderWindow,
+  waveformTiles,
   waveformSamples,
   volume,
 }: TimelineClipVisualProps) {
@@ -237,20 +237,24 @@ function TimelineClipVisual({
               />
             ))}
           </div>
-        ) : waveformRenderWindow ? (
-          <AudioWaveformCanvas
-            left={waveformRenderWindow.left}
-            pixelsPerSecond={getSpeedAdjustedPixelsPerSecond(
-              pixelsPerSecond,
-              clip.speed,
-            )}
-            renderWidth={waveformRenderWindow.width}
-            samples={waveformSamples}
-            sourceDurationUs={clip.sourceDurationUs}
-            sourceStartUs={waveformRenderWindow.sourceStartUs}
-            volume={volume}
-          />
-        ) : null}
+        ) : (
+          waveformTiles.map((tile) => (
+            <AudioWaveformCanvas
+              key={`${pixelsPerSecond}:${clip.speed}:${tile.sourceStartUs}:${tile.index}:${tile.width}`}
+              left={tile.left}
+              pixelsPerSecond={getSpeedAdjustedPixelsPerSecond(
+                pixelsPerSecond,
+                clip.speed,
+              )}
+              samples={waveformSamples}
+              sourceDurationUs={clip.sourceDurationUs}
+              sourceStartUs={tile.sourceStartUs}
+              tileIndex={tile.index}
+              volume={volume}
+              width={tile.width}
+            />
+          ))
+        )}
       </div>
 
       <header className='oc-timeline-clip__meta'>
@@ -294,7 +298,7 @@ export function TimelineClipView({
   const {
     previewStrip,
     volume,
-    waveformRenderWindow,
+    waveformTiles,
     waveformSamples,
   } =
     useTimelineClipPresentation(
@@ -357,7 +361,7 @@ export function TimelineClipView({
             clip={clip}
             pixelsPerSecond={pixelsPerSecond}
             previewStrip={previewStrip}
-            waveformRenderWindow={waveformRenderWindow}
+            waveformTiles={waveformTiles}
             waveformSamples={waveformSamples}
             volume={volume}
           />
@@ -470,7 +474,7 @@ export function TimelineClipDragOverlay({
   const {
     previewStrip,
     volume,
-    waveformRenderWindow,
+    waveformTiles,
     waveformSamples,
   } =
     useTimelineClipPresentation(
@@ -503,7 +507,7 @@ export function TimelineClipDragOverlay({
         clip={clip}
         pixelsPerSecond={pixelsPerSecond}
         previewStrip={previewStrip}
-        waveformRenderWindow={waveformRenderWindow}
+        waveformTiles={waveformTiles}
         waveformSamples={waveformSamples}
         volume={volume}
       />

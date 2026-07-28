@@ -6,6 +6,7 @@ import type { TimelineClipSpeed } from './model';
 import { MICROSECONDS_PER_SECOND } from './time';
 
 export const AUDIO_WAVEFORM_BAR_SPACING_PIXELS = 2;
+export const AUDIO_WAVEFORM_TILE_WIDTH_PIXELS = 1_024;
 
 const AUDIO_WAVEFORM_BAR_WIDTH_PIXELS = 1;
 
@@ -16,7 +17,8 @@ export type AudioWaveformBar = Readonly<{
   y: number;
 }>;
 
-export type AudioWaveformRenderWindow = Readonly<{
+export type AudioWaveformTile = Readonly<{
+  index: number;
   left: number;
   sourceStartUs: number;
   width: number;
@@ -37,7 +39,7 @@ type AudioWaveformBarOptions = Readonly<{
   width: number;
 }>;
 
-type AudioWaveformRenderWindowOptions = Readonly<{
+type AudioWaveformTileOptions = Readonly<{
   clipDurationUs: number;
   pixelsPerSecond: number;
   speed: TimelineClipSpeed;
@@ -113,10 +115,10 @@ const getSourceRangePeak = (
 };
 
 /**
- * Keeps the canvas bounded to the visible clip intersection. One bar of
- * overscan prevents a partially visible edge bar from blinking while scrolling.
+ * Returns fixed, clip-anchored canvases for the visible range. Stable tile
+ * geometry lets native scrolling move existing bitmaps without resizing them.
  */
-export const getAudioWaveformRenderWindow = ({
+export const getAudioWaveformTiles = ({
   clipDurationUs,
   pixelsPerSecond,
   speed,
@@ -124,7 +126,7 @@ export const getAudioWaveformRenderWindow = ({
   trimStartUs,
   visibleTimeEndUs,
   visibleTimeStartUs,
-}: AudioWaveformRenderWindowOptions): AudioWaveformRenderWindow | null => {
+}: AudioWaveformTileOptions): AudioWaveformTile[] => {
   if (
     ![
       clipDurationUs,
@@ -140,7 +142,7 @@ export const getAudioWaveformRenderWindow = ({
     !isValidClipSpeed(speed) ||
     visibleTimeEndUs <= visibleTimeStartUs
   ) {
-    return null;
+    return [];
   }
 
   const visibleClipStartUs = Math.max(timelineStartUs, visibleTimeStartUs);
@@ -148,33 +150,52 @@ export const getAudioWaveformRenderWindow = ({
     timelineStartUs + clipDurationUs,
     visibleTimeEndUs,
   );
-  if (visibleClipEndUs <= visibleClipStartUs) return null;
+  if (visibleClipEndUs <= visibleClipStartUs) return [];
 
   const clipWidth =
     (clipDurationUs / MICROSECONDS_PER_SECOND) * pixelsPerSecond;
-  const left = Math.max(
-    0,
+  const visibleClipStart =
     ((visibleClipStartUs - timelineStartUs) / MICROSECONDS_PER_SECOND) *
-      pixelsPerSecond -
-      AUDIO_WAVEFORM_BAR_SPACING_PIXELS,
-  );
-  const right = Math.min(
-    clipWidth,
+    pixelsPerSecond;
+  const visibleClipEnd =
     ((visibleClipEndUs - timelineStartUs) / MICROSECONDS_PER_SECOND) *
-      pixelsPerSecond +
-      AUDIO_WAVEFORM_BAR_SPACING_PIXELS,
+    pixelsPerSecond;
+  const tileCount = Math.ceil(
+    clipWidth / AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
   );
+  const firstVisibleTile = Math.floor(
+    visibleClipStart / AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
+  );
+  const lastVisibleTile = Math.max(
+    firstVisibleTile,
+    Math.ceil(visibleClipEnd / AUDIO_WAVEFORM_TILE_WIDTH_PIXELS) - 1,
+  );
+  const firstTile = Math.max(0, firstVisibleTile - 1);
+  const lastTile = Math.min(tileCount - 1, lastVisibleTile + 1);
+  const tiles: AudioWaveformTile[] = [];
 
-  return {
-    left,
-    sourceStartUs:
-      trimStartUs +
-      scaleTimelineOffsetToSourceUs(
-        (left / pixelsPerSecond) * MICROSECONDS_PER_SECOND,
-        speed,
-      ),
-    width: Math.max(0, right - left),
-  };
+  for (let index = firstTile; index <= lastTile; index += 1) {
+    const left = index * AUDIO_WAVEFORM_TILE_WIDTH_PIXELS;
+    const width = Math.min(
+      AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
+      clipWidth - left,
+    );
+    if (width <= 0) continue;
+
+    tiles.push({
+      index,
+      left,
+      sourceStartUs:
+        trimStartUs +
+        scaleTimelineOffsetToSourceUs(
+          (left / pixelsPerSecond) * MICROSECONDS_PER_SECOND,
+          speed,
+        ),
+      width,
+    });
+  }
+
+  return tiles;
 };
 
 /**

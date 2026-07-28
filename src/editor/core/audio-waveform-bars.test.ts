@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AUDIO_WAVEFORM_BAR_SPACING_PIXELS,
+  AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
   getAudioWaveformBitmapSize,
   getAudioWaveformBars,
-  getAudioWaveformRenderWindow,
+  getAudioWaveformTiles,
 } from './audio-waveform-bars';
 import { secondsToMicroseconds } from './time';
 
@@ -118,45 +119,91 @@ describe('audio waveform bars', () => {
     expect(muted.every((bar) => bar.height === 0)).toBe(true);
   });
 
-  it('bounds the canvas to the visible clip intersection with edge overscan', () => {
-    expect(
-      getAudioWaveformRenderWindow({
-        clipDurationUs: secondsToMicroseconds(100),
-        pixelsPerSecond: 80,
-        speed: 1,
-        timelineStartUs: secondsToMicroseconds(10),
-        trimStartUs: secondsToMicroseconds(5),
-        visibleTimeEndUs: secondsToMicroseconds(22),
-        visibleTimeStartUs: secondsToMicroseconds(20),
-      }),
-    ).toEqual({
-      left: 798,
-      sourceStartUs: secondsToMicroseconds(14.975),
-      width: 164,
+  it('keeps existing tile geometry stable during continuous scrolling', () => {
+    const options = {
+      clipDurationUs: secondsToMicroseconds(100),
+      pixelsPerSecond: 80,
+      speed: 1,
+      timelineStartUs: secondsToMicroseconds(10),
+      trimStartUs: secondsToMicroseconds(5),
+    } as const;
+    const initialTiles = getAudioWaveformTiles({
+      ...options,
+      visibleTimeEndUs: secondsToMicroseconds(22),
+      visibleTimeStartUs: secondsToMicroseconds(20),
+    });
+    const scrolledTiles = getAudioWaveformTiles({
+      ...options,
+      visibleTimeEndUs: secondsToMicroseconds(22.5),
+      visibleTimeStartUs: secondsToMicroseconds(20.5),
+    });
+
+    expect(initialTiles).toEqual([
+      {
+        index: 0,
+        left: 0,
+        sourceStartUs: secondsToMicroseconds(5),
+        width: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
+      },
+      {
+        index: 1,
+        left: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
+        sourceStartUs: secondsToMicroseconds(17.8),
+        width: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
+      },
+    ]);
+    expect(scrolledTiles).toEqual(initialTiles);
+  });
+
+  it('only adds and removes edge tiles when crossing a tile boundary', () => {
+    const options = {
+      clipDurationUs: secondsToMicroseconds(100),
+      pixelsPerSecond: 80,
+      speed: 1,
+      timelineStartUs: secondsToMicroseconds(10),
+      trimStartUs: secondsToMicroseconds(5),
+    } as const;
+    const beforeBoundary = getAudioWaveformTiles({
+      ...options,
+      visibleTimeEndUs: secondsToMicroseconds(22),
+      visibleTimeStartUs: secondsToMicroseconds(20),
+    });
+    const afterBoundary = getAudioWaveformTiles({
+      ...options,
+      visibleTimeEndUs: secondsToMicroseconds(25),
+      visibleTimeStartUs: secondsToMicroseconds(23),
+    });
+
+    expect(afterBoundary.slice(0, 2)).toEqual(beforeBoundary);
+    expect(afterBoundary.at(-1)).toEqual({
+      index: 2,
+      left: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS * 2,
+      sourceStartUs: secondsToMicroseconds(30.6),
+      width: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
     });
   });
 
-  it('maps a visible timeline window to the speed-adjusted source range', () => {
-    expect(
-      getAudioWaveformRenderWindow({
-        clipDurationUs: secondsToMicroseconds(50),
-        pixelsPerSecond: 80,
-        speed: 2,
-        timelineStartUs: secondsToMicroseconds(10),
-        trimStartUs: secondsToMicroseconds(5),
-        visibleTimeEndUs: secondsToMicroseconds(22),
-        visibleTimeStartUs: secondsToMicroseconds(20),
-      }),
-    ).toEqual({
-      left: 798,
-      sourceStartUs: secondsToMicroseconds(24.95),
-      width: 164,
+  it('maps tile starts to the speed-adjusted source range', () => {
+    const tiles = getAudioWaveformTiles({
+      clipDurationUs: secondsToMicroseconds(50),
+      pixelsPerSecond: 80,
+      speed: 2,
+      timelineStartUs: secondsToMicroseconds(10),
+      trimStartUs: secondsToMicroseconds(5),
+      visibleTimeEndUs: secondsToMicroseconds(22),
+      visibleTimeStartUs: secondsToMicroseconds(20),
+    });
+
+    expect(tiles[1]).toEqual({
+      index: 1,
+      left: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
+      sourceStartUs: secondsToMicroseconds(30.6),
+      width: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
     });
   });
 
-  it('keeps long, highly zoomed assets bounded to the visible window', () => {
-    expect(
-      getAudioWaveformRenderWindow({
+  it('bounds long, highly zoomed assets to the viewport and overscan', () => {
+    const tiles = getAudioWaveformTiles({
         clipDurationUs: secondsToMicroseconds(21_600),
         pixelsPerSecond: 2_000,
         speed: 1,
@@ -164,11 +211,25 @@ describe('audio waveform bars', () => {
         trimStartUs: secondsToMicroseconds(7_200),
         visibleTimeEndUs: secondsToMicroseconds(10_000.6),
         visibleTimeStartUs: secondsToMicroseconds(10_000),
-      }),
-    ).toEqual({
-      left: 19_999_998,
-      sourceStartUs: secondsToMicroseconds(17_199.999),
-      width: 1_204,
+    });
+
+    expect(tiles).toHaveLength(4);
+    expect(tiles.map(({ index }) => index)).toEqual([
+      19_530,
+      19_531,
+      19_532,
+      19_533,
+    ]);
+    expect(
+      tiles.every(
+        ({ width }) => width <= AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
+      ),
+    ).toBe(true);
+    expect(tiles[0]).toEqual({
+      index: 19_530,
+      left: 19_998_720,
+      sourceStartUs: secondsToMicroseconds(17_199.36),
+      width: AUDIO_WAVEFORM_TILE_WIDTH_PIXELS,
     });
   });
 
@@ -212,7 +273,7 @@ describe('audio waveform bars', () => {
       getAudioWaveformBars([1], { ...options, sourceDurationUs: Number.NaN }),
     ).toEqual([]);
     expect(
-      getAudioWaveformRenderWindow({
+      getAudioWaveformTiles({
         clipDurationUs: secondsToMicroseconds(1),
         pixelsPerSecond: 80,
         speed: 1,
@@ -221,6 +282,6 @@ describe('audio waveform bars', () => {
         visibleTimeEndUs: secondsToMicroseconds(2),
         visibleTimeStartUs: secondsToMicroseconds(2),
       }),
-    ).toBeNull();
+    ).toEqual([]);
   });
 });
