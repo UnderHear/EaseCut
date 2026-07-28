@@ -111,6 +111,7 @@ export type TimelineState = {
   layoutRevision: number;
   past: TimelineSnapshot[];
   pixelsPerSecond: number;
+  playheadFollowEnabled: boolean;
   selectedClipId: string | null;
   snappingEnabled: boolean;
   tracks: TimelineTrack[];
@@ -147,6 +148,7 @@ export type TimelineActions = {
   splitClipAtTime: (clipId: string, timeUs: number) => void;
   syncSources: (sources: VideoTimelineSource[]) => void;
   toggleCanvasSnapping: () => void;
+  togglePlayheadFollow: () => void;
   toggleSnapping: () => void;
   toggleTrackMute: (trackId: string) => void;
   undo: () => void;
@@ -292,6 +294,7 @@ const createBaseState = (
   layoutRevision: 0,
   past: [],
   pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND,
+  playheadFollowEnabled: true,
   selectedClipId: null,
   snappingEnabled: true,
   tracks,
@@ -716,6 +719,11 @@ export const createTimelineStore = (
       toggleCanvasSnapping: () =>
         set((state) => ({
           canvasSnappingEnabled: !state.canvasSnappingEnabled,
+        })),
+
+      togglePlayheadFollow: () =>
+        set((state) => ({
+          playheadFollowEnabled: !state.playheadFollowEnabled,
         })),
 
       toggleSnapping: () =>

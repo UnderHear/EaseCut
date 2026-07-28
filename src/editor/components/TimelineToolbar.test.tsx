@@ -132,6 +132,34 @@ describe('TimelineToolbar', () => {
     expect(timelineSnappingButton).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('toggles playhead follow immediately before timeline snapping', async () => {
+    const user = userEvent.setup();
+    renderWithEditorProviders(
+      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+    );
+
+    const playheadFollowButton = screen.getByRole('button', {
+      name: '播放头跟随',
+    });
+    const timelineSnappingButton = screen.getByRole('button', {
+      name: '时间轴吸附',
+    });
+
+    expect(playheadFollowButton.nextElementSibling).toBe(
+      timelineSnappingButton,
+    );
+    expect(
+      playheadFollowButton.querySelector('.lucide-text-cursor-input'),
+    ).not.toBeNull();
+    expect(playheadFollowButton).toHaveAttribute('title', '播放头跟随');
+    expect(playheadFollowButton).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(playheadFollowButton);
+
+    expect(testTimelineStore.getState().playheadFollowEnabled).toBe(false);
+    expect(playheadFollowButton).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('shows timeline keyboard shortcuts in a dismissible dialog', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(

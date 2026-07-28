@@ -930,7 +930,29 @@ describe('TimelineViewport DOM interactions', () => {
     expect(playhead).toHaveStyle({ left: '204px' });
   });
 
-  it('automatically follows the playhead inside the tracks viewport during playback', () => {
+  it('follows the playhead only after it reaches the right edge during playback', () => {
+    const { viewport } = renderTimeline();
+
+    act(() => {
+      testTimelineStore.setState({
+        currentTimeUs: secondsToMicroseconds(8),
+        isPlaying: true,
+      });
+    });
+
+    expect(viewport.scrollLeft).toBe(0);
+
+    act(() => {
+      testTimelineStore.setState({
+        currentTimeUs: secondsToMicroseconds(9),
+      });
+    });
+
+    expect(viewport.scrollLeft).toBe(528);
+  });
+
+  it('does not follow the playhead when playback follow is disabled', () => {
+    testTimelineStore.setState({ playheadFollowEnabled: false });
     const { viewport } = renderTimeline();
 
     act(() => {
@@ -940,7 +962,7 @@ describe('TimelineViewport DOM interactions', () => {
       });
     });
 
-    expect(viewport.scrollLeft).toBe(140);
+    expect(viewport.scrollLeft).toBe(0);
   });
 
   it('reuses fixed waveform tiles while scrolling during playback', () => {

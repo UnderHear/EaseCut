@@ -47,6 +47,8 @@ import { TimelineRuler } from './TimelineRuler';
 import { getTimelineContentDurationUs } from './timeline-interaction';
 import { useTimelineController } from './useTimelineController';
 
+const PLAYBACK_FOLLOW_RIGHT_OFFSET_PX = 500;
+
 type TimelineViewportProps = {
   onClipTimingPreviewChange?: (
     preview: TimelineClipTimingPreview | null,
@@ -64,6 +66,9 @@ export function TimelineViewport({
   const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
+  const playheadFollowEnabled = useTimelineStore(
+    (state) => state.playheadFollowEnabled,
+  );
   const selectedClipId = useTimelineStore((state) => state.selectedClipId);
   const tracks = useTimelineStore((state) => state.tracks);
   const selectClip = useTimelineStore((state) => state.selectClip);
@@ -320,19 +325,33 @@ export function TimelineViewport({
   }, [controller.isInteracting, store]);
 
   useEffect(() => {
-    if (!isPlaying || controller.isInteracting) return;
+    if (
+      !isPlaying ||
+      !playheadFollowEnabled ||
+      controller.isInteracting
+    ) {
+      return;
+    }
     const element = viewportRef.current;
     if (!element) return;
     const left = playheadLeft;
     const viewportLeft = element.scrollLeft;
     const viewportRight = element.scrollLeft + element.clientWidth;
 
-    if (left > viewportRight - 56) {
-      element.scrollLeft = Math.max(0, left - element.clientWidth + 112);
+    if (left >= viewportRight) {
+      element.scrollLeft = Math.max(
+        0,
+        left - element.clientWidth + PLAYBACK_FOLLOW_RIGHT_OFFSET_PX,
+      );
     } else if (left < viewportLeft + 20) {
       element.scrollLeft = Math.max(0, left - 48);
     }
-  }, [controller.isInteracting, isPlaying, playheadLeft]);
+  }, [
+    controller.isInteracting,
+    isPlaying,
+    playheadFollowEnabled,
+    playheadLeft,
+  ]);
 
   return (
     <div

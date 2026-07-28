@@ -9,6 +9,7 @@ import {
   Redo2,
   ScanLine,
   SquareSplitHorizontal,
+  TextCursorInput,
   Trash2,
   Undo2,
   X,
@@ -79,6 +80,9 @@ export function TimelineToolbar({
   const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
+  const playheadFollowEnabled = useTimelineStore(
+    (state) => state.playheadFollowEnabled,
+  );
   const selectedClipId = useTimelineStore((state) => state.selectedClipId);
   const snappingEnabled = useTimelineStore((state) => state.snappingEnabled);
   const deleteSelectedClip = useTimelineStore(
@@ -92,6 +96,9 @@ export function TimelineToolbar({
   const splitAtPlayhead = useTimelineStore((state) => state.splitAtPlayhead);
   const toggleCanvasSnapping = useTimelineStore(
     (state) => state.toggleCanvasSnapping,
+  );
+  const togglePlayheadFollow = useTimelineStore(
+    (state) => state.togglePlayheadFollow,
   );
   const toggleSnapping = useTimelineStore((state) => state.toggleSnapping);
   const undo = useTimelineStore((state) => state.undo);
@@ -222,6 +229,14 @@ export function TimelineToolbar({
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
+        <ToolbarButton
+          active={playheadFollowEnabled}
+          label='播放头跟随'
+          onClick={togglePlayheadFollow}
+          pressed={playheadFollowEnabled}
+        >
+          <TextCursorInput aria-hidden='true' />
+        </ToolbarButton>
         <ToolbarButton
           active={snappingEnabled}
           label='时间轴吸附'

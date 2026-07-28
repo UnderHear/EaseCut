@@ -233,6 +233,20 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().snappingEnabled).toBe(true);
   });
 
+  it('toggles playhead follow outside history and resets it to enabled', () => {
+    expect(timelineStore.getState().playheadFollowEnabled).toBe(true);
+
+    timelineStore.getState().togglePlayheadFollow();
+
+    expect(timelineStore.getState().playheadFollowEnabled).toBe(false);
+    expect(timelineStore.getState().past).toEqual([]);
+    expect(timelineStore.getState().future).toEqual([]);
+
+    timelineStore.getState().resetTimeline();
+
+    expect(timelineStore.getState().playheadFollowEnabled).toBe(true);
+  });
+
   it('keeps fixture video clips on the main video track', () => {
     const clips = getMainVideoClips();
 
