@@ -34,7 +34,7 @@ export function FloatingInspectorBasicPanel({
           <h3>片段信息</h3>
           <dl className='oc-floating-inspector__details'>
             <div>
-              <dt>素材</dt>
+              <dt>素材名</dt>
               <dd
                 className='oc-floating-inspector__detail-value--wrap'
                 title={clip.name}

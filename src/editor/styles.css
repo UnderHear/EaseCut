@@ -438,9 +438,9 @@
 
 .oc-floating-inspector__details .oc-floating-inspector__detail-value--wrap {
   overflow: visible;
-  overflow-wrap: anywhere;
   text-overflow: clip;
   white-space: normal;
+  word-break: break-all;
 }
 
 .oc-floating-inspector__number-grid {
