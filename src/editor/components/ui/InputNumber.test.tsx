@@ -48,4 +48,31 @@ describe('InputNumber', () => {
     await user.click(screen.getByRole('button', { name: '轨道音量减少' }));
     expect(onCommit).toHaveBeenLastCalledWith(99);
   });
+
+  it('keeps decimal step values free of floating-point artifacts', async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+    render(
+      <InputNumber
+        label='播放速度'
+        max={4}
+        min={0.1}
+        onCommit={onCommit}
+        step={0.1}
+        suffix='x'
+        value={1}
+      />,
+    );
+
+    const increase = screen.getByRole('button', {
+      name: '播放速度增加',
+    });
+    await user.click(increase);
+    await user.click(increase);
+
+    expect(screen.getByRole('spinbutton', { name: '播放速度' })).toHaveValue(
+      1.2,
+    );
+    expect(onCommit).toHaveBeenLastCalledWith(1.2);
+  });
 });

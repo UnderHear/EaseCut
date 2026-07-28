@@ -64,6 +64,7 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
   name: 'opening.mp4',
   sourceDurationUs: secondsToMicroseconds(6),
   sourceId: 'video-source',
+  speed: 1,
   src: '/opening.mp4',
   startUs: 0,
   trackId: MAIN_VIDEO_TRACK_ID,
@@ -373,6 +374,38 @@ describe('TimelineViewport DOM interactions', () => {
         width: image.style.width,
       })),
     ).toEqual(thumbnailStateBeforeTrim);
+  });
+
+  it('requests and lays out video frames at speed-adjusted source density', () => {
+    testTimelineStore.setState((state) => ({
+      clips: state.clips.map((clip) =>
+        clip.id === videoClip.id
+          ? {
+              ...clip,
+              durationUs: secondsToMicroseconds(2),
+              speed: 2,
+            }
+          : clip,
+      ),
+    }));
+
+    renderTimeline();
+
+    const request = useFramePreviewStripMock.mock.calls
+      .map(([candidate]) => candidate)
+      .filter((candidate) => candidate?.src === videoClip.src)
+      .at(-1);
+    expect(request).toEqual(
+      expect.objectContaining({
+        pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND / 2,
+      }),
+    );
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    expect(
+      clip.querySelector('.oc-timeline-clip__preview-strip'),
+    ).toHaveStyle({ transform: 'translate3d(0px, -50%, 0)' });
   });
 
   it('keeps stale preview frames visible at their original width during zoom', () => {

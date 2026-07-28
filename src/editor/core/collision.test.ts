@@ -19,6 +19,7 @@ const createClip = (
   name: id,
   sourceId: id,
   sourceDurationUs: secondsToMicroseconds(durationSeconds),
+  speed: 1,
   src: `${id}.mp4`,
   startUs: secondsToMicroseconds(startSeconds),
   trackId: 'video-main',

@@ -20,6 +20,7 @@ import {
   normalizeTimelineTimeUs,
   xToTimeUs,
 } from '../core/timeline-math';
+import { scaleTimelineOffsetToSourceUs } from '../core/clip-speed';
 import {
   getTrimmedClip,
   getTrimmedTimelineClips,
@@ -147,11 +148,17 @@ export function useTimelineController({
         xToTimeUs(point.x, gesture.pixelsPerSecond) -
           gesture.initialPointerTimeUs,
       );
+      const sourceDeltaUs = scaleTimelineOffsetToSourceUs(
+        deltaUs,
+        gesture.clip.speed,
+      );
       const trimmed = getTrimmedClip(
         gesture.clip,
         gesture.edge,
-        gesture.clip.trimStartUs + (gesture.edge === 'start' ? deltaUs : 0),
-        gesture.clip.trimEndUs + (gesture.edge === 'end' ? deltaUs : 0),
+        gesture.clip.trimStartUs +
+          (gesture.edge === 'start' ? sourceDeltaUs : 0),
+        gesture.clip.trimEndUs +
+          (gesture.edge === 'end' ? sourceDeltaUs : 0),
       );
       const next: TrimPreview = {
         clipId: gesture.clip.id,

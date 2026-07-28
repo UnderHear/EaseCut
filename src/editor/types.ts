@@ -4,6 +4,7 @@ import type {
   CompositionExportPayload,
   TimelineCanvasSize,
   TimelineClip,
+  TimelineClipSpeed,
   TimelineClipTransform,
   TimelineMediaType,
   TimelineProject,
@@ -14,6 +15,7 @@ import type {
 export type {
   TimelineCanvasSize,
   TimelineClip,
+  TimelineClipSpeed,
   TimelineClipTimingPreview,
   TimelineClipTransform,
   TimelineMediaType,
@@ -25,6 +27,7 @@ export type {
 
 export type VideoTimelineMediaType = TimelineMediaType;
 export type VideoTimelineClipTrimEdge = 'start' | 'end';
+export type VideoTimelineClipSpeed = TimelineClipSpeed;
 export type VideoTimelineClipVolume = TimelineClipVolume;
 export type VideoTimelineTrack = TimelineTrack;
 export type VideoTimelineTrackDraft = TimelineTrack;
@@ -70,6 +73,7 @@ export type {
   CompositionExportCanvas,
   CompositionExportClip,
   CompositionExportPayload,
+  CompositionExportSpeed,
   CompositionExportTransform,
   CompositionExportTrim,
   CompositionExportVolume,

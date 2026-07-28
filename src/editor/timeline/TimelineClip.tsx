@@ -26,6 +26,10 @@ import {
   getAudioWaveformRenderWindow,
   type AudioWaveformRenderWindow,
 } from '../core/audio-waveform-bars';
+import {
+  getSpeedAdjustedPixelsPerSecond,
+  scaleTimelineOffsetToSourceUs,
+} from '../core/clip-speed';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
 import {
   durationUsToWidth,
@@ -85,14 +89,33 @@ const useTimelineClipPresentation = (
       0,
       visibleTimeEndUs - visibleTimeStartUs,
     );
-    const sourceTimelineStartUs = timelineStartUs - clip.trimStartUs;
+    const sourcePixelsPerSecond = getSpeedAdjustedPixelsPerSecond(
+      pixelsPerSecond,
+      clip.speed,
+    );
+    const visibleSourceStartUs =
+      clip.trimStartUs +
+      scaleTimelineOffsetToSourceUs(
+        visibleTimeStartUs - timelineStartUs,
+        clip.speed,
+      );
+    const visibleSourceEndUs =
+      clip.trimStartUs +
+      scaleTimelineOffsetToSourceUs(
+        visibleTimeEndUs - timelineStartUs,
+        clip.speed,
+      );
+    const sourceOverscanUs = scaleTimelineOffsetToSourceUs(
+      viewportDurationUs,
+      clip.speed,
+    );
     const rawRangeStartUs = Math.max(
       0,
-      visibleTimeStartUs - sourceTimelineStartUs - viewportDurationUs,
+      visibleSourceStartUs - sourceOverscanUs,
     );
     const rawRangeEndUs = Math.min(
       clip.sourceDurationUs,
-      visibleTimeEndUs - sourceTimelineStartUs + viewportDurationUs,
+      visibleSourceEndUs + sourceOverscanUs,
     );
     const rangeStartUs = Math.max(
       0,
@@ -108,7 +131,7 @@ const useTimelineClipPresentation = (
     if (rangeEndUs <= rangeStartUs) return null;
 
     return {
-      pixelsPerSecond,
+      pixelsPerSecond: sourcePixelsPerSecond,
       rangeEndUs,
       rangeStartUs,
       sourceDurationUs: clip.sourceDurationUs,
@@ -117,6 +140,7 @@ const useTimelineClipPresentation = (
   }, [
     clip.durationUs,
     clip.sourceDurationUs,
+    clip.speed,
     clip.src,
     clip.trimStartUs,
     clip.type,
@@ -132,6 +156,7 @@ const useTimelineClipPresentation = (
         ? getAudioWaveformRenderWindow({
             clipDurationUs: clip.durationUs,
             pixelsPerSecond,
+            speed: clip.speed,
             timelineStartUs,
             trimStartUs: clip.trimStartUs,
             visibleTimeEndUs,
@@ -140,6 +165,7 @@ const useTimelineClipPresentation = (
         : null,
     [
       clip.durationUs,
+      clip.speed,
       clip.trimStartUs,
       clip.type,
       pixelsPerSecond,
@@ -180,7 +206,8 @@ function TimelineClipVisual({
   volume,
 }: TimelineClipVisualProps) {
   const previewPixelsPerSecond =
-    previewStrip?.pixelsPerSecond ?? pixelsPerSecond;
+    previewStrip?.pixelsPerSecond ??
+    getSpeedAdjustedPixelsPerSecond(pixelsPerSecond, clip.speed);
   const previewOffset = durationUsToWidth(
     clip.trimStartUs,
     previewPixelsPerSecond,
@@ -213,7 +240,10 @@ function TimelineClipVisual({
         ) : waveformRenderWindow ? (
           <AudioWaveformCanvas
             left={waveformRenderWindow.left}
-            pixelsPerSecond={pixelsPerSecond}
+            pixelsPerSecond={getSpeedAdjustedPixelsPerSecond(
+              pixelsPerSecond,
+              clip.speed,
+            )}
             renderWidth={waveformRenderWindow.width}
             samples={waveformSamples}
             sourceDurationUs={clip.sourceDurationUs}

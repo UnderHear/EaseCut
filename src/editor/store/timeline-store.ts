@@ -3,6 +3,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import { createCompositionSnapshot } from '../core/composition';
 import { createCompositionExportPayload } from '../core/export-schema';
 import {
+  changeClipSpeed,
   createDefaultClipTransform,
   deleteClip,
   findClipAtTime,
@@ -18,10 +19,15 @@ import {
   transformClip,
   trimClip,
   type MoveClipParams,
+  type ChangeClipSpeedParams,
   type TimelineEdit,
   type TimelineEditResult,
   type TrimClipParams,
 } from '../core/timeline-commands';
+import {
+  DEFAULT_CLIP_SPEED,
+  getSpeedAdjustedDurationUs,
+} from '../core/clip-speed';
 import {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
   MAIN_VIDEO_TRACK_ID,
@@ -65,7 +71,7 @@ import type {
   VideoTimelineSource,
 } from '../types';
 
-export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 6;
+export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 7;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
   width: 1280,
@@ -82,6 +88,7 @@ const defaultTracks: TimelineTrack[] = [{
 }];
 
 export type CommitClipDropParams = MoveClipParams;
+export type CommitClipSpeedParams = ChangeClipSpeedParams;
 export type CommitClipTrimParams = TrimClipParams;
 export type CommitClipTransformParams = {
   clipId: string;
@@ -116,6 +123,7 @@ export type TimelineDraftSource = Pick<
 
 export type TimelineActions = {
   commitClipDrop: (params: CommitClipDropParams) => void;
+  commitClipSpeed: (params: CommitClipSpeedParams) => void;
   commitClipTransform: (params: CommitClipTransformParams) => void;
   commitClipTrim: (params: CommitClipTrimParams) => void;
   commitClipVolume: (
@@ -239,6 +247,7 @@ export const createTimelineClipsFromSources = (
       name: source.fileName,
       sourceDurationUs: durationUs,
       sourceId: source.id,
+      speed: DEFAULT_CLIP_SPEED,
       src: source.src,
       startUs: source.type === 'video' ? videoCursorUs : 0,
       trackId:
@@ -379,11 +388,21 @@ function mergeSources(
   newSourceIds: ReadonlySet<string>,
 ): TimelineEditResult {
   const sourceById = new Map(sources.map((source) => [source.id, source]));
-  let changed = false;
-  const clips = state.clips.map((clip) => {
+  const durationChanges: Array<{
+    clipId: string;
+    deltaUs: number;
+    oldEndUs: number;
+    trackId: string;
+  }> = [];
+  const mergedExistingClips = state.clips.map((clip) => {
     const source = sourceById.get(clip.sourceId);
     if (!source || source.type !== clip.type) return clip;
     const durationUs = getSourceDurationUs(source);
+    const resolvedClipDurationUs = getSpeedAdjustedDurationUs(
+      0,
+      durationUs,
+      clip.speed,
+    );
     const shouldFitSource =
       source.type === 'video' &&
       hasSourceDimensions(source) &&
@@ -393,9 +412,25 @@ function mergeSources(
       clip.transform.y === 0;
     const isUntouchedFallback =
       clip.sourceDurationUs === DEFAULT_VIDEO_SOURCE_DURATION_US &&
-      clip.durationUs === DEFAULT_VIDEO_SOURCE_DURATION_US &&
+      clip.durationUs ===
+        getSpeedAdjustedDurationUs(
+          0,
+          DEFAULT_VIDEO_SOURCE_DURATION_US,
+          clip.speed,
+        ) &&
       clip.trimStartUs === 0 &&
       clip.trimEndUs === DEFAULT_VIDEO_SOURCE_DURATION_US;
+    if (
+      isUntouchedFallback &&
+      resolvedClipDurationUs !== clip.durationUs
+    ) {
+      durationChanges.push({
+        clipId: clip.id,
+        deltaUs: resolvedClipDurationUs - clip.durationUs,
+        oldEndUs: clip.startUs + clip.durationUs,
+        trackId: clip.trackId,
+      });
+    }
     const next = {
       ...clip,
       name: source.fileName,
@@ -405,7 +440,7 @@ function mergeSources(
         : { waveformSrc: undefined }),
       ...(isUntouchedFallback
         ? {
-            durationUs,
+            durationUs: resolvedClipDurationUs,
             sourceDurationUs: durationUs,
             trimEndUs: durationUs,
           }
@@ -414,9 +449,27 @@ function mergeSources(
         ? { transform: createSourceTransform(source, state.canvasSize) }
         : {}),
     };
-    changed ||= JSON.stringify(next) !== JSON.stringify(clip);
     return next;
   });
+  const clips = mergedExistingClips.map((clip, index) => {
+    const original = state.clips[index];
+    if (!original) return clip;
+    const shiftUs = durationChanges.reduce(
+      (shift, change) =>
+        change.clipId !== original.id &&
+        change.trackId === original.trackId &&
+        original.startUs >= change.oldEndUs
+          ? shift + change.deltaUs
+          : shift,
+      0,
+    );
+    return shiftUs === 0
+      ? clip
+      : { ...clip, startUs: clip.startUs + shiftUs };
+  });
+  let changed = clips.some(
+    (clip, index) => JSON.stringify(clip) !== JSON.stringify(state.clips[index]),
+  );
   const tracks = [...state.tracks];
   let videoCursorUs = clips
     .filter((clip) => clip.trackId === MAIN_VIDEO_TRACK_ID)
@@ -438,6 +491,7 @@ function mergeSources(
       name: source.fileName,
       sourceDurationUs: durationUs,
       sourceId: source.id,
+      speed: DEFAULT_CLIP_SPEED,
       src: source.src,
       startUs: source.type === 'video' ? videoCursorUs : 0,
       trackId: track.id,
@@ -480,6 +534,9 @@ export const createTimelineStore = (
       ...createInitialState(params),
 
       commitClipDrop: (command) => commit(moveClip(asEdit(get()), command)),
+
+      commitClipSpeed: (command) =>
+        commit(changeClipSpeed(asEdit(get()), command)),
 
       commitClipTransform: ({ clipId, transform }) =>
         commit(

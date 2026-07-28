@@ -14,6 +14,7 @@ import {
   MAIN_VIDEO_TRACK_ID,
 } from '../store/timeline-store';
 import type { TimelineClip, TimelineTrack } from '../types';
+import { PreviewAudioEngine } from '../media/preview-audio-engine';
 import { PreviewPanel } from './PreviewPanel';
 import {
   renderWithEditorProviders,
@@ -86,6 +87,7 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
   name: 'clip.mp4',
   sourceId: 'source-main',
   sourceDurationUs: secondsToMicroseconds(5),
+  speed: 1,
   src: '/clip.mp4',
   startUs: 0,
   trackId: MAIN_VIDEO_TRACK_ID,
@@ -108,6 +110,10 @@ describe('PreviewPanel', () => {
     HTMLMediaElement.prototype,
     'readyState',
   );
+  const preservesPitchDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLMediaElement.prototype,
+    'preservesPitch',
+  );
   const setPointerCaptureDescriptor = Object.getOwnPropertyDescriptor(
     HTMLCanvasElement.prototype,
     'setPointerCapture',
@@ -120,6 +126,11 @@ describe('PreviewPanel', () => {
   let drawCalls: CanvasDrawCall[];
   let fillRectMock: ReturnType<typeof vi.fn>;
   let mediaReadyState: number;
+  let preservesPitchByMedia: WeakMap<HTMLMediaElement, boolean>;
+  let preservesPitchWrites: Array<{
+    media: HTMLMediaElement;
+    value: boolean;
+  }>;
   let resizeObserverCallback: ResizeObserverCallbackMock | null;
   let strokeRectMock: ReturnType<typeof vi.fn>;
 
@@ -133,6 +144,8 @@ describe('PreviewPanel', () => {
     drawImageMock = createCanvasCallMock('drawImage');
     fillRectMock = createCanvasCallMock('fillRect');
     mediaReadyState = 4;
+    preservesPitchByMedia = new WeakMap();
+    preservesPitchWrites = [];
     resizeObserverCallback = null;
     strokeRectMock = createCanvasCallMock('strokeRect');
     getObjectUrlMock.mockClear();
@@ -143,6 +156,16 @@ describe('PreviewPanel', () => {
     Object.defineProperty(HTMLMediaElement.prototype, 'readyState', {
       configurable: true,
       get: () => mediaReadyState,
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'preservesPitch', {
+      configurable: true,
+      get() {
+        return preservesPitchByMedia.get(this) ?? false;
+      },
+      set(value: boolean) {
+        preservesPitchByMedia.set(this, value);
+        preservesPitchWrites.push({ media: this, value });
+      },
     });
     Object.defineProperty(HTMLCanvasElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -247,6 +270,16 @@ describe('PreviewPanel', () => {
     } else {
       delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>)
         .readyState;
+    }
+    if (preservesPitchDescriptor) {
+      Object.defineProperty(
+        HTMLMediaElement.prototype,
+        'preservesPitch',
+        preservesPitchDescriptor,
+      );
+    } else {
+      delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>)
+        .preservesPitch;
     }
     if (setPointerCaptureDescriptor) {
       Object.defineProperty(
@@ -425,6 +458,253 @@ describe('PreviewPanel', () => {
     await waitFor(() => {
       expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
     });
+  });
+
+  it('maps timeline time and playback rate for speed-adjusted video and audio', async () => {
+    testTimelineStore.setState((state) => ({
+      clips: [
+        ...state.clips.map((clip) =>
+          clip.id === 'clip-main'
+            ? {
+                ...clip,
+                durationUs: secondsToMicroseconds(2.5),
+                speed: 2,
+              }
+            : clip,
+        ),
+        createClip({
+          durationUs: secondsToMicroseconds(10),
+          id: 'clip-audio-speed',
+          name: 'slow.mp3',
+          sourceId: 'audio-speed-source',
+          speed: 0.5,
+          src: '/slow.mp3',
+          trackId: audioTrack.id,
+          type: 'audio',
+        }),
+      ],
+      tracks: [...state.tracks, audioTrack],
+    }));
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      const videos = Array.from(document.querySelectorAll('video'));
+      const audio = document.querySelector('audio');
+      expect(videos).toHaveLength(2);
+      expect(audio).not.toBeNull();
+      expect(videos[0]).toMatchObject({
+        currentTime: 2,
+        playbackRate: 2,
+        preservesPitch: true,
+      });
+      expect(videos[1]).toMatchObject({
+        currentTime: 1,
+        playbackRate: 1,
+        preservesPitch: true,
+      });
+      expect(audio).toMatchObject({
+        currentTime: 0.5,
+        playbackRate: 0.5,
+        preservesPitch: true,
+      });
+      expect(preservesPitchWrites).toContainEqual({
+        media: audio,
+        value: true,
+      });
+    });
+  });
+
+  it('uses the browser pitch fallback when preservesPitch is unavailable', async () => {
+    Reflect.deleteProperty(
+      HTMLMediaElement.prototype,
+      'preservesPitch',
+    );
+    testTimelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        createClip({
+          durationUs: secondsToMicroseconds(2.5),
+          id: 'clip-audio-pitch-fallback',
+          name: 'fallback.mp3',
+          sourceId: 'audio-pitch-fallback-source',
+          speed: 2,
+          src: '/fallback.mp3',
+          trackId: audioTrack.id,
+          type: 'audio',
+        }),
+      ],
+      tracks: [...state.tracks, audioTrack],
+    }));
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      const audio = document.querySelector('audio');
+      expect(audio).toMatchObject({
+        currentTime: 2,
+        playbackRate: 2,
+      });
+      expect(audio && 'preservesPitch' in audio).toBe(false);
+      expect(screen.getByRole('status')).toHaveTextContent(
+        '高质量变速音频不可用，已使用浏览器兼容模式',
+      );
+    });
+  });
+
+  it('does not restart or seek active media on every playing clock update', async () => {
+    const releaseAudioSpy = vi.spyOn(
+      PreviewAudioEngine.prototype,
+      'release',
+    );
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    const video = await waitFor(() => {
+      const element = document.querySelector('video');
+      if (!(element instanceof HTMLVideoElement)) {
+        throw new Error('视频预览元素尚未挂载');
+      }
+      return element;
+    });
+
+    act(() => {
+      testTimelineStore.getState().setIsPlaying(true);
+    });
+    await waitFor(() => {
+      expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    });
+
+    const playCallCount = vi.mocked(HTMLMediaElement.prototype.play).mock
+      .calls.length;
+    video.currentTime = 0.6;
+
+    act(() => {
+      testTimelineStore
+        .getState()
+        .setCurrentTimeUs(secondsToMicroseconds(2));
+    });
+
+    expect(video.currentTime).toBe(0.6);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(
+      playCallCount,
+    );
+    expect(releaseAudioSpy).not.toHaveBeenCalled();
+  });
+
+  it('preloads at most the next nearby clip on each track', async () => {
+    testTimelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        createClip({
+          id: 'clip-main-next',
+          sourceId: 'source-main-next',
+          src: '/main-next.mp4',
+          startUs: secondsToMicroseconds(5),
+          trackId: MAIN_VIDEO_TRACK_ID,
+        }),
+        createClip({
+          id: 'clip-main-later',
+          sourceId: 'source-main-later',
+          src: '/main-later.mp4',
+          startUs: secondsToMicroseconds(10),
+          trackId: MAIN_VIDEO_TRACK_ID,
+        }),
+      ],
+    }));
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('video')).toHaveLength(3);
+      expect(getObjectUrlMock).toHaveBeenCalledWith('/main-next.mp4');
+    });
+    expect(getObjectUrlMock).not.toHaveBeenCalledWith('/main-later.mp4');
+  });
+
+  it('prepares retimed audio for an upcoming clip while keeping it muted', async () => {
+    const prepareAudioSpy = vi
+      .spyOn(PreviewAudioEngine.prototype, 'prepare')
+      .mockResolvedValue(true);
+    testTimelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        createClip({
+          durationUs: secondsToMicroseconds(10),
+          id: 'clip-audio-next',
+          name: 'slow-next.mp3',
+          sourceId: 'audio-next-source',
+          speed: 0.5,
+          src: '/slow-next.mp3',
+          startUs: secondsToMicroseconds(5),
+          trackId: audioTrack.id,
+          type: 'audio',
+          volume: 0.6,
+        }),
+      ],
+      tracks: [...state.tracks, audioTrack],
+    }));
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      expect(prepareAudioSpy).toHaveBeenCalledWith(
+        expect.any(HTMLAudioElement),
+        {
+          muted: true,
+          speed: 0.5,
+          volume: 0.6,
+        },
+      );
+    });
+    expect(document.querySelector('audio')).toHaveProperty('muted', true);
+  });
+
+  it('globally caps preloaded media to the four nearest clips', async () => {
+    const futureTracks = Array.from({ length: 6 }, (_, index) => ({
+      id: `future-track-${index}`,
+      muted: false,
+      name: `未来视频轨 ${index + 1}`,
+      type: 'video' as const,
+      zIndex: index + 2,
+    }));
+    const futureClips = futureTracks.map((track, index) =>
+      createClip({
+        id: `future-clip-${index}`,
+        sourceId: `future-source-${index}`,
+        src: `/future-${index}.mp4`,
+        startUs: secondsToMicroseconds(2 + index * 0.5),
+        trackId: track.id,
+      }),
+    );
+    testTimelineStore.setState((state) => ({
+      clips: [...state.clips, ...futureClips],
+      tracks: [...state.tracks, ...futureTracks],
+    }));
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('video')).toHaveLength(6);
+    });
+    for (let index = 0; index < 4; index += 1) {
+      expect(getObjectUrlMock).toHaveBeenCalledWith(
+        `/future-${index}.mp4`,
+      );
+    }
+    expect(getObjectUrlMock).not.toHaveBeenCalledWith('/future-4.mp4');
+    expect(getObjectUrlMock).not.toHaveBeenCalledWith('/future-5.mp4');
   });
 
   it('draws selected clip bounds after every active clip so overlays cannot cover the frame', async () => {

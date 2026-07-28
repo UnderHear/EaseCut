@@ -1,4 +1,5 @@
 export * from './collision';
+export * from './clip-speed';
 export * from './composition';
 export * from './export-schema';
 export * from './model';

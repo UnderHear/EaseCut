@@ -13,6 +13,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
       name: 'video.mp4',
       sourceDurationUs: secondsToMicroseconds(4),
       sourceId: 'video-1',
+      speed: 1,
       src: 'https://example.test/video.mp4',
       startUs: 0,
       trackId: MAIN_VIDEO_TRACK_ID,
@@ -24,7 +25,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
       zIndex: 0,
     },
   ],
-  schemaVersion: 6,
+  schemaVersion: 7,
   tracks: [
     {
       id: MAIN_VIDEO_TRACK_ID,
@@ -66,6 +67,18 @@ describe('timeline draft validation', () => {
       label: '片段音量超出范围',
       mutate: (draft: VideoTimelineDraft) => {
         draft.clips[0]!.volume = 1.01;
+      },
+    },
+    {
+      label: '片段倍速超出范围',
+      mutate: (draft: VideoTimelineDraft) => {
+        draft.clips[0]!.speed = 4.01;
+      },
+    },
+    {
+      label: '倍速与片段时长不一致',
+      mutate: (draft: VideoTimelineDraft) => {
+        draft.clips[0]!.speed = 2;
       },
     },
   ])('明确拒绝$label', ({ mutate }) => {

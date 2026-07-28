@@ -123,6 +123,7 @@ describe('audio waveform bars', () => {
       getAudioWaveformRenderWindow({
         clipDurationUs: secondsToMicroseconds(100),
         pixelsPerSecond: 80,
+        speed: 1,
         timelineStartUs: secondsToMicroseconds(10),
         trimStartUs: secondsToMicroseconds(5),
         visibleTimeEndUs: secondsToMicroseconds(22),
@@ -135,11 +136,30 @@ describe('audio waveform bars', () => {
     });
   });
 
+  it('maps a visible timeline window to the speed-adjusted source range', () => {
+    expect(
+      getAudioWaveformRenderWindow({
+        clipDurationUs: secondsToMicroseconds(50),
+        pixelsPerSecond: 80,
+        speed: 2,
+        timelineStartUs: secondsToMicroseconds(10),
+        trimStartUs: secondsToMicroseconds(5),
+        visibleTimeEndUs: secondsToMicroseconds(22),
+        visibleTimeStartUs: secondsToMicroseconds(20),
+      }),
+    ).toEqual({
+      left: 798,
+      sourceStartUs: secondsToMicroseconds(24.95),
+      width: 164,
+    });
+  });
+
   it('keeps long, highly zoomed assets bounded to the visible window', () => {
     expect(
       getAudioWaveformRenderWindow({
         clipDurationUs: secondsToMicroseconds(21_600),
         pixelsPerSecond: 2_000,
+        speed: 1,
         timelineStartUs: 0,
         trimStartUs: secondsToMicroseconds(7_200),
         visibleTimeEndUs: secondsToMicroseconds(10_000.6),
@@ -195,6 +215,7 @@ describe('audio waveform bars', () => {
       getAudioWaveformRenderWindow({
         clipDurationUs: secondsToMicroseconds(1),
         pixelsPerSecond: 80,
+        speed: 1,
         timelineStartUs: 0,
         trimStartUs: 0,
         visibleTimeEndUs: secondsToMicroseconds(2),

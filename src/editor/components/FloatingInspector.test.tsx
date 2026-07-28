@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -25,6 +25,7 @@ const videoClip: TimelineClip = {
   name: 'sample.mp4',
   sourceDurationUs: secondsToMicroseconds(8),
   sourceId: 'video-source',
+  speed: 1,
   src: '/sample.mp4',
   startUs: secondsToMicroseconds(1.25),
   trackId: videoTrack.id,
@@ -50,6 +51,7 @@ const audioClip: TimelineClip = {
   name: 'sample.mp3',
   sourceDurationUs: secondsToMicroseconds(10),
   sourceId: 'audio-source',
+  speed: 1,
   src: '/sample.mp3',
   startUs: secondsToMicroseconds(2),
   trackId: audioTrack.id,
@@ -143,14 +145,14 @@ describe('FloatingInspector', () => {
       within(rail)
         .getAllByRole('button')
         .map((button) => button.textContent),
-    ).toEqual(['基本']);
+    ).toEqual(['基本', '变速']);
     expect(rail.querySelector('.lucide-music-2')).toBeInTheDocument();
     expect(rail.querySelector('.lucide-film')).not.toBeInTheDocument();
     expect(screen.getByText('sample.mp3')).toBeVisible();
     expect(screen.getByText('音频')).toBeVisible();
     expect(screen.getByLabelText('片段音量')).toHaveValue(100);
     expect(screen.queryByRole('button', { name: '背景' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '变速' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '变速' })).toBeVisible();
     expect(screen.queryByText('转换')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('X 位置')).not.toBeInTheDocument();
     expect(
@@ -158,6 +160,9 @@ describe('FloatingInspector', () => {
         '.oc-floating-inspector__separator[data-orientation="horizontal"]',
       ),
     ).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: '变速' }));
+    expect(screen.getByLabelText('播放速度滑块')).toHaveValue('1');
+    expect(screen.getByLabelText('播放速度')).toHaveValue(1);
   });
 
   it('commits transform and clip volume edits through the timeline store', async () => {
@@ -181,12 +186,75 @@ describe('FloatingInspector', () => {
     expect(testTimelineStore.getState().past).toHaveLength(2);
   });
 
+  it('commits a typed fixed speed and updates the timeline duration once', async () => {
+    const user = userEvent.setup();
+    renderWithEditorProviders(<FloatingInspector />);
+    await user.click(screen.getByRole('button', { name: '变速' }));
+
+    const speedInput = screen.getByLabelText('播放速度');
+    await user.clear(speedInput);
+    await user.type(speedInput, '2');
+    await user.tab();
+
+    expect(testTimelineStore.getState().clips[0]).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(2.25),
+        speed: 2,
+      }),
+    );
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+    expect(screen.getByLabelText('播放速度滑块')).toHaveValue('2');
+  });
+
+  it('keeps range input changes local until one pointer gesture commits', async () => {
+    const user = userEvent.setup();
+    renderWithEditorProviders(<FloatingInspector />);
+    await user.click(screen.getByRole('button', { name: '变速' }));
+    const slider = screen.getByLabelText('播放速度滑块');
+
+    fireEvent.pointerDown(slider, { pointerId: 1 });
+    fireEvent.change(slider, { target: { value: '2' } });
+
+    expect(screen.getByLabelText('播放速度')).toHaveValue(2);
+    expect(testTimelineStore.getState().clips[0]?.speed).toBe(1);
+    expect(testTimelineStore.getState().past).toEqual([]);
+
+    fireEvent.pointerUp(slider, { pointerId: 1 });
+
+    expect(testTimelineStore.getState().clips[0]?.speed).toBe(2);
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+  });
+
+  it('restores the original slider value when its pointer gesture is cancelled', async () => {
+    const user = userEvent.setup();
+    renderWithEditorProviders(<FloatingInspector />);
+    await user.click(screen.getByRole('button', { name: '变速' }));
+    const slider = screen.getByLabelText('播放速度滑块');
+
+    fireEvent.pointerDown(slider, { pointerId: 2 });
+    fireEvent.change(slider, { target: { value: '0.5' } });
+    fireEvent.pointerCancel(slider, { pointerId: 2 });
+
+    expect(slider).toHaveValue('1');
+    expect(screen.getByLabelText('播放速度')).toHaveValue(1);
+    expect(testTimelineStore.getState().clips[0]?.speed).toBe(1);
+    expect(testTimelineStore.getState().past).toEqual([]);
+  });
+
   it('switches sections and restores the selected clip properties', async () => {
     const user = userEvent.setup();
     const { container } = renderWithEditorProviders(<FloatingInspector />);
     const main = container.querySelector('.oc-floating-inspector__main');
 
-    for (const sectionName of ['背景', '变速']) {
+    const backgroundButton = screen.getByRole('button', {
+      name: '背景',
+    });
+    await user.click(backgroundButton);
+    expect(backgroundButton).toHaveAttribute('aria-current', 'page');
+    expect(main).toBeEmptyDOMElement();
+
+    {
+      const sectionName = '变速';
       const sectionButton = screen.getByRole('button', {
         name: sectionName,
       });
@@ -196,7 +264,8 @@ describe('FloatingInspector', () => {
       expect(sectionButton).toHaveAttribute('aria-current', 'page');
       expect(sectionButton).toHaveClass('oc-is-active');
       expect(screen.getByRole('heading', { name: sectionName })).toBeVisible();
-      expect(main).toBeEmptyDOMElement();
+      expect(screen.getByLabelText('播放速度滑块')).toHaveValue('1');
+      expect(screen.getByLabelText('播放速度')).toHaveValue(1);
     }
 
     await user.click(screen.getByRole('button', { name: '基本' }));

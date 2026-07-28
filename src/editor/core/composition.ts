@@ -5,6 +5,11 @@ import type {
   TimelineProject,
   TimelineTrack,
 } from './model';
+import {
+  getSpeedAdjustedDurationUs,
+  isValidClipSpeed,
+  timelineTimeToClipSourceTimeUs,
+} from './clip-speed';
 import { isValidTimeUs } from './time';
 
 export type CompositionSnapshotInput = Readonly<{
@@ -17,7 +22,7 @@ export type CompositionSnapshotInput = Readonly<{
 export type CompositionSnapshot = Readonly<{
   canvasSize: TimelineCanvasSize;
   clips: readonly TimelineClip[];
-  schemaVersion: 6;
+  schemaVersion: 7;
   tracks: readonly TimelineTrack[];
 }>;
 
@@ -74,7 +79,12 @@ const validateClip = (
     !isValidTimeUs(clip.trimStartUs) ||
     !isValidTimeUs(clip.trimEndUs) ||
     clip.trimEndUs > clip.sourceDurationUs ||
-    clip.trimEndUs - clip.trimStartUs !== clip.durationUs
+    !isValidClipSpeed(clip.speed) ||
+    getSpeedAdjustedDurationUs(
+      clip.trimStartUs,
+      clip.trimEndUs,
+      clip.speed,
+    ) !== clip.durationUs
   ) {
     throw new RangeError(`片段 ${clip.id} 的时间范围无效`);
   }
@@ -99,7 +109,7 @@ const validateClip = (
 export const createCompositionSnapshot = (
   input: CompositionSnapshotInput,
 ): CompositionSnapshot => {
-  if (input.schemaVersion !== undefined && input.schemaVersion !== 6) {
+  if (input.schemaVersion !== undefined && input.schemaVersion !== 7) {
     throw new RangeError(`不支持的草稿版本：${input.schemaVersion}`);
   }
   if (
@@ -144,7 +154,7 @@ export const createCompositionSnapshot = (
   return {
     canvasSize: { ...input.canvasSize },
     clips,
-    schemaVersion: 6,
+    schemaVersion: 7,
     tracks,
   };
 };
@@ -184,7 +194,7 @@ export const evaluateCompositionAt = (
     if (!track) continue;
     const layer = {
       clip,
-      sourceTimeUs: clip.trimStartUs + timeUs - clip.startUs,
+      sourceTimeUs: timelineTimeToClipSourceTimeUs(clip, timeUs),
       track,
       transform: clip.transform,
       volume: track.muted ? 0 : clip.volume,

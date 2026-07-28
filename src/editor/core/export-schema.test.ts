@@ -18,6 +18,7 @@ describe('createCompositionExportPayload', () => {
           name: '视频',
           sourceDurationUs: 4_000_000,
           sourceId: 'video-source',
+          speed: 1,
           src: 'video.mp4',
           startUs: 1_234_500,
           trackId: 'video-track',
@@ -34,6 +35,7 @@ describe('createCompositionExportPayload', () => {
           name: '音频',
           sourceDurationUs: 3_000_000,
           sourceId: 'audio-source',
+          speed: 1,
           src: 'audio.mp3',
           startUs: 0,
           trackId: 'audio-track',
@@ -45,7 +47,7 @@ describe('createCompositionExportPayload', () => {
           zIndex: 0,
         },
       ],
-      schemaVersion: 6,
+      schemaVersion: 7,
       tracks: [
         {
           id: 'audio-track',
@@ -71,6 +73,7 @@ describe('createCompositionExportPayload', () => {
           {
             Extra: [
               { EndTime: 2_501, StartTime: 501, Type: 'trim' },
+              { Speed: 1, Type: 'speed' },
               {
                 Height: 361,
                 PosX: 11,
@@ -90,6 +93,7 @@ describe('createCompositionExportPayload', () => {
             Extra: [
               { Type: 'a_volume', Volume: 0.25 },
               { EndTime: 1_000, StartTime: 0, Type: 'trim' },
+              { Speed: 1, Type: 'speed' },
             ],
             Source: 'audio.mp3',
             TargetTime: [0, 1_000],
@@ -109,6 +113,7 @@ describe('createCompositionExportPayload', () => {
         name: id,
         sourceDurationUs: 1_000,
         sourceId: id,
+        speed: 1,
         src: `${id}.mp4`,
         startUs: 0,
         trackId: 'video',
@@ -119,7 +124,7 @@ describe('createCompositionExportPayload', () => {
         volume: id === 'z' ? 0.3 : 0.8,
         zIndex: 0,
       })),
-      schemaVersion: 6,
+      schemaVersion: 7,
       tracks: [
         {
           id: 'video',
@@ -146,15 +151,16 @@ describe('createCompositionExportPayload', () => {
     ]);
   });
 
-  it('keeps preview source time consistent with snapshot export trim semantics', () => {
+  it('keeps preview source time consistent with trim-then-speed export semantics', () => {
     const draft: VideoTimelineDraft = {
       canvasSize: { height: 720, width: 1_280 },
       clips: [{
-        durationUs: 3_000_000,
+        durationUs: 1_500_000,
         id: 'video',
         name: 'video',
         sourceDurationUs: 8_000_000,
         sourceId: 'source',
+        speed: 2,
         src: 'video.mp4',
         startUs: 2_000_000,
         trackId: 'video-track',
@@ -165,7 +171,7 @@ describe('createCompositionExportPayload', () => {
         volume: 1,
         zIndex: 0,
       }],
-      schemaVersion: 6,
+      schemaVersion: 7,
       tracks: [{
         id: 'video-track',
         name: '视频轨',
@@ -175,7 +181,7 @@ describe('createCompositionExportPayload', () => {
       }],
     };
     const snapshot = createCompositionSnapshot(draft);
-    const evaluation = evaluateCompositionAt(snapshot, 3_500_000);
+    const evaluation = evaluateCompositionAt(snapshot, 2_750_000);
     const exportedClip =
       createCompositionExportPayload(snapshot).Track[0]?.[0];
     const trim = exportedClip?.Extra.find(
@@ -184,12 +190,24 @@ describe('createCompositionExportPayload', () => {
     if (!trim || trim.Type !== 'trim') {
       throw new Error('Expected exported trim semantics');
     }
+    const speed = exportedClip?.Extra.find(
+      (extra) => extra.Type === 'speed',
+    );
+    if (!speed || speed.Type !== 'speed') {
+      throw new Error('Expected exported speed semantics');
+    }
 
     const exportedSourceTimeUs =
       trim.StartTime * 1_000 +
-      (3_500_000 - (exportedClip?.TargetTime[0] ?? 0) * 1_000);
+      (2_750_000 - (exportedClip?.TargetTime[0] ?? 0) * 1_000) *
+        speed.Speed;
     expect(evaluation.videoLayers[0]?.sourceTimeUs).toBe(
       exportedSourceTimeUs,
     );
+    expect(exportedClip?.Extra.slice(0, 2)).toEqual([
+      { EndTime: 4_000, StartTime: 1_000, Type: 'trim' },
+      { Speed: 2, Type: 'speed' },
+    ]);
+    expect(exportedClip?.TargetTime).toEqual([2_000, 3_500]);
   });
 });

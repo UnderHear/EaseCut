@@ -10,6 +10,7 @@ import type {
 } from '../types';
 import { FloatingInspectorBasicPanel } from './FloatingInspectorBasicPanel';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
+import { FloatingInspectorSpeedPanel } from './FloatingInspectorSpeedPanel';
 import { InputNumber } from './ui/InputNumber';
 
 type VideoInspectorSection = 'basic' | 'background' | 'speed';
@@ -151,6 +152,9 @@ export function VideoFloatingInspector({
             </div>
           </section>
         </FloatingInspectorBasicPanel>
+      )}
+      {activeSection === 'speed' && (
+        <FloatingInspectorSpeedPanel clip={clip} />
       )}
     </FloatingInspectorShell>
   );

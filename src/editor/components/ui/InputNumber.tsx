@@ -19,6 +19,34 @@ const clampValue = (value: number, min?: number, max?: number) =>
     Math.max(min ?? Number.NEGATIVE_INFINITY, value),
   );
 
+const getDecimalPrecision = (value: number) => {
+  const [coefficient, exponentText] = String(value).toLowerCase().split('e');
+  const fractionalDigits = coefficient?.split('.')[1]?.length ?? 0;
+  const exponent = Number(exponentText ?? 0);
+  return Math.max(0, fractionalDigits - exponent);
+};
+
+const addDecimalStep = (
+  value: number,
+  step: number,
+  direction: 1 | -1,
+) => {
+  const precision = Math.max(
+    getDecimalPrecision(value),
+    getDecimalPrecision(step),
+  );
+  const scale = 10 ** precision;
+  const scaledValue = Math.round(value * scale);
+  const scaledStep = Math.round(step * scale);
+  if (
+    !Number.isSafeInteger(scaledValue) ||
+    !Number.isSafeInteger(scaledStep)
+  ) {
+    return value + step * direction;
+  }
+  return (scaledValue + scaledStep * direction) / scale;
+};
+
 export function InputNumber({
   label,
   max,
@@ -48,7 +76,11 @@ export function InputNumber({
   const stepBy = (direction: 1 | -1) => {
     const parsedDraftValue = Number(displayedValue);
     const baseValue = Number.isFinite(parsedDraftValue) ? parsedDraftValue : value;
-    const nextValue = clampValue(baseValue + step * direction, min, max);
+    const nextValue = clampValue(
+      addDecimalStep(baseValue, step, direction),
+      min,
+      max,
+    );
 
     setDraftValue(String(nextValue));
     setIsEditing(true);

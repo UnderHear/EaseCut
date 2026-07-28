@@ -5,8 +5,14 @@ import {
   relayoutTrackInClipSet,
   sortClipsByStart,
 } from './collision';
+import {
+  getSpeedAdjustedDurationUs,
+  isValidClipSpeed,
+  timelineTimeToClipSourceTimeUs,
+} from './clip-speed';
 import type {
   TimelineClip,
+  TimelineClipSpeed,
   TimelineClipTransform,
   TimelineClipVolume,
   TimelineTrack,
@@ -66,6 +72,11 @@ export type TrimClipParams = {
   edge: 'start' | 'end';
   trimEndUs: number;
   trimStartUs: number;
+};
+
+export type ChangeClipSpeedParams = {
+  clipId: string;
+  speed: TimelineClipSpeed;
 };
 
 const unchanged: TimelineEditResult = { changed: false };
@@ -174,10 +185,7 @@ export const getTrimmedClip = (
   trimStartUs: number,
   trimEndUs: number,
 ): TimelineClip => {
-  const sourceDurationUs = Math.max(
-    MIN_CLIP_DURATION_US,
-    clip.sourceDurationUs,
-  );
+  const sourceDurationUs = clip.sourceDurationUs;
   const endUs = Math.min(
     sourceDurationUs,
     Math.max(0, normalizeTimelineTimeUs(trimEndUs)),
@@ -186,15 +194,34 @@ export const getTrimmedClip = (
     endUs,
     Math.max(0, normalizeTimelineTimeUs(trimStartUs)),
   );
-  const nextTrimStartUs =
-    edge === 'start'
-      ? Math.min(startUs, Math.max(0, endUs - MIN_CLIP_DURATION_US))
-      : clip.trimStartUs;
-  const nextTrimEndUs =
-    edge === 'end'
-      ? Math.max(endUs, nextTrimStartUs + MIN_CLIP_DURATION_US)
-      : Math.max(endUs, nextTrimStartUs + MIN_CLIP_DURATION_US);
-  const durationUs = nextTrimEndUs - nextTrimStartUs;
+  let nextTrimStartUs = clip.trimStartUs;
+  let nextTrimEndUs = clip.trimEndUs;
+
+  if (edge === 'start') {
+    nextTrimEndUs = endUs;
+    const maximumTrimStartUs = findMaximumTrimStartUs(
+      nextTrimEndUs,
+      clip.speed,
+      MIN_CLIP_DURATION_US,
+    );
+    if (maximumTrimStartUs === null) return clip;
+    nextTrimStartUs = Math.min(startUs, maximumTrimStartUs);
+  } else {
+    const minimumTrimEndUs = findMinimumTrimEndUs(
+      clip.trimStartUs,
+      sourceDurationUs,
+      clip.speed,
+      MIN_CLIP_DURATION_US,
+    );
+    if (minimumTrimEndUs === null) return clip;
+    nextTrimEndUs = Math.max(endUs, minimumTrimEndUs);
+  }
+
+  const durationUs = getSpeedAdjustedDurationUs(
+    nextTrimStartUs,
+    nextTrimEndUs,
+    clip.speed,
+  );
 
   return {
     ...clip,
@@ -206,6 +233,89 @@ export const getTrimmedClip = (
     trimEndUs: nextTrimEndUs,
     trimStartUs: nextTrimStartUs,
   };
+};
+
+const findMaximumTrimStartUs = (
+  trimEndUs: number,
+  speed: TimelineClipSpeed,
+  minimumDurationUs: number,
+) => {
+  if (
+    getSpeedAdjustedDurationUs(0, trimEndUs, speed) < minimumDurationUs
+  ) {
+    return null;
+  }
+
+  let low = 0;
+  let high = trimEndUs;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (
+      getSpeedAdjustedDurationUs(middle, trimEndUs, speed) >=
+      minimumDurationUs
+    ) {
+      low = middle;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return low;
+};
+
+const findMinimumTrimEndUs = (
+  trimStartUs: number,
+  sourceDurationUs: number,
+  speed: TimelineClipSpeed,
+  minimumDurationUs: number,
+) => {
+  if (
+    getSpeedAdjustedDurationUs(trimStartUs, sourceDurationUs, speed) <
+    minimumDurationUs
+  ) {
+    return null;
+  }
+
+  let low = trimStartUs;
+  let high = sourceDurationUs;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (
+      getSpeedAdjustedDurationUs(trimStartUs, middle, speed) >=
+      minimumDurationUs
+    ) {
+      high = middle;
+    } else {
+      low = middle + 1;
+    }
+  }
+  return low;
+};
+
+const findMinimumTrimStartForMaximumDuration = (
+  trimEndUs: number,
+  speed: TimelineClipSpeed,
+  maximumDurationUs: number,
+) => {
+  if (
+    getSpeedAdjustedDurationUs(0, trimEndUs, speed) <= maximumDurationUs
+  ) {
+    return 0;
+  }
+
+  let low = 0;
+  let high = trimEndUs;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (
+      getSpeedAdjustedDurationUs(middle, trimEndUs, speed) <=
+      maximumDurationUs
+    ) {
+      high = middle;
+    } else {
+      low = middle + 1;
+    }
+  }
+  return low;
 };
 
 export const getTrimmedTimelineClips = (
@@ -230,12 +340,24 @@ export const getTrimmedTimelineClips = (
       ? previous.startUs + previous.durationUs
       : 0;
     if (trimmed.startUs < previousEndUs) {
-      const durationUs = clip.startUs + clip.durationUs - previousEndUs;
+      const availableDurationUs =
+        clip.startUs + clip.durationUs - previousEndUs;
+      const constrainedTrimStartUs =
+        findMinimumTrimStartForMaximumDuration(
+          trimmed.trimEndUs,
+          trimmed.speed,
+          availableDurationUs,
+        );
+      const durationUs = getSpeedAdjustedDurationUs(
+        constrainedTrimStartUs,
+        trimmed.trimEndUs,
+        trimmed.speed,
+      );
       trimmed = {
         ...trimmed,
         durationUs,
-        startUs: previousEndUs,
-        trimStartUs: trimmed.trimEndUs - durationUs,
+        startUs: clip.startUs + clip.durationUs - durationUs,
+        trimStartUs: constrainedTrimStartUs,
       };
     }
   }
@@ -286,6 +408,49 @@ export const trimClip = (
     return unchanged;
   }
   return changedEdit(edit, clips, current.id);
+};
+
+export const changeClipSpeed = (
+  edit: TimelineEdit,
+  params: ChangeClipSpeedParams,
+): TimelineEditResult => {
+  const clip = edit.clips.find((candidate) => candidate.id === params.clipId);
+  if (
+    !clip ||
+    !isValidClipSpeed(params.speed) ||
+    params.speed === clip.speed
+  ) {
+    return unchanged;
+  }
+  const speed = params.speed;
+
+  const durationUs = getSpeedAdjustedDurationUs(
+    clip.trimStartUs,
+    clip.trimEndUs,
+    speed,
+  );
+  if (durationUs <= 0) return unchanged;
+
+  const oldEndUs = clip.startUs + clip.durationUs;
+  const deltaUs = durationUs - clip.durationUs;
+  let clips = edit.clips.map((candidate) => {
+    if (candidate.id === clip.id) {
+      return { ...candidate, durationUs, speed };
+    }
+    if (
+      deltaUs !== 0 &&
+      candidate.trackId === clip.trackId &&
+      candidate.startUs >= oldEndUs
+    ) {
+      return { ...candidate, startUs: candidate.startUs + deltaUs };
+    }
+    return candidate;
+  });
+  if (clip.trackId === MAIN_VIDEO_TRACK_ID) {
+    clips = relayoutTrackInClipSet(clips, MAIN_VIDEO_TRACK_ID);
+  }
+
+  return changedEdit(edit, clips, clip.id);
 };
 
 export const restoreClipTrim = (
@@ -400,8 +565,17 @@ export const canSplitClipAtTime = (
 ) => {
   const clip = findClipAtTime(clips, timeUs, preferredClipId);
   if (!clip) return false;
-  const leftDurationUs = timeUs - clip.startUs;
-  const rightDurationUs = clip.durationUs - leftDurationUs;
+  const sourceTimeUs = timelineTimeToClipSourceTimeUs(clip, timeUs);
+  const leftDurationUs = getSpeedAdjustedDurationUs(
+    clip.trimStartUs,
+    sourceTimeUs,
+    clip.speed,
+  );
+  const rightDurationUs = getSpeedAdjustedDurationUs(
+    sourceTimeUs,
+    clip.trimEndUs,
+    clip.speed,
+  );
   return (
     leftDurationUs >= MIN_CLIP_DURATION_US &&
     rightDurationUs >= MIN_CLIP_DURATION_US
@@ -417,19 +591,29 @@ export const splitClip = (
   if (!clip || !canSplitClipAtTime(edit.clips, timeUs, clipId)) {
     return unchanged;
   }
-  const leftDurationUs = timeUs - clip.startUs;
+  const sourceTimeUs = timelineTimeToClipSourceTimeUs(clip, timeUs);
+  const leftDurationUs = getSpeedAdjustedDurationUs(
+    clip.trimStartUs,
+    sourceTimeUs,
+    clip.speed,
+  );
+  const rightDurationUs = getSpeedAdjustedDurationUs(
+    sourceTimeUs,
+    clip.trimEndUs,
+    clip.speed,
+  );
   const rightId = derivedId(edit.clips, `${clip.id}-split`);
   const left = {
     ...clip,
     durationUs: leftDurationUs,
-    trimEndUs: clip.trimStartUs + leftDurationUs,
+    trimEndUs: sourceTimeUs,
   };
   const right = {
     ...clip,
-    durationUs: clip.durationUs - leftDurationUs,
+    durationUs: rightDurationUs,
     id: rightId,
-    startUs: timeUs,
-    trimStartUs: clip.trimStartUs + leftDurationUs,
+    startUs: clip.startUs + leftDurationUs,
+    trimStartUs: sourceTimeUs,
     zIndex: clip.zIndex + 1,
   };
   return changedEdit(

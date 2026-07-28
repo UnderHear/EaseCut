@@ -30,13 +30,18 @@ const createPayload = (
           Type: 'a_volume' as const,
           Volume: track.muted ? 0 : clip.volume,
         };
+        const speed = {
+          Speed: clip.speed,
+          Type: 'speed' as const,
+        };
 
         return {
           Extra:
             clip.type === 'audio'
-              ? [volume, trim]
+              ? [volume, trim, speed]
               : [
                   trim,
+                  speed,
                   {
                     Height: Math.round(clip.transform.height),
                     PosX: Math.round(clip.transform.x),

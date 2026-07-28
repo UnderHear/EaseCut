@@ -34,6 +34,10 @@ const defaultExportTransform = {
   Type: 'transform',
   Width: 1280,
 };
+const defaultExportSpeed = {
+  Speed: 1,
+  Type: 'speed',
+};
 const defaultExportVolume = {
   Type: 'a_volume',
   Volume: 1,
@@ -96,6 +100,7 @@ const createFixtureClips = (): TimelineClip[] => [
     name: 'video-1.mp4',
     sourceId: 'video-1',
     sourceDurationUs: secondsToMicroseconds(4),
+    speed: 1,
     src: 'http://localhost/video-1.mp4',
     startUs: secondsToMicroseconds(0),
     trackId: MAIN_VIDEO_TRACK_ID,
@@ -112,6 +117,7 @@ const createFixtureClips = (): TimelineClip[] => [
     name: 'video-2.mp4',
     sourceId: 'video-2',
     sourceDurationUs: secondsToMicroseconds(6),
+    speed: 1,
     src: 'http://localhost/video-2.mp4',
     startUs: secondsToMicroseconds(4),
     trackId: MAIN_VIDEO_TRACK_ID,
@@ -128,6 +134,7 @@ const createFixtureClips = (): TimelineClip[] => [
     name: 'video-3.mp4',
     sourceId: 'video-3',
     sourceDurationUs: secondsToMicroseconds(4),
+    speed: 1,
     src: 'http://localhost/video-3.mp4',
     startUs: secondsToMicroseconds(9),
     trackId: MAIN_VIDEO_TRACK_ID,
@@ -146,6 +153,7 @@ const createAudioClip = (id: string, trackId: string): TimelineClip => ({
   name: `${id}.mp3`,
   sourceId: id,
   sourceDurationUs: secondsToMicroseconds(4),
+  speed: 1,
   src: `http://localhost/${id}.mp3`,
   startUs: secondsToMicroseconds(0),
   trackId,
@@ -263,7 +271,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().tracks).toEqual(draft.tracks);
     expect(timelineStore.getState().clips).toEqual(draft.clips);
-    expect(draft.schemaVersion).toBe(6);
+    expect(draft.schemaVersion).toBe(7);
   });
 
   it('compacts main-track gaps when restoring a saved composition draft', () => {
@@ -282,7 +290,7 @@ describe('timelineStore video track layout', () => {
             zIndex: 0,
           },
         ],
-        schemaVersion: 6,
+        schemaVersion: 7,
         tracks: [
           createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
           createVideoTrack('video-overlay-1', '视频轨 2', 1),
@@ -301,7 +309,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual([['clip-video-3', secondsToMicroseconds(7)]]);
   });
 
-  it.each([1, 2, 3, 4, 5])('rejects a schema v%s draft', (schemaVersion) => {
+  it.each([1, 2, 3, 4, 5, 6])('rejects a schema v%s draft', (schemaVersion) => {
     const validDraft = createVideoTimelineDraft(timelineStore.getState());
     const previousState = timelineStore.getState();
 
@@ -869,11 +877,16 @@ describe('timelineStore video track layout', () => {
       ],
     ]);
     expect(exportedClips.map((clip) => clip.Extra[1])).toEqual([
+      defaultExportSpeed,
+      defaultExportSpeed,
+      defaultExportSpeed,
+    ]);
+    expect(exportedClips.map((clip) => clip.Extra[2])).toEqual([
       defaultExportTransform,
       defaultExportTransform,
       defaultExportTransform,
     ]);
-    expect(exportedClips.map((clip) => clip.Extra[2])).toEqual([
+    expect(exportedClips.map((clip) => clip.Extra[3])).toEqual([
       defaultExportVolume,
       defaultExportVolume,
       defaultExportVolume,
@@ -899,6 +912,7 @@ describe('timelineStore video track layout', () => {
       {
         Extra: [
           { EndTime: 4000, StartTime: 0, Type: 'trim' },
+          defaultExportSpeed,
           defaultExportTransform,
           defaultExportVolume,
         ],
@@ -930,7 +944,7 @@ describe('timelineStore video track layout', () => {
       timelineStore
         .getState()
         .createExportPayload()
-        .Track[1]?.map((clip) => clip.Extra[2]),
+        .Track[1]?.map((clip) => clip.Extra[3]),
     ).toEqual([
       { Type: 'a_volume', Volume: 0 },
       { Type: 'a_volume', Volume: 0 },
@@ -1015,6 +1029,7 @@ describe('timelineStore video track layout', () => {
           {
             Extra: [
               { EndTime: 4000, StartTime: 0, Type: 'trim' },
+              defaultExportSpeed,
               {
                 Height: 1080,
                 PosX: 0,
@@ -1031,6 +1046,7 @@ describe('timelineStore video track layout', () => {
           {
             Extra: [
               { EndTime: 6250, StartTime: 0, Type: 'trim' },
+              defaultExportSpeed,
               {
                 Height: 1080,
                 PosX: 0,
@@ -1081,6 +1097,7 @@ describe('timelineStore video track layout', () => {
           {
             Extra: [
               { EndTime: 4000, StartTime: 0, Type: 'trim' },
+              defaultExportSpeed,
               {
                 Height: 720,
                 PosX: 280,
@@ -1179,6 +1196,7 @@ describe('timelineStore video track layout', () => {
           {
             Extra: [
               { EndTime: 5000, StartTime: 0, Type: 'trim' },
+              defaultExportSpeed,
               defaultExportTransform,
               defaultExportVolume,
             ],
@@ -1421,6 +1439,59 @@ describe('timelineStore video track layout', () => {
         trimStartUs: secondsToMicroseconds(0),
       }),
     );
+  });
+
+  it('resolves a speed-adjusted fallback and ripples its copied clip', () => {
+    const sourceWithoutDuration: VideoTimelineSource = {
+      fileName: 'music.mp3',
+      id: 'audio-music',
+      src: 'http://localhost/music.mp3',
+      type: 'audio',
+    };
+
+    timelineStore
+      .getState()
+      .resetTimeline({ sources: [sourceWithoutDuration] });
+    const state = timelineStore.getState();
+    state.commitClipSpeed({ clipId: 'clip-audio-music', speed: 2 });
+    state.selectClip('clip-audio-music');
+    state.copySelectedClip();
+    state.pasteCopiedClip();
+
+    state.syncSources([
+      {
+        ...sourceWithoutDuration,
+        durationUs: secondsToMicroseconds(12.75),
+      },
+    ]);
+
+    expect(
+      getTrackClips(
+        timelineStore.getState().clips,
+        `${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-music`,
+      ).map((clip) => ({
+        durationUs: clip.durationUs,
+        sourceDurationUs: clip.sourceDurationUs,
+        speed: clip.speed,
+        startUs: clip.startUs,
+        trimEndUs: clip.trimEndUs,
+      })),
+    ).toEqual([
+      {
+        durationUs: secondsToMicroseconds(6.375),
+        sourceDurationUs: secondsToMicroseconds(12.75),
+        speed: 2,
+        startUs: 0,
+        trimEndUs: secondsToMicroseconds(12.75),
+      },
+      {
+        durationUs: secondsToMicroseconds(6.375),
+        sourceDurationUs: secondsToMicroseconds(12.75),
+        speed: 2,
+        startUs: secondsToMicroseconds(6.375),
+        trimEndUs: secondsToMicroseconds(12.75),
+      },
+    ]);
   });
 
   it('preserves audio split edits while resolving the original source duration', () => {
@@ -1679,6 +1750,7 @@ describe('timelineStore video track layout', () => {
         Extra: [
           { Type: 'a_volume', Volume: 0.45 },
           { EndTime: 10000, StartTime: 0, Type: 'trim' },
+          defaultExportSpeed,
         ],
         Source: 'http://localhost/music.mp3',
         TargetTime: [0, 10000],
@@ -1723,6 +1795,7 @@ describe('timelineStore video track layout', () => {
       {
         Extra: [
           { EndTime: 4000, StartTime: 1000, Type: 'trim' },
+          defaultExportSpeed,
           defaultExportTransform,
           defaultExportVolume,
         ],
@@ -1733,6 +1806,7 @@ describe('timelineStore video track layout', () => {
       {
         Extra: [
           { EndTime: 4000, StartTime: 500, Type: 'trim' },
+          defaultExportSpeed,
           defaultExportTransform,
           defaultExportVolume,
         ],
@@ -2212,6 +2286,148 @@ describe('timelineStore video track layout', () => {
     expect(getMainVideoClips()[1]?.trimEndUs).toBe(secondsToMicroseconds(4));
     expect(getMainVideoClips()[2]?.startUs).toBe(secondsToMicroseconds(7));
     expectTrackClipsNotToOverlap();
+  });
+
+  it('changes video speed, ripples following clips and restores it through history', () => {
+    const state = timelineStore.getState();
+
+    state.commitClipSpeed({ clipId: 'clip-video-2', speed: 2 });
+
+    expect(
+      getMainVideoClips().map((clip) => [
+        clip.id,
+        clip.startUs,
+        clip.durationUs,
+        clip.speed,
+      ]),
+    ).toEqual([
+      ['clip-video-1', 0, secondsToMicroseconds(4), 1],
+      [
+        'clip-video-2',
+        secondsToMicroseconds(4),
+        secondsToMicroseconds(2.5),
+        2,
+      ],
+      [
+        'clip-video-3',
+        secondsToMicroseconds(6.5),
+        secondsToMicroseconds(3.5),
+        1,
+      ],
+    ]);
+    expect(
+      state.createExportPayload().Track[0]?.[1],
+    ).toEqual(expect.objectContaining({
+      Extra: [
+        { EndTime: 6000, StartTime: 1000, Type: 'trim' },
+        { Speed: 2, Type: 'speed' },
+        defaultExportTransform,
+        defaultExportVolume,
+      ],
+      TargetTime: [4000, 6500],
+    }));
+    expect(timelineStore.getState().past).toHaveLength(1);
+
+    state.undo();
+    expect(getMainVideoClips()[1]?.speed).toBe(1);
+    expect(getMainVideoClips()[2]?.startUs).toBe(secondsToMicroseconds(9));
+
+    state.redo();
+    expect(getMainVideoClips()[1]?.speed).toBe(2);
+    expect(getMainVideoClips()[2]?.startUs).toBe(
+      secondsToMicroseconds(6.5),
+    );
+  });
+
+  it('keeps speed-aware trim and restore operations on one continuous layout', () => {
+    const state = timelineStore.getState();
+    state.commitClipSpeed({ clipId: 'clip-video-2', speed: 2 });
+
+    state.commitClipTrim({
+      clipId: 'clip-video-2',
+      edge: 'end',
+      trimEndUs: secondsToMicroseconds(4),
+      trimStartUs: secondsToMicroseconds(1),
+    });
+    expect(getMainVideoClips()[1]).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(1.5),
+        speed: 2,
+      }),
+    );
+    expect(getMainVideoClips()[2]?.startUs).toBe(
+      secondsToMicroseconds(5.5),
+    );
+
+    state.restoreClipTrim('clip-video-2');
+    expect(getMainVideoClips()[1]).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(3),
+        speed: 2,
+        trimEndUs: secondsToMicroseconds(6),
+        trimStartUs: 0,
+      }),
+    );
+    expect(getMainVideoClips()[2]?.startUs).toBe(secondsToMicroseconds(7));
+    expectTrackClipsNotToOverlap();
+  });
+
+  it('changes audio speed and ripples later clips on the same audio track', () => {
+    const audioTrackId = 'audio-speed-track';
+    const leading = createAudioClip('clip-audio-leading', audioTrackId);
+    const following = {
+      ...createAudioClip('clip-audio-following', audioTrackId),
+      startUs: secondsToMicroseconds(4),
+      zIndex: 1,
+    };
+    timelineStore.setState({
+      clips: [leading, following],
+      future: [],
+      past: [],
+      selectedClipId: leading.id,
+      tracks: [
+        createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 0),
+        createAudioTrack(audioTrackId, '音频轨', 1),
+      ],
+    });
+
+    timelineStore
+      .getState()
+      .commitClipSpeed({ clipId: leading.id, speed: 0.5 });
+
+    const audioClips = getTrackClips(
+      timelineStore.getState().clips,
+      audioTrackId,
+    );
+    expect(
+      audioClips.map((clip) => [clip.id, clip.startUs, clip.durationUs]),
+    ).toEqual([
+      [leading.id, 0, secondsToMicroseconds(8)],
+      [
+        following.id,
+        secondsToMicroseconds(8),
+        secondsToMicroseconds(4),
+      ],
+    ]);
+    expect(
+      timelineStore.getState().createExportPayload().Track[1]?.[0]?.Extra,
+    ).toEqual([
+      defaultExportVolume,
+      { EndTime: 4000, StartTime: 0, Type: 'trim' },
+      { Speed: 0.5, Type: 'speed' },
+    ]);
+  });
+
+  it('does not change state for out-of-range or non-finite speed commands', () => {
+    const state = timelineStore.getState();
+    const clips = state.clips;
+
+    for (const speed of [0.09, 4.01, Number.NaN]) {
+      state.commitClipSpeed({ clipId: 'clip-video-2', speed });
+    }
+
+    expect(timelineStore.getState().clips).toBe(clips);
+    expect(timelineStore.getState().past).toEqual([]);
   });
 });
 

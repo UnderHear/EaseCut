@@ -2,7 +2,7 @@
 
 # OpenCut React
 
-OpenCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频轨、拖拽编排、裁剪、分割、吸附、撤销重做、音量调节、画面变换、预览以及可扩展导出接口。
+OpenCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频轨、拖拽编排、裁剪、分割、吸附、撤销重做、固定倍速、音量调节、画面变换、预览以及可扩展导出接口。
 
 项目不依赖 React Flow、Tailwind、shadcn 或 Base UI。界面由语义 HTML、普通 CSS、原生 Canvas 和 lucide-react 构成。
 
@@ -100,11 +100,21 @@ type VideoTimelineSource = {
 
 后续向 `sources` 加入新 ID 会将素材追加到当前时间线。移除 source 不会自动删除已编辑片段，避免宿主数据刷新导致工程内容丢失。
 
-项目草稿只接受 `schemaVersion: 6`。草稿中的
+项目草稿只接受 `schemaVersion: 7`。草稿中的
 `startUs`、`durationUs`、`sourceDurationUs`、`trimStartUs` 和 `trimEndUs`
 均为整数微秒；浏览器媒体元素使用的浮点秒只在媒体边界换算。
 每个 clip 持有独立的 `volume`（`0` 至 `1`）；轨道仅持有 `muted`，静音时不会改写
 clip 的已保存音量。
+
+每个音视频 clip 还必须持有 `speed`，取值范围为 `0.1` 至 `4`，新建 clip
+默认为 `1`。倍速作用于裁剪后的源区间，`durationUs` 是变速后的时间线时长；
+修改倍速会保持 clip 起点和裁剪范围，并联动平移同轨后续片段。
+音视频预览会优先通过 AudioWorklet 和 SoundTouch 对媒体原声进行实时音调补偿，
+使变速主要改变时长并保持原音调；浏览器不支持 AudioWorklet 时会显示降级提示，
+并回退到 `preservesPitch`。视频 Canvas 优先由
+`requestVideoFrameCallback` 驱动，播放期间不会按时间线动画帧反复 seek；
+每条轨道还会预加载五秒内的下一个 clip，减少连接点等待。慢放只延长现有视频帧，
+不执行光流插帧，因此低帧率素材在极慢速下仍会看到重复帧。
 
 ## 私有媒体加载
 
@@ -132,14 +142,20 @@ clip 的已保存音量。
 
 音频波形会优先在独立 Worker 中使用 Mediabunny 分段解码；每个解码样本会立即聚合为归一化峰值并释放，不会在主线程保留整段 PCM。运行时销毁会同步取消解码；容器、编码格式或浏览器能力不支持时，自动回退到 `AudioContext.decodeAudioData()`。
 
+Mediabunny 负责媒体解封装、缩略图和波形解码，不承担实时音频 time-stretch。
+保持音调的预览处理使用 `@soundtouchjs/audio-worklet`，音频节点、处理器和
+`AudioContext` 均随编辑器预览实例创建并在卸载时释放。
+
 ## 导出
 
 - “导出 JSON”下载当前 `CompositionExportPayload`。
 - 传入 `onExport` 后显示“导出视频”，回调会收到最新 `draft` 和 `payload`。
 - OpenCut React 不包含 MP4 编码器或渲染后端。
 - 可使用 `createCompositionExportPayload(draft)` 在组件外创建同样的导出数据。
-
-草稿当前写入 schema v4，并兼容读取 v1–v4。
+- 每个音视频导出元素都会包含 `{ Type: 'speed', Speed }`。视频过滤器顺序为
+  `trim → speed → transform → a_volume`，音频过滤器顺序为
+  `a_volume → trim → speed`。
+- 草稿只读取当前 schema v7，不迁移旧版本。
 
 ## 快捷键
 

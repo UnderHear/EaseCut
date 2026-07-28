@@ -1,5 +1,6 @@
 export type TimelineMediaType = 'video' | 'audio';
 export type TimelineClipTrimEdge = 'start' | 'end';
+export type TimelineClipSpeed = number;
 export type TimelineClipVolume = number;
 
 export type TimelineTrack = {
@@ -23,6 +24,7 @@ export type TimelineClip = {
   name: string;
   sourceDurationUs: number;
   sourceId: string;
+  speed: TimelineClipSpeed;
   src: string;
   startUs: number;
   trackId: string;
@@ -43,7 +45,7 @@ export type TimelineCanvasSize = {
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
-  schemaVersion: 6;
+  schemaVersion: 7;
   tracks: TimelineTrack[];
 };
 
@@ -70,6 +72,11 @@ export type CompositionExportTrim = {
   Type: 'trim';
 };
 
+export type CompositionExportSpeed = {
+  Speed: TimelineClipSpeed;
+  Type: 'speed';
+};
+
 export type CompositionExportTransform = {
   Height: number;
   PosX: number;
@@ -85,7 +92,10 @@ export type CompositionExportVolume = {
 
 export type CompositionExportClip = {
   Extra: Array<
-    CompositionExportTrim | CompositionExportTransform | CompositionExportVolume
+    | CompositionExportSpeed
+    | CompositionExportTransform
+    | CompositionExportTrim
+    | CompositionExportVolume
   >;
   Source: string;
   TargetTime: [number, number];

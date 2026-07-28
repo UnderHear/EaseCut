@@ -1,3 +1,8 @@
+import {
+  isValidClipSpeed,
+  scaleTimelineOffsetToSourceUs,
+} from './clip-speed';
+import type { TimelineClipSpeed } from './model';
 import { MICROSECONDS_PER_SECOND } from './time';
 
 export const AUDIO_WAVEFORM_BAR_SPACING_PIXELS = 2;
@@ -35,6 +40,7 @@ type AudioWaveformBarOptions = Readonly<{
 type AudioWaveformRenderWindowOptions = Readonly<{
   clipDurationUs: number;
   pixelsPerSecond: number;
+  speed: TimelineClipSpeed;
   timelineStartUs: number;
   trimStartUs: number;
   visibleTimeEndUs: number;
@@ -113,6 +119,7 @@ const getSourceRangePeak = (
 export const getAudioWaveformRenderWindow = ({
   clipDurationUs,
   pixelsPerSecond,
+  speed,
   timelineStartUs,
   trimStartUs,
   visibleTimeEndUs,
@@ -122,6 +129,7 @@ export const getAudioWaveformRenderWindow = ({
     ![
       clipDurationUs,
       pixelsPerSecond,
+      speed,
       timelineStartUs,
       trimStartUs,
       visibleTimeEndUs,
@@ -129,6 +137,7 @@ export const getAudioWaveformRenderWindow = ({
     ].every(Number.isFinite) ||
     clipDurationUs <= 0 ||
     pixelsPerSecond <= 0 ||
+    !isValidClipSpeed(speed) ||
     visibleTimeEndUs <= visibleTimeStartUs
   ) {
     return null;
@@ -159,7 +168,11 @@ export const getAudioWaveformRenderWindow = ({
   return {
     left,
     sourceStartUs:
-      trimStartUs + (left / pixelsPerSecond) * MICROSECONDS_PER_SECOND,
+      trimStartUs +
+      scaleTimelineOffsetToSourceUs(
+        (left / pixelsPerSecond) * MICROSECONDS_PER_SECOND,
+        speed,
+      ),
     width: Math.max(0, right - left),
   };
 };
