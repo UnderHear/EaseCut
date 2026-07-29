@@ -70,7 +70,7 @@ export function VideoFloatingInspector({
         <>
           <button
             aria-current={activeRailSection === 'basic' ? 'page' : undefined}
-            className={`oc-floating-inspector__rail-item${activeRailSection === 'basic' ? ' oc-is-active' : ''}`}
+            className={`ec-floating-inspector__rail-item${activeRailSection === 'basic' ? ' ec-is-active' : ''}`}
             onClick={() => selectSection('basic')}
             type='button'
           >
@@ -81,7 +81,7 @@ export function VideoFloatingInspector({
             aria-current={
               activeRailSection === 'background' ? 'page' : undefined
             }
-            className={`oc-floating-inspector__rail-item${activeRailSection === 'background' ? ' oc-is-active' : ''}`}
+            className={`ec-floating-inspector__rail-item${activeRailSection === 'background' ? ' ec-is-active' : ''}`}
             onClick={() => selectSection('background')}
             type='button'
           >
@@ -90,7 +90,7 @@ export function VideoFloatingInspector({
           </button>
           <button
             aria-current={activeRailSection === 'speed' ? 'page' : undefined}
-            className={`oc-floating-inspector__rail-item${activeRailSection === 'speed' ? ' oc-is-active' : ''}`}
+            className={`ec-floating-inspector__rail-item${activeRailSection === 'speed' ? ' ec-is-active' : ''}`}
             onClick={() => selectSection('speed')}
             type='button'
           >
@@ -104,14 +104,14 @@ export function VideoFloatingInspector({
       {activeSection === 'basic' && (
         <FloatingInspectorBasicPanel clip={clip} timing={displayedTiming}>
           <Separator.Root
-            className='oc-floating-inspector__separator'
+            className='ec-floating-inspector__separator'
             decorative
             orientation='horizontal'
           />
-          <section className='oc-floating-inspector__section'>
+          <section className='ec-floating-inspector__section'>
             <h3>转换</h3>
-            <div className='oc-floating-inspector__number-grid'>
-              <div className='oc-floating-inspector__number-field'>
+            <div className='ec-floating-inspector__number-grid'>
+              <div className='ec-floating-inspector__number-field'>
                 <span>X 位置</span>
                 <InputNumber
                   label='X 位置'
@@ -120,7 +120,7 @@ export function VideoFloatingInspector({
                   value={displayedTransform.x}
                 />
               </div>
-              <div className='oc-floating-inspector__number-field'>
+              <div className='ec-floating-inspector__number-field'>
                 <span>Y 位置</span>
                 <InputNumber
                   label='Y 位置'
@@ -129,7 +129,7 @@ export function VideoFloatingInspector({
                   value={displayedTransform.y}
                 />
               </div>
-              <div className='oc-floating-inspector__number-field'>
+              <div className='ec-floating-inspector__number-field'>
                 <span>宽度</span>
                 <InputNumber
                   label='宽度'
@@ -139,7 +139,7 @@ export function VideoFloatingInspector({
                   value={displayedTransform.width}
                 />
               </div>
-              <div className='oc-floating-inspector__number-field'>
+              <div className='ec-floating-inspector__number-field'>
                 <span>高度</span>
                 <InputNumber
                   label='高度'

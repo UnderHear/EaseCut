@@ -60,14 +60,14 @@ export function TimelineRuler({
       aria-valuemax={durationUs}
       aria-valuemin={0}
       aria-valuenow={currentTimeUs}
-      className='oc-timeline-ruler'
+      className='ec-timeline-ruler'
       onPointerDown={onPointerDown}
       role='slider'
     >
       {gaps.map((gap) => (
         <span
           aria-hidden='true'
-          className='oc-timeline-ruler__gap'
+          className='ec-timeline-ruler__gap'
           key={`${gap.startUs}-${gap.endUs}`}
           style={
             {
@@ -85,9 +85,9 @@ export function TimelineRuler({
       {ticks.map((tick) => (
         <span
           aria-hidden='true'
-          className={`oc-timeline-ruler__tick${
-            tick.isMajor ? ' oc-timeline-ruler__tick--major' : ''
-          }${tick.isGap ? ' oc-timeline-ruler__tick--gap' : ''}`}
+          className={`ec-timeline-ruler__tick${
+            tick.isMajor ? ' ec-timeline-ruler__tick--major' : ''
+          }${tick.isGap ? ' ec-timeline-ruler__tick--gap' : ''}`}
           data-time-us={tick.timeUs}
           key={tick.timeUs}
           style={{
@@ -101,8 +101,8 @@ export function TimelineRuler({
         .filter((tick) => tick.isMajor)
         .map((tick) => (
           <time
-            className={`oc-timeline-ruler__label${
-              tick.isGap ? ' oc-timeline-ruler__label--gap' : ''
+            className={`ec-timeline-ruler__label${
+              tick.isGap ? ' ec-timeline-ruler__label--gap' : ''
             }`}
             dateTime={`PT${microsecondsToSeconds(tick.timeUs)}S`}
             key={tick.timeUs}

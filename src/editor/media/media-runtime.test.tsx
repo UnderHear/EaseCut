@@ -138,7 +138,7 @@ describe('MediaRuntime', () => {
   const originalRevokeObjectUrl = URL.revokeObjectURL;
 
   beforeEach(() => {
-    URL.createObjectURL = vi.fn(() => 'blob:opencut-1');
+    URL.createObjectURL = vi.fn(() => 'blob:easecut-1');
     URL.revokeObjectURL = vi.fn();
     framePreviewSourceFactory.mockReset();
     framePreviewSourceFactory.mockImplementation(
@@ -166,8 +166,8 @@ describe('MediaRuntime', () => {
     const first = runtime.getObjectUrl(source.src);
     const second = runtime.getObjectUrl(source.src);
 
-    await expect(first).resolves.toBe('blob:opencut-1');
-    await expect(second).resolves.toBe('blob:opencut-1');
+    await expect(first).resolves.toBe('blob:easecut-1');
+    await expect(second).resolves.toBe('blob:easecut-1');
     await expect(runtime.getBlob(source.src)).resolves.toBe(blob);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(source.src, {
@@ -176,7 +176,7 @@ describe('MediaRuntime', () => {
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
 
     runtime.dispose();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:opencut-1');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:easecut-1');
   });
 
   it('passes source context to a custom loader and keeps instances isolated', async () => {
@@ -335,7 +335,7 @@ describe('MediaRuntime', () => {
     runtime.dispose();
 
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:opencut-1');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:easecut-1');
   });
 
   it('aborts pending loads and rejects new work after disposal', async () => {
@@ -390,7 +390,7 @@ describe('MediaRuntime', () => {
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
     view.unmount();
     await waitFor(() =>
-      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:opencut-1'),
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:easecut-1'),
     );
   });
 

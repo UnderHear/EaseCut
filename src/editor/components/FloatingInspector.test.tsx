@@ -91,7 +91,7 @@ describe('FloatingInspector', () => {
 
     expect(screen.getByRole('heading', { name: '片段信息' })).toBeVisible();
     expect(screen.getByText('sample.mp4')).toHaveClass(
-      'oc-floating-inspector__detail-value--wrap',
+      'ec-floating-inspector__detail-value--wrap',
     );
     expect(screen.getByText('视频')).toBeVisible();
     expect(screen.queryByText('视频轨 1')).not.toBeInTheDocument();
@@ -110,7 +110,7 @@ describe('FloatingInspector', () => {
     expect(screen.queryByLabelText('缩放')).not.toBeInTheDocument();
     expect(
       container.querySelectorAll(
-        '.oc-floating-inspector__separator[data-orientation="horizontal"]',
+        '.ec-floating-inspector__separator[data-orientation="horizontal"]',
       ),
     ).toHaveLength(3);
   });
@@ -157,7 +157,7 @@ describe('FloatingInspector', () => {
     expect(screen.queryByLabelText('X 位置')).not.toBeInTheDocument();
     expect(
       container.querySelectorAll(
-        '.oc-floating-inspector__separator[data-orientation="horizontal"]',
+        '.ec-floating-inspector__separator[data-orientation="horizontal"]',
       ),
     ).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: '变速' }));
@@ -244,7 +244,7 @@ describe('FloatingInspector', () => {
   it('switches sections and restores the selected clip properties', async () => {
     const user = userEvent.setup();
     const { container } = renderWithEditorProviders(<FloatingInspector />);
-    const main = container.querySelector('.oc-floating-inspector__main');
+    const main = container.querySelector('.ec-floating-inspector__main');
 
     const backgroundButton = screen.getByRole('button', {
       name: '背景',
@@ -262,7 +262,7 @@ describe('FloatingInspector', () => {
       await user.click(sectionButton);
 
       expect(sectionButton).toHaveAttribute('aria-current', 'page');
-      expect(sectionButton).toHaveClass('oc-is-active');
+      expect(sectionButton).toHaveClass('ec-is-active');
       expect(screen.getByRole('heading', { name: sectionName })).toBeVisible();
       expect(screen.getByLabelText('播放速度滑块')).toHaveValue('1');
       expect(screen.getByLabelText('播放速度')).toHaveValue(1);
@@ -287,11 +287,11 @@ describe('FloatingInspector', () => {
       screen.getByRole('complementary', { name: '基础属性面板' }),
     ).toHaveAttribute('data-panel-open', 'false');
     expect(
-      container.querySelector('.oc-floating-inspector__panel'),
+      container.querySelector('.ec-floating-inspector__panel'),
     ).not.toBeVisible();
     expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
     expect(screen.getByRole('button', { name: '基本' })).not.toHaveClass(
-      'oc-is-active',
+      'ec-is-active',
     );
     expect(screen.getByRole('button', { name: '基本' })).not.toHaveAttribute(
       'aria-current',
@@ -303,10 +303,10 @@ describe('FloatingInspector', () => {
       screen.getByRole('complementary', { name: '基础属性面板' }),
     ).toHaveAttribute('data-panel-open', 'true');
     expect(
-      container.querySelector('.oc-floating-inspector__panel'),
+      container.querySelector('.ec-floating-inspector__panel'),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: '背景' })).toHaveClass(
-      'oc-is-active',
+      'ec-is-active',
     );
   });
 });

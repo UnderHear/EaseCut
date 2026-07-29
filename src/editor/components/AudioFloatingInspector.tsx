@@ -36,7 +36,7 @@ export function AudioFloatingInspector({
         <>
           <button
             aria-current={activeRailSection === 'basic' ? 'page' : undefined}
-            className={`oc-floating-inspector__rail-item${activeRailSection === 'basic' ? ' oc-is-active' : ''}`}
+            className={`ec-floating-inspector__rail-item${activeRailSection === 'basic' ? ' ec-is-active' : ''}`}
             onClick={() => selectSection('basic')}
             type='button'
           >
@@ -45,7 +45,7 @@ export function AudioFloatingInspector({
           </button>
           <button
             aria-current={activeRailSection === 'speed' ? 'page' : undefined}
-            className={`oc-floating-inspector__rail-item${activeRailSection === 'speed' ? ' oc-is-active' : ''}`}
+            className={`ec-floating-inspector__rail-item${activeRailSection === 'speed' ? ' ec-is-active' : ''}`}
             onClick={() => selectSection('speed')}
             type='button'
           >

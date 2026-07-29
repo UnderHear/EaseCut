@@ -490,7 +490,7 @@ function VideoTimelineEditorView({
     }
   };
 
-  const rootClassName = `oc-editor${className ? ` ${className}` : ''}`;
+  const rootClassName = `ec-editor${className ? ` ${className}` : ''}`;
 
   return (
     <Toast.Provider label='编辑器提示'>
@@ -513,11 +513,11 @@ function VideoTimelineEditorView({
         tabIndex={0}
         role='region'
       >
-      <header className='oc-editor__header'>
+      <header className='ec-editor__header'>
         <h1 id={titleId}>{title}</h1>
-        <div className='oc-editor__header-actions'>
+        <div className='ec-editor__header-actions'>
           <button
-            className='oc-button oc-button--secondary'
+            className='ec-button ec-button--secondary'
             onClick={() => downloadJson(jsonFileName, getExportState().payload)}
             type='button'
           >
@@ -526,7 +526,7 @@ function VideoTimelineEditorView({
           </button>
           {onExport && (
             <button
-              className='oc-button oc-button--primary'
+              className='ec-button ec-button--primary'
               disabled={isExporting}
               onClick={() => void submitExport()}
               type='button'
@@ -538,7 +538,7 @@ function VideoTimelineEditorView({
           {onClose && (
             <button
               aria-label='关闭视频编辑器'
-              className='oc-icon-button'
+              className='ec-icon-button'
               onClick={onClose}
               title='关闭'
               type='button'
@@ -549,7 +549,7 @@ function VideoTimelineEditorView({
         </div>
       </header>
 
-      <main className='oc-editor__main'>
+      <main className='ec-editor__main'>
         <PreviewPanel
           clipTimingPreview={clipTimingPreview}
           previewRef={previewRef}
@@ -565,7 +565,7 @@ function VideoTimelineEditorView({
 
       {isImportDialogOpen && (
         <div
-          className='oc-import-dialog__backdrop'
+          className='ec-import-dialog__backdrop'
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeImportDialog();
           }}
@@ -574,15 +574,15 @@ function VideoTimelineEditorView({
             aria-describedby={importError ? importErrorId : undefined}
             aria-labelledby={importDialogTitleId}
             aria-modal='true'
-            className='oc-import-dialog'
+            className='ec-import-dialog'
             role='dialog'
           >
             <form noValidate onSubmit={(event) => void submitMediaImport(event)}>
-              <div className='oc-import-dialog__header'>
+              <div className='ec-import-dialog__header'>
                 <h2 id={importDialogTitleId}>导入在线素材</h2>
                 <button
                   aria-label='关闭导入素材弹窗'
-                  className='oc-icon-button'
+                  className='ec-icon-button'
                   disabled={isImporting}
                   onClick={closeImportDialog}
                   title='关闭'
@@ -592,12 +592,12 @@ function VideoTimelineEditorView({
                 </button>
               </div>
 
-              <label className='oc-import-dialog__field' htmlFor='oc-import-url'>
+              <label className='ec-import-dialog__field' htmlFor='ec-import-url'>
                 <span>素材 URL</span>
                 <input
                   aria-invalid={Boolean(importError)}
                   autoComplete='url'
-                  id='oc-import-url'
+                  id='ec-import-url'
                   onChange={(event) => setImportUrl(event.target.value)}
                   placeholder='https://example.com/video.mp4'
                   ref={importUrlInputRef}
@@ -608,14 +608,14 @@ function VideoTimelineEditorView({
               </label>
 
               {importError && (
-                <p className='oc-import-dialog__error' id={importErrorId} role='alert'>
+                <p className='ec-import-dialog__error' id={importErrorId} role='alert'>
                   {importError}
                 </p>
               )}
 
-              <div className='oc-import-dialog__actions'>
+              <div className='ec-import-dialog__actions'>
                 <button
-                  className='oc-button oc-button--secondary'
+                  className='ec-button ec-button--secondary'
                   disabled={isImporting}
                   onClick={closeImportDialog}
                   type='button'
@@ -623,7 +623,7 @@ function VideoTimelineEditorView({
                   取消
                 </button>
                 <button
-                  className='oc-button oc-button--primary'
+                  className='ec-button ec-button--primary'
                   disabled={isImporting}
                   type='submit'
                 >
@@ -635,7 +635,7 @@ function VideoTimelineEditorView({
         </div>
       )}
         <Toast.Root
-          className='oc-editor__toast oc-editor__toast--error'
+          className='ec-editor__toast ec-editor__toast--error'
           duration={Infinity}
           onOpenChange={(open) => {
             if (!open) setExportError(null);
@@ -644,16 +644,16 @@ function VideoTimelineEditorView({
           role='alert'
           type='foreground'
         >
-          <CircleAlert aria-hidden='true' className='oc-editor__toast-icon' size={16} />
-          <Toast.Description className='oc-editor__toast-description'>
+          <CircleAlert aria-hidden='true' className='ec-editor__toast-icon' size={16} />
+          <Toast.Description className='ec-editor__toast-description'>
             {exportError}
           </Toast.Description>
-          <Toast.Close aria-label='关闭提示' className='oc-editor__toast-close'>
+          <Toast.Close aria-label='关闭提示' className='ec-editor__toast-close'>
             <X aria-hidden='true' size={16} />
           </Toast.Close>
         </Toast.Root>
         <Toast.Root
-          className='oc-editor__toast oc-editor__toast--error'
+          className='ec-editor__toast ec-editor__toast--error'
           duration={5000}
           onOpenChange={(open) => {
             if (!open) setMediaError(null);
@@ -662,15 +662,15 @@ function VideoTimelineEditorView({
           role='status'
           type='background'
         >
-          <CircleAlert aria-hidden='true' className='oc-editor__toast-icon' size={16} />
-          <Toast.Description className='oc-editor__toast-description'>
+          <CircleAlert aria-hidden='true' className='ec-editor__toast-icon' size={16} />
+          <Toast.Description className='ec-editor__toast-description'>
             {mediaError}
           </Toast.Description>
-          <Toast.Close aria-label='关闭提示' className='oc-editor__toast-close'>
+          <Toast.Close aria-label='关闭提示' className='ec-editor__toast-close'>
             <X aria-hidden='true' size={16} />
           </Toast.Close>
         </Toast.Root>
-        <Toast.Viewport className='oc-editor__toast-viewport' />
+        <Toast.Viewport className='ec-editor__toast-viewport' />
       </div>
     </Toast.Provider>
   );

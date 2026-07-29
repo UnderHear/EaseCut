@@ -750,7 +750,7 @@ describe('PreviewPanel', () => {
     expect(testTimelineStore.getState().selectedClipId).toBe('clip-main');
     expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
     expect(
-      document.querySelector('.oc-floating-inspector__panel'),
+      document.querySelector('.ec-floating-inspector__panel'),
     ).not.toBeVisible();
 
     act(() => testTimelineStore.getState().selectClip('clip-overlay'));

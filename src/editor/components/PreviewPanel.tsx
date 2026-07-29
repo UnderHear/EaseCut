@@ -1207,16 +1207,16 @@ export function PreviewPanel({
   };
 
   return (
-    <section className='oc-preview-panel'>
-      <div ref={previewRef} className='oc-preview-panel__viewport'>
+    <section className='ec-preview-panel'>
+      <div ref={previewRef} className='ec-preview-panel__viewport'>
         <div
           ref={previewContainerRef}
-          className='oc-preview-panel__canvas-wrap'
+          className='ec-preview-panel__canvas-wrap'
         >
           <canvas
             ref={canvasRef}
             aria-label='视频预览'
-            className='oc-preview-panel__canvas'
+            className='ec-preview-panel__canvas'
             height={Math.round(previewCanvasSize.height)}
             onPointerCancel={cancelPreviewInteraction}
             onPointerDown={startPreviewInteraction}
@@ -1226,13 +1226,13 @@ export function PreviewPanel({
             width={Math.round(previewCanvasSize.width)}
           />
           {(mediaError || playbackWarning) && (
-            <p className='oc-preview-panel__error' role='status'>
+            <p className='ec-preview-panel__error' role='status'>
               {mediaError
                 ? `无法加载部分媒体：${mediaError}`
                 : playbackWarning}
             </p>
           )}
-          <div aria-hidden className='oc-preview-panel__media'>
+          <div aria-hidden className='ec-preview-panel__media'>
             {previewMediaClips.map((clip) => {
               const isActive = activeClipIds.has(clip.id);
               return (

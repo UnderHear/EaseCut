@@ -24,19 +24,19 @@ export function FloatingInspectorBasicPanel({
   return (
     <>
       <Separator.Root
-        className='oc-floating-inspector__separator oc-floating-inspector__separator--header'
+        className='ec-floating-inspector__separator ec-floating-inspector__separator--header'
         decorative
         orientation='horizontal'
       />
 
-      <div className='oc-floating-inspector__body oc-scrollbar'>
-        <section className='oc-floating-inspector__section'>
+      <div className='ec-floating-inspector__body ec-scrollbar'>
+        <section className='ec-floating-inspector__section'>
           <h3>片段信息</h3>
-          <dl className='oc-floating-inspector__details'>
+          <dl className='ec-floating-inspector__details'>
             <div>
               <dt>素材名</dt>
               <dd
-                className='oc-floating-inspector__detail-value--wrap'
+                className='ec-floating-inspector__detail-value--wrap'
                 title={clip.name}
               >
                 {clip.name}
@@ -59,13 +59,13 @@ export function FloatingInspectorBasicPanel({
 
         <>
           <Separator.Root
-            className='oc-floating-inspector__separator'
+            className='ec-floating-inspector__separator'
             decorative
             orientation='horizontal'
           />
-          <section className='oc-floating-inspector__section'>
+          <section className='ec-floating-inspector__section'>
             <h3>音量</h3>
-            <div className='oc-floating-inspector__number-field'>
+            <div className='ec-floating-inspector__number-field'>
               <span>片段音量</span>
               <InputNumber
                 label='片段音量'

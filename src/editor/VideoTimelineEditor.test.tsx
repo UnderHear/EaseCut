@@ -644,7 +644,7 @@ describe('VideoTimelineEditor', () => {
         <VideoTimelineEditor sources={[videoSource]} />
       </>,
     );
-    const editor = container.querySelector<HTMLElement>('.oc-editor');
+    const editor = container.querySelector<HTMLElement>('.ec-editor');
     const state = screen.getByTestId('timeline-state');
     if (!editor) throw new Error('编辑器根节点未渲染');
 
@@ -667,7 +667,7 @@ describe('VideoTimelineEditor', () => {
 
   it('moves the playhead by 0.1 seconds with Ctrl+Arrow keys', () => {
     const { container } = render(<VideoTimelineEditor sources={[videoSource]} />);
-    const editor = container.querySelector<HTMLElement>('.oc-editor');
+    const editor = container.querySelector<HTMLElement>('.ec-editor');
     const state = screen.getByTestId('timeline-state');
     if (!editor) throw new Error('编辑器根节点未渲染');
 
@@ -719,7 +719,7 @@ describe('VideoTimelineEditor', () => {
       </>,
     );
     const editors = Array.from(
-      container.querySelectorAll<HTMLElement>('.oc-editor'),
+      container.querySelectorAll<HTMLElement>('.ec-editor'),
     );
     const states = screen.getAllByTestId('timeline-state');
 
@@ -747,7 +747,7 @@ describe('VideoTimelineEditor', () => {
     const { container } = render(
       <VideoTimelineEditor sources={[audioSource]} />,
     );
-    const editor = container.querySelector<HTMLElement>('.oc-editor');
+    const editor = container.querySelector<HTMLElement>('.ec-editor');
     const state = screen.getByTestId('timeline-state');
     if (!editor) throw new Error('编辑器根节点未渲染');
     await user.click(
@@ -772,7 +772,7 @@ describe('VideoTimelineEditor', () => {
       </>,
     );
     const editors = Array.from(
-      container.querySelectorAll<HTMLElement>('.oc-editor'),
+      container.querySelectorAll<HTMLElement>('.ec-editor'),
     );
     const states = screen.getAllByTestId('timeline-state');
 

@@ -51,19 +51,19 @@ export function FloatingInspectorSpeedPanel({
   return (
     <>
       <Separator.Root
-        className='oc-floating-inspector__separator oc-floating-inspector__separator--header'
+        className='ec-floating-inspector__separator ec-floating-inspector__separator--header'
         decorative
         orientation='horizontal'
       />
 
-      <div className='oc-floating-inspector__body oc-scrollbar'>
-        <section className='oc-floating-inspector__section'>
+      <div className='ec-floating-inspector__body ec-scrollbar'>
+        <section className='ec-floating-inspector__section'>
           <h3>播放速度</h3>
-          <div className='oc-floating-inspector__speed-control'>
+          <div className='ec-floating-inspector__speed-control'>
             <input
               aria-label='播放速度滑块'
               aria-valuetext={`${draftSpeed} 倍`}
-              className='oc-range-input'
+              className='ec-range-input'
               max={MAX_CLIP_SPEED}
               min={MIN_CLIP_SPEED}
               onBlur={commitDraftSpeed}

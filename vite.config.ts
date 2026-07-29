@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
 const SOUND_TOUCH_PROCESSOR_MODULE_ID =
-  'virtual:opencut-soundtouch-processor-url';
+  'virtual:easecut-soundtouch-processor-url';
 const RESOLVED_SOUND_TOUCH_PROCESSOR_MODULE_ID =
   `\0${SOUND_TOUCH_PROCESSOR_MODULE_ID}`;
 const soundTouchProcessorPath = createRequire(import.meta.url).resolve(
@@ -20,7 +20,7 @@ const createSoundTouchProcessorPlugin = (
   let processorReferenceId: string | null = null;
 
   return {
-    name: 'opencut-soundtouch-processor',
+    name: 'easecut-soundtouch-processor',
     buildStart() {
       if (command !== 'build') return;
       processorReferenceId = this.emitFile({

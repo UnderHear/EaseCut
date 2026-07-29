@@ -18,7 +18,7 @@ export function TimelinePanel({
   onRequestPreviewFullscreen,
 }: TimelinePanelProps) {
   return (
-    <section className='oc-timeline-panel' aria-label='时间线编辑区域'>
+    <section className='ec-timeline-panel' aria-label='时间线编辑区域'>
       <TimelineToolbar
         onRequestImport={onRequestImport}
         onRequestPreviewFullscreen={onRequestPreviewFullscreen}

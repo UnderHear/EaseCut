@@ -19,25 +19,25 @@ export function FloatingInspectorShell({
   return (
     <aside
       aria-label='基础属性面板'
-      className='oc-floating-inspector'
+      className='ec-floating-inspector'
       data-panel-open={isPanelOpen}
     >
-      <div className='oc-floating-inspector__panel' hidden={!isPanelOpen}>
-        <header className='oc-floating-inspector__header'>
+      <div className='ec-floating-inspector__panel' hidden={!isPanelOpen}>
+        <header className='ec-floating-inspector__header'>
           <h2>{sectionTitle}</h2>
           <button
             aria-label='关闭属性面板'
-            className='oc-floating-inspector__close'
+            className='ec-floating-inspector__close'
             onClick={onClose}
             type='button'
           >
             <X aria-hidden='true' size={19} />
           </button>
         </header>
-        <div className='oc-floating-inspector__main'>{children}</div>
+        <div className='ec-floating-inspector__main'>{children}</div>
       </div>
 
-      <nav aria-label='属性分类' className='oc-floating-inspector__rail'>
+      <nav aria-label='属性分类' className='ec-floating-inspector__rail'>
         {railItems}
       </nav>
     </aside>

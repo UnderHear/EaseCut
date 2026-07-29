@@ -60,11 +60,11 @@ export function DemoApp() {
   };
 
   return (
-    <main className='oc-demo'>
+    <main className='ec-demo'>
       <VideoTimelineEditor
         onImportMedia={handleImportMedia}
         sources={sources}
-        title='OpenCut 视频编辑器'
+        title='EaseCut 视频编辑器'
       />
     </main>
   );

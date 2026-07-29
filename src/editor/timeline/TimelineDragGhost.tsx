@@ -16,7 +16,7 @@ export function TimelineDragGhost({
   return (
     <div
       aria-hidden='true'
-      className='oc-timeline-drag-ghost'
+      className='ec-timeline-drag-ghost'
       data-snapped={snapped}
       data-track-changed={trackChanged}
       style={{ left, width } as CSSProperties}

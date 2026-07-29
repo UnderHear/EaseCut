@@ -88,7 +88,7 @@ export function InputNumber({
   };
 
   return (
-    <span className='oc-input-number'>
+    <span className='ec-input-number'>
       <input
         aria-label={label}
         max={max}
@@ -109,14 +109,14 @@ export function InputNumber({
         type='number'
         value={displayedValue}
       />
-      <span className='oc-input-number__suffix-group'>
-        <span aria-hidden='true' className='oc-input-number__suffix'>
+      <span className='ec-input-number__suffix-group'>
+        <span aria-hidden='true' className='ec-input-number__suffix'>
           {suffix}
         </span>
-        <span className='oc-input-number__step-layer'>
+        <span className='ec-input-number__step-layer'>
           <button
             aria-label={`${label}增加`}
-            className='oc-input-number__step-button'
+            className='ec-input-number__step-button'
             onClick={() => stepBy(1)}
             onMouseDown={(event) => event.preventDefault()}
             tabIndex={-1}
@@ -126,7 +126,7 @@ export function InputNumber({
           </button>
           <button
             aria-label={`${label}减少`}
-            className='oc-input-number__step-button'
+            className='ec-input-number__step-button'
             onClick={() => stepBy(-1)}
             onMouseDown={(event) => event.preventDefault()}
             tabIndex={-1}

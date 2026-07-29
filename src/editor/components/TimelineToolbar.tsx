@@ -110,8 +110,8 @@ export function TimelineToolbar({
   const duration = getTimelineDuration(clips);
 
   return (
-    <div className='oc-timeline-toolbar' role='toolbar' aria-label='时间线工具栏'>
-      <div className='oc-timeline-toolbar__group oc-timeline-toolbar__group--start'>
+    <div className='ec-timeline-toolbar' role='toolbar' aria-label='时间线工具栏'>
+      <div className='ec-timeline-toolbar__group ec-timeline-toolbar__group--start'>
         <ToolbarButton
           disabled={!canUndo}
           label='撤销 Ctrl+Z'
@@ -126,7 +126,7 @@ export function TimelineToolbar({
         >
           <Redo2 aria-hidden='true' />
         </ToolbarButton>
-        <span aria-hidden='true' className='oc-timeline-toolbar__separator' />
+        <span aria-hidden='true' className='ec-timeline-toolbar__separator' />
         <ToolbarButton
           disabled={!canSplitAtPlayhead}
           label='分割片段 Ctrl+B'
@@ -148,22 +148,22 @@ export function TimelineToolbar({
         )}
       </div>
 
-      <div className='oc-timeline-toolbar__transport'>
+      <div className='ec-timeline-toolbar__transport'>
         <time
-          className='oc-timeline-toolbar__time'
+          className='ec-timeline-toolbar__time'
           dateTime={`PT${microsecondsToSeconds(currentTimeUs)}S`}
         >
           {formatTimelineTime(currentTimeUs)}
         </time>
         <ToolbarButton
-          className='oc-icon-button--transport'
+          className='ec-icon-button--transport'
           label={`${isPlaying ? '暂停时间线' : '播放时间线'} Space`}
           onClick={() => setIsPlaying(!isPlaying)}
         >
           {isPlaying ? <Pause aria-hidden='true' /> : <Play aria-hidden='true' />}
         </ToolbarButton>
         <time
-          className='oc-timeline-toolbar__time oc-timeline-toolbar__time--muted'
+          className='ec-timeline-toolbar__time ec-timeline-toolbar__time--muted'
           dateTime={`PT${microsecondsToSeconds(duration)}S`}
         >
           {formatTimelineTime(duration)}
@@ -173,12 +173,12 @@ export function TimelineToolbar({
         </ToolbarButton>
       </div>
 
-      <div className='oc-timeline-toolbar__group oc-timeline-toolbar__group--end'>
+      <div className='ec-timeline-toolbar__group ec-timeline-toolbar__group--end'>
         <Dialog.Root>
           <Dialog.Trigger asChild>
             <button
               aria-label='查看快捷键'
-              className='oc-icon-button'
+              className='ec-icon-button'
               title='查看快捷键'
               type='button'
             >
@@ -186,16 +186,16 @@ export function TimelineToolbar({
             </button>
           </Dialog.Trigger>
           <Dialog.Portal>
-            <Dialog.Overlay className='oc-shortcuts-dialog__overlay' />
-            <Dialog.Content className='oc-shortcuts-dialog'>
-              <div className='oc-shortcuts-dialog__header'>
-                <Dialog.Title className='oc-shortcuts-dialog__title'>
+            <Dialog.Overlay className='ec-shortcuts-dialog__overlay' />
+            <Dialog.Content className='ec-shortcuts-dialog'>
+              <div className='ec-shortcuts-dialog__header'>
+                <Dialog.Title className='ec-shortcuts-dialog__title'>
                   快捷键
                 </Dialog.Title>
                 <Dialog.Close asChild>
                   <button
                     aria-label='关闭快捷键弹窗'
-                    className='oc-icon-button'
+                    className='ec-icon-button'
                     title='关闭'
                     type='button'
                   >
@@ -203,19 +203,19 @@ export function TimelineToolbar({
                   </button>
                 </Dialog.Close>
               </div>
-              <div className='oc-shortcuts-dialog__groups'>
+              <div className='ec-shortcuts-dialog__groups'>
                 {timelineShortcutGroups.map((group) => (
                   <section
-                    aria-labelledby={`oc-shortcuts-group-${group.id}`}
-                    className='oc-shortcuts-dialog__group'
+                    aria-labelledby={`ec-shortcuts-group-${group.id}`}
+                    className='ec-shortcuts-dialog__group'
                     key={group.id}
                   >
-                    <h3 id={`oc-shortcuts-group-${group.id}`}>
+                    <h3 id={`ec-shortcuts-group-${group.id}`}>
                       {group.title}
                     </h3>
-                    <dl className='oc-shortcuts__list'>
+                    <dl className='ec-shortcuts__list'>
                       {group.items.map((item) => (
-                        <div className='oc-shortcuts__item' key={item.action}>
+                        <div className='ec-shortcuts__item' key={item.action}>
                           <dt>{item.action}</dt>
                           <dd>
                             <kbd>{item.key}</kbd>
@@ -269,7 +269,7 @@ export function TimelineToolbar({
         </ToolbarButton>
         <input
           aria-label='时间轴缩放'
-          className='oc-range-input oc-timeline-toolbar__zoom'
+          className='ec-range-input ec-timeline-toolbar__zoom'
           max={MAX_PIXELS_PER_SECOND}
           min={MIN_PIXELS_PER_SECOND}
           onChange={(event) => setPixelsPerSecond(Number(event.target.value))}
@@ -318,7 +318,7 @@ function ToolbarButton({
     <button
       aria-label={label.split(' ')[0]}
       aria-pressed={pressed}
-      className={`oc-icon-button${active ? ' oc-is-active' : ''}${className ? ` ${className}` : ''}`}
+      className={`ec-icon-button${active ? ' ec-is-active' : ''}${className ? ` ${className}` : ''}`}
       disabled={disabled}
       onClick={onClick}
       title={label}

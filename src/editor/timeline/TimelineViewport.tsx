@@ -171,13 +171,13 @@ export function TimelineViewport({
     return grouped;
   }, [displayClips]);
   const shellStyle = {
-    '--oc-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
-    '--oc-timeline-ruler-height': `${TIMELINE_RULER_HEIGHT}px`,
-    '--oc-timeline-track-gap': `${TIMELINE_TRACK_GAP}px`,
+    '--ec-timeline-header-width': `${TIMELINE_TRACK_HEADER_WIDTH}px`,
+    '--ec-timeline-ruler-height': `${TIMELINE_RULER_HEIGHT}px`,
+    '--ec-timeline-track-gap': `${TIMELINE_TRACK_GAP}px`,
   } as CSSProperties;
   const gridStyle = {
-    '--oc-timeline-lane-width': `${contentLaneWidth}px`,
-    '--oc-timeline-grid-step': `${durationUsToWidth(
+    '--ec-timeline-lane-width': `${contentLaneWidth}px`,
+    '--ec-timeline-grid-step': `${durationUsToWidth(
       majorIntervalUs,
       pixelsPerSecond,
     )}px`,
@@ -355,20 +355,20 @@ export function TimelineViewport({
 
   return (
     <div
-      className='oc-timeline-shell'
+      className='ec-timeline-shell'
       data-interacting={controller.isInteracting}
       data-scrubbing={controller.isScrubbing}
       ref={shellRef}
       style={shellStyle}
     >
-      <div className='oc-timeline-corner'>
+      <div className='ec-timeline-corner'>
         {videoGaps.length > 0 && (
-          <span className='oc-timeline-gap-status'>有视频空隙</span>
+          <span className='ec-timeline-gap-status'>有视频空隙</span>
         )}
       </div>
 
-      <div className='oc-timeline-controls-viewport'>
-        <div className='oc-timeline-controls-stack' ref={controlsStackRef}>
+      <div className='ec-timeline-controls-viewport'>
+        <div className='ec-timeline-controls-stack' ref={controlsStackRef}>
           {trackLayouts.map(({ height, track }) => {
             const isMainVideoTrack = track.id === MAIN_VIDEO_TRACK_ID;
             const muted = track.muted;
@@ -382,7 +382,7 @@ export function TimelineViewport({
 
             return (
               <div
-                className='oc-timeline-track__control'
+                className='ec-timeline-track__control'
                 data-control-track-id={track.id}
                 data-main-track={isMainVideoTrack ? 'true' : undefined}
                 data-type={track.type}
@@ -390,7 +390,7 @@ export function TimelineViewport({
                 style={{ height }}
               >
                 <span
-                  className='oc-timeline-track__icon'
+                  className='ec-timeline-track__icon'
                   title={trackLabel}
                 >
                   <TrackIcon aria-hidden='true' />
@@ -398,7 +398,7 @@ export function TimelineViewport({
                 <button
                   aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
                   aria-pressed={muted}
-                  className='oc-timeline-track__mute'
+                  className='ec-timeline-track__mute'
                   onClick={() => toggleTrackMute(track.id)}
                   title={muted ? '取消静音' : '静音'}
                   type='button'
@@ -415,14 +415,14 @@ export function TimelineViewport({
 
           <div
             aria-hidden='true'
-            className='oc-timeline-track__control oc-timeline-track__control--tail'
+            className='ec-timeline-track__control ec-timeline-track__control--tail'
           />
         </div>
       </div>
 
-      <div className='oc-timeline-ruler-viewport'>
+      <div className='ec-timeline-ruler-viewport'>
         <div
-          className='oc-timeline-ruler-canvas'
+          className='ec-timeline-ruler-canvas'
           ref={rulerCanvasRef}
           style={{ width: rulerWidth }}
         >
@@ -440,12 +440,12 @@ export function TimelineViewport({
 
       <div
         aria-label='时间线轨道区域'
-        className='oc-timeline-viewport oc-scrollbar'
+        className='ec-timeline-viewport ec-scrollbar'
         onScroll={handleViewportScroll}
         ref={viewportRef}
       >
-        <div className='oc-timeline-grid' ref={gridRef} style={gridStyle}>
-          <div className='oc-timeline-track-stack'>
+        <div className='ec-timeline-grid' ref={gridRef} style={gridStyle}>
+          <div className='ec-timeline-track-stack'>
             {trackLayouts.map(({ height, track }) => {
               const trackClips = clipsByTrack.get(track.id) ?? [];
               const isMainVideoTrack = track.id === MAIN_VIDEO_TRACK_ID;
@@ -456,14 +456,14 @@ export function TimelineViewport({
 
               return (
                 <div
-                  className='oc-timeline-track'
+                  className='ec-timeline-track'
                   data-main-track={isMainVideoTrack ? 'true' : undefined}
                   data-type={track.type}
                   key={track.id}
                   style={{ height }}
                 >
                   <div
-                    className='oc-timeline-track__lane'
+                    className='ec-timeline-track__lane'
                     data-drop-source={isDropSource}
                     data-drop-target={isDropTarget}
                     data-track-id={track.id}
@@ -471,14 +471,14 @@ export function TimelineViewport({
                     onPointerDown={controller.beginScrub}
                   >
                     {isMainVideoTrack && trackClips.length === 0 && (
-                      <span className='oc-timeline-track__empty-hint'>
+                      <span className='ec-timeline-track__empty-hint'>
                         主轨道：可将素材拖放到这里
                       </span>
                     )}
                     {isDropSource && dropPreview && (
                       <div
                         aria-hidden='true'
-                        className='oc-timeline-clip-placeholder'
+                        className='ec-timeline-clip-placeholder'
                         style={{
                           left:
                             TIMELINE_CONTENT_PADDING_X +
@@ -541,9 +541,9 @@ export function TimelineViewport({
               );
             })}
 
-            <div className='oc-timeline-tail-row'>
+            <div className='ec-timeline-tail-row'>
               <div
-                className='oc-timeline-tail'
+                className='ec-timeline-tail'
                 onPointerDown={controller.beginScrub}
               />
             </div>
@@ -553,7 +553,7 @@ export function TimelineViewport({
             dropPreview?.insertLineY !== undefined && (
               <div
                 aria-hidden='true'
-                className='oc-timeline-track-insert-line'
+                className='ec-timeline-track-insert-line'
                 data-leading={
                   dropPreview.insertLineY === TIMELINE_RULER_HEIGHT
                 }
@@ -584,7 +584,7 @@ export function TimelineViewport({
             dropPreview?.snapTimeUs !== undefined && (
               <div
                 aria-hidden='true'
-                className='oc-timeline-snap-line'
+                className='ec-timeline-snap-line'
                 style={{
                   left:
                     TIMELINE_CONTENT_PADDING_X +
@@ -596,17 +596,17 @@ export function TimelineViewport({
       </div>
       <div
         aria-hidden='true'
-        className='oc-timeline-playhead-layer'
+        className='ec-timeline-playhead-layer'
       >
         <div
-          className='oc-timeline-playhead'
+          className='ec-timeline-playhead'
           onPointerDown={controller.beginPlayheadScrub}
           ref={playheadRef}
           style={{ left: playheadLeft }}
         >
           <svg
             aria-hidden='true'
-            className='oc-timeline-playhead__handle'
+            className='ec-timeline-playhead__handle'
             viewBox='0 0 12 18'
           >
             <path
@@ -618,7 +618,7 @@ export function TimelineViewport({
               strokeWidth='2'
             />
           </svg>
-          <span className='oc-timeline-playhead__line' />
+          <span className='ec-timeline-playhead__line' />
         </div>
       </div>
     </div>

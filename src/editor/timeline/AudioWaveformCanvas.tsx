@@ -107,7 +107,7 @@ export function AudioWaveformCanvas({
     context.clearRect(0, 0, bounds.width, bounds.height);
     context.fillStyle =
       getComputedStyle(canvas)
-        .getPropertyValue('--oc-timeline-waveform-bar')
+        .getPropertyValue('--ec-timeline-waveform-bar')
         .trim() || DEFAULT_WAVEFORM_BAR_COLOR;
 
     for (const bar of getAudioWaveformBars(renderInput.samples, {
@@ -188,7 +188,7 @@ export function AudioWaveformCanvas({
   return (
     <canvas
       aria-hidden='true'
-      className='oc-timeline-clip__waveform-canvas'
+      className='ec-timeline-clip__waveform-canvas'
       data-waveform-tile-index={tileIndex}
       ref={canvasRef}
       style={{ left, width }}

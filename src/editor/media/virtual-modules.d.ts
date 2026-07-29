@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-declare module 'virtual:opencut-soundtouch-processor-url' {
+declare module 'virtual:easecut-soundtouch-processor-url' {
   const soundTouchProcessorUrl: string;
 
   export default soundTouchProcessorUrl;

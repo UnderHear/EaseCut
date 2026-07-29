@@ -1,12 +1,12 @@
-![OpenCut 视频时间线](doc-image/preview.png)
+![EaseCut 视频时间线](doc-image/preview.png)
 
-# OpenCut React
+# EaseCut React
 
-OpenCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频轨、拖拽编排、裁剪、分割、吸附、撤销重做、固定倍速、音量调节、画面变换、预览以及可扩展导出接口。
+EaseCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频轨、拖拽编排、裁剪、分割、吸附、撤销重做、固定倍速、音量调节、画面变换、预览以及可扩展导出接口。
 
 项目不依赖 React Flow、Tailwind、shadcn 或 Base UI。界面由语义 HTML、普通 CSS、原生 Canvas 和 lucide-react 构成。
 
-> 当前包名为 `opencut-react`，并设置了 `private: true`。这是为了先稳定公开 API；正式发布到 npm 前需要确认包名和版权主体。
+> 当前包名为 `easecut-react`，并设置了 `private: true`。这是为了先稳定公开 API；正式发布到 npm 前需要确认包名和版权主体。
 
 ## 本地开发
 
@@ -41,8 +41,8 @@ import {
   VideoTimelineEditor,
   type VideoTimelineDraft,
   type VideoTimelineSource,
-} from 'opencut-react';
-import 'opencut-react/styles.css';
+} from 'easecut-react';
+import 'easecut-react/styles.css';
 
 const sources: VideoTimelineSource[] = [
   {
@@ -150,7 +150,7 @@ Mediabunny 负责媒体解封装、缩略图和波形解码，不承担实时音
 
 - “导出 JSON”下载当前 `CompositionExportPayload`。
 - 传入 `onExport` 后显示“导出视频”，回调会收到最新 `draft` 和 `payload`。
-- OpenCut React 不包含 MP4 编码器或渲染后端。
+- EaseCut React 不包含 MP4 编码器或渲染后端。
 - 可使用 `createCompositionExportPayload(draft)` 在组件外创建同样的导出数据。
 - 每个音视频导出元素都会包含 `{ Type: 'speed', Speed }`。视频过滤器顺序为
   `trim → speed → transform → a_volume`，音频过滤器顺序为

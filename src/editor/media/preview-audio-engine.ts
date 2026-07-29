@@ -1,5 +1,5 @@
 import type { SoundTouchNode } from '@soundtouchjs/audio-worklet';
-import soundTouchProcessorUrl from 'virtual:opencut-soundtouch-processor-url';
+import soundTouchProcessorUrl from 'virtual:easecut-soundtouch-processor-url';
 
 import type { TimelineClipSpeed } from '../core/model';
 

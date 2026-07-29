@@ -215,17 +215,17 @@ function TimelineClipVisual({
 
   return (
     <>
-      <div className='oc-timeline-clip__media'>
+      <div className='ec-timeline-clip__media'>
         {clip.type === 'video' ? (
           <div
-            className='oc-timeline-clip__preview-strip'
+            className='ec-timeline-clip__preview-strip'
             aria-hidden='true'
             style={{ transform: `translate3d(${-previewOffset}px, -50%, 0)` }}
           >
             {previewStrip?.frames.map((frame) => (
               <img
                 alt=''
-                className='oc-timeline-clip__thumbnail'
+                className='ec-timeline-clip__thumbnail'
                 decoding='async'
                 draggable={false}
                 key={frame.index}
@@ -257,12 +257,12 @@ function TimelineClipVisual({
         )}
       </div>
 
-      <header className='oc-timeline-clip__meta'>
-        <span className='oc-timeline-clip__name' title={clip.name}>
+      <header className='ec-timeline-clip__meta'>
+        <span className='ec-timeline-clip__name' title={clip.name}>
           {clip.name}
         </span>
         <time
-          className='oc-timeline-clip__duration'
+          className='ec-timeline-clip__duration'
           dateTime={`PT${microsecondsToSeconds(
             Math.max(0, clip.durationUs),
           )}S`}
@@ -309,7 +309,7 @@ export function TimelineClipView({
       visibleTimeStartUs,
     );
   const style = {
-    '--oc-timeline-clip-volume-y': `${
+    '--ec-timeline-clip-volume-y': `${
       AUDIO_VOLUME_INSET +
       (1 - volume) *
         (TIMELINE_AUDIO_CLIP_HEIGHT - AUDIO_VOLUME_INSET * 2)
@@ -343,7 +343,7 @@ export function TimelineClipView({
       <ContextMenu.Trigger asChild>
         <article
           aria-label={`${clip.type} clip: ${clip.name}`}
-          className='oc-timeline-clip'
+          className='ec-timeline-clip'
           data-clip-id={clip.id}
           data-selected={isSelected}
           data-type={clip.type}
@@ -369,14 +369,14 @@ export function TimelineClipView({
           {clip.type === 'audio' && (
             <button
               aria-label={`Adjust ${clip.name} volume, ${Math.round(volume * 100)} percent`}
-              className='oc-timeline-clip__volume'
+              className='ec-timeline-clip__volume'
               onPointerDown={(event) => {
                 event.stopPropagation();
                 if (event.button === 0) onVolumeStart(event, clip);
               }}
               type='button'
             >
-              <span className='oc-timeline-clip__volume-line' />
+              <span className='ec-timeline-clip__volume-line' />
             </button>
           )}
 
@@ -384,7 +384,7 @@ export function TimelineClipView({
             (['start', 'end'] as const).map((edge) => (
               <button
                 aria-label={`Trim ${edge} of ${clip.name}`}
-                className='oc-timeline-clip__trim-handle'
+                className='ec-timeline-clip__trim-handle'
                 data-edge={edge}
                 data-trimmed={isTrimmedAt(edge)}
                 key={edge}
@@ -398,45 +398,45 @@ export function TimelineClipView({
       <ContextMenu.Portal>
         <ContextMenu.Content
           aria-label={`${clip.name} 操作菜单`}
-          className='oc-clip-context-menu'
+          className='ec-clip-context-menu'
           collisionPadding={8}
           onPointerDown={(event) => event.stopPropagation()}
         >
           <ContextMenu.Item
-            className='oc-clip-context-menu__item'
+            className='ec-clip-context-menu__item'
             disabled={!canSplitAt(contextMenuTimeUs)}
             onSelect={() => onSplit(contextMenuTimeUs)}
           >
             <SquareSplitHorizontal aria-hidden='true' />
             <span>分割</span>
           </ContextMenu.Item>
-          <ContextMenu.Separator className='oc-clip-context-menu__separator' />
+          <ContextMenu.Separator className='ec-clip-context-menu__separator' />
           <ContextMenu.Item
-            className='oc-clip-context-menu__item'
+            className='ec-clip-context-menu__item'
             onSelect={onCopy}
           >
             <Copy aria-hidden='true' />
             <span>复制</span>
           </ContextMenu.Item>
           <ContextMenu.Item
-            className='oc-clip-context-menu__item'
+            className='ec-clip-context-menu__item'
             disabled={!canPaste}
             onSelect={onPaste}
           >
             <ClipboardPaste aria-hidden='true' />
             <span>粘贴</span>
           </ContextMenu.Item>
-          <ContextMenu.Separator className='oc-clip-context-menu__separator' />
+          <ContextMenu.Separator className='ec-clip-context-menu__separator' />
           <ContextMenu.Item
-            className='oc-clip-context-menu__item'
+            className='ec-clip-context-menu__item'
             onSelect={() => void onDownload()}
           >
             <Download aria-hidden='true' />
             <span>下载原始素材</span>
           </ContextMenu.Item>
-          <ContextMenu.Separator className='oc-clip-context-menu__separator' />
+          <ContextMenu.Separator className='ec-clip-context-menu__separator' />
           <ContextMenu.Item
-            className='oc-clip-context-menu__item oc-clip-context-menu__item--danger'
+            className='ec-clip-context-menu__item ec-clip-context-menu__item--danger'
             onSelect={onDelete}
           >
             <Trash2 aria-hidden='true' />
@@ -485,7 +485,7 @@ export function TimelineClipDragOverlay({
       visibleTimeStartUs,
     );
   const style = {
-    '--oc-timeline-clip-volume-y': `${
+    '--ec-timeline-clip-volume-y': `${
       AUDIO_VOLUME_INSET +
       (1 - volume) *
         (TIMELINE_AUDIO_CLIP_HEIGHT - AUDIO_VOLUME_INSET * 2)
@@ -499,7 +499,7 @@ export function TimelineClipDragOverlay({
   return (
     <div
       aria-hidden='true'
-      className='oc-timeline-clip oc-timeline-clip--drag-overlay'
+      className='ec-timeline-clip ec-timeline-clip--drag-overlay'
       data-type={clip.type}
       style={style}
     >
