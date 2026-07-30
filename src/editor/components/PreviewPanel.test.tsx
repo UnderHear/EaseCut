@@ -181,6 +181,7 @@ describe('PreviewPanel', () => {
   let drawnTextFonts: string[];
   let fillRectMock: ReturnType<typeof vi.fn>;
   let fillTextMock: ReturnType<typeof vi.fn>;
+  let measureTextMock: ReturnType<typeof vi.fn>;
   let currentCanvasFont: string;
   let mediaReadyState: number;
   let preservesPitchByMedia: WeakMap<HTMLMediaElement, boolean>;
@@ -209,6 +210,9 @@ describe('PreviewPanel', () => {
       drawCalls.push({ args, kind: 'fillText' });
       drawnTextFonts.push(currentCanvasFont);
     });
+    measureTextMock = vi.fn(
+      () => ({ actualBoundingBoxDescent: 24 }) as TextMetrics,
+    );
     mediaReadyState = 4;
     preservesPitchByMedia = new WeakMap();
     preservesPitchWrites = [];
@@ -284,6 +288,7 @@ describe('PreviewPanel', () => {
             },
             lineWidth: 0,
             lineTo: createCanvasCallMock('lineTo'),
+            measureText: measureTextMock,
             moveTo: createCanvasCallMock('moveTo'),
             rect: createCanvasCallMock('rect'),
             restore: createCanvasCallMock('restore'),
@@ -608,7 +613,8 @@ describe('PreviewPanel', () => {
     const underlineCall = fillRectMock.mock.calls.find(
       ([x, , width]) => x === -100 && width === 2_000,
     );
-    expect(underlineCall?.[1]).toBeCloseTo(442);
+    expect(measureTextMock).toHaveBeenCalledWith('我们的精彩旅程');
+    expect(underlineCall?.[1]).toBeCloseTo(436);
     expect(underlineCall?.[3]).toBeCloseTo(7.2);
     expect(strokeRectMock).toHaveBeenCalledWith(-100, 300, 2_000, 200);
     expect(

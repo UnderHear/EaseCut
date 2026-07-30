@@ -44,8 +44,8 @@ const bundledFontAssets = [
     mimeType: 'font/ttf',
   },
   {
-    fileName: 'zcool-xiaowei-regular.ttf',
-    mimeType: 'font/ttf',
+    fileName: 'zcool-xiaowei-logo.otf',
+    mimeType: 'font/otf',
   },
 ] as const;
 

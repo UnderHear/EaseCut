@@ -50,7 +50,8 @@ const HAVE_METADATA_READY_STATE = 1;
 const HAVE_CURRENT_DATA_READY_STATE = 2;
 const PREVIEW_PRELOAD_LOOKAHEAD_US = secondsToMicroseconds(5);
 const MAX_PRELOADED_MEDIA_CLIPS = 4;
-const TEXT_UNDERLINE_OFFSET_RATIO = 0.35;
+const TEXT_UNDERLINE_FALLBACK_DESCENT_RATIO = 0.25;
+const TEXT_UNDERLINE_OFFSET_RATIO = 0.15;
 const TEXT_UNDERLINE_THICKNESS_RATIO = 0.06;
 
 type PreviewFontLoadStatus = 'failed' | 'ready';
@@ -421,13 +422,23 @@ const drawTextClip = (
     textBaselineY,
   );
   if (clip.underline) {
+    const measuredDescent =
+      context.measureText(clip.text).actualBoundingBoxDescent;
+    const glyphDescent =
+      Number.isFinite(measuredDescent) && measuredDescent >= 0
+        ? measuredDescent
+        : scaledFontSize * TEXT_UNDERLINE_FALLBACK_DESCENT_RATIO;
+    const offset = scaledFontSize * TEXT_UNDERLINE_OFFSET_RATIO;
     const thickness = Math.min(
       previewTransform.height,
       Math.max(1, scaledFontSize * TEXT_UNDERLINE_THICKNESS_RATIO),
     );
-    const underlineY = Math.min(
-      previewTransform.y + previewTransform.height - thickness,
-      textBaselineY + scaledFontSize * TEXT_UNDERLINE_OFFSET_RATIO,
+    const underlineY = Math.max(
+      previewTransform.y,
+      Math.min(
+        previewTransform.y + previewTransform.height - thickness,
+        textBaselineY + glyphDescent + offset,
+      ),
     );
     context.fillRect(
       previewTransform.x,

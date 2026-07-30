@@ -40,7 +40,7 @@
 
 @font-face {
   font-family: 'ZCOOL XiaoWei';
-  src: url('./assets/fonts/zcool-xiaowei-regular.ttf') format('truetype');
+  src: url('./assets/fonts/zcool-xiaowei-logo.otf') format('opentype');
   font-display: swap;
   font-style: normal;
   font-weight: 400;
