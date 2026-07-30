@@ -65,7 +65,7 @@ const isPositiveFinite = (value: number) =>
 const validateTrack = (track: TimelineTrack) => {
   if (
     !track.id ||
-    !track.name ||
+    (track.type === 'audio' ? track.name !== '音频轨道' : !track.name) ||
     !['video', 'audio', 'text'].includes(track.type) ||
     !Number.isInteger(track.zIndex) ||
     typeof track.muted !== 'boolean'

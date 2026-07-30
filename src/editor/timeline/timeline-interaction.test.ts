@@ -18,7 +18,7 @@ const createTrack = (
   zIndex: number,
 ): TimelineTrack => ({
   id,
-  name: id,
+  name: type === 'audio' ? '音频轨道' : id,
   type,
   muted: false,
   zIndex,

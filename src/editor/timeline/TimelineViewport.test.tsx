@@ -47,7 +47,7 @@ const videoTrack: TimelineTrack = {
 
 const audioTrack: TimelineTrack = {
   id: 'audio-track-1',
-  name: '音频轨 1',
+  name: '音频轨道',
   type: 'audio',
   muted: false,
   zIndex: 1,
@@ -255,7 +255,7 @@ describe('TimelineViewport DOM interactions', () => {
       name: '主视频轨道静音',
     });
     const audioMuteButton = screen.getByRole('button', {
-      name: '音频轨 1静音',
+      name: '音频轨道静音',
     });
     const videoHeader = videoMuteButton.parentElement;
     const audioHeader = audioMuteButton.parentElement;
@@ -299,7 +299,7 @@ describe('TimelineViewport DOM interactions', () => {
     expect(screen.getByTitle('主视频轨道')).toHaveClass(
       'ec-timeline-track__icon',
     );
-    expect(screen.getByTitle(audioTrack.name)).toHaveClass(
+    expect(screen.getByTitle('音频轨道')).toHaveClass(
       'ec-timeline-track__icon',
     );
     expect(videoMuteButton).toHaveAttribute('aria-pressed', 'false');
@@ -1672,7 +1672,6 @@ describe('TimelineViewport DOM interactions', () => {
     const secondAudioTrack: TimelineTrack = {
       ...audioTrack,
       id: 'audio-track-2',
-      name: '音频轨 2',
       zIndex: 2,
     };
     const remainingAudioClip = createClip({

@@ -391,7 +391,7 @@ export function TimelineViewport({
                   ? '视频轨道'
                   : track.type === 'text'
                     ? '文字轨道'
-                    : track.name;
+                    : '音频轨道';
 
             return (
               <div

@@ -244,7 +244,7 @@ const createTrackForSource = (
 ): TimelineTrack => ({
   id: source.type === 'video' ? MAIN_VIDEO_TRACK_ID : audioTrackId(source.id),
   muted: false,
-  name: source.type === 'video' ? '视频轨' : source.fileName,
+  name: source.type === 'video' ? '视频轨' : '音频轨道',
   type: source.type,
   zIndex,
 });

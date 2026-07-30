@@ -51,7 +51,7 @@ describe('createCompositionExportPayload', () => {
       tracks: [
         {
           id: 'audio-track',
-          name: '音频轨',
+          name: '音频轨道',
           type: 'audio',
           muted: false,
           zIndex: 10,

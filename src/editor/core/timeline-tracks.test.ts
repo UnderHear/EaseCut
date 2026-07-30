@@ -13,7 +13,7 @@ const createTrack = (
   zIndex: number,
 ): TimelineTrack => ({
   id,
-  name: type === 'video' ? '视频轨' : `音频轨 ${zIndex}`,
+  name: type === 'video' ? '视频轨' : '音频轨道',
   type,
   muted: false,
   zIndex,

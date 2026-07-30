@@ -39,7 +39,7 @@ const videoClip: TimelineClip = {
 
 const audioTrack: TimelineTrack = {
   id: 'audio-track',
-  name: '音频轨 1',
+  name: '音频轨道',
   type: 'audio',
   muted: false,
   zIndex: 1,

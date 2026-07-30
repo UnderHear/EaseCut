@@ -83,9 +83,9 @@ const createVideoTrack = (id: string, name: string, zIndex: number) => ({
   zIndex,
 });
 
-const createAudioTrack = (id: string, name: string, zIndex: number) => ({
+const createAudioTrack = (id: string, zIndex: number) => ({
   id,
-  name,
+  name: '音频轨道',
   type: 'audio' as const,
   muted: false,
   zIndex,
@@ -194,8 +194,8 @@ const resetToTwoVisualAudioTracks = () => {
     selectedClipId: null,
     tracks: [
       createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 0),
-      createAudioTrack('audio-track-1', '音频轨 1', 1),
-      createAudioTrack('audio-track-2', '音频轨 2', 2),
+      createAudioTrack('audio-track-1', 1),
+      createAudioTrack('audio-track-2', 2),
     ],
   });
 };
@@ -1275,10 +1275,12 @@ describe('timelineStore video track layout', () => {
     });
 
     const state = timelineStore.getState();
-    expect(state.tracks.map((track) => [track.id, track.type])).toEqual([
-      [MAIN_VIDEO_TRACK_ID, 'video'],
-      [`${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-music`, 'audio'],
-      [`${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-voice`, 'audio'],
+    expect(
+      state.tracks.map((track) => [track.id, track.type, track.name]),
+    ).toEqual([
+      [MAIN_VIDEO_TRACK_ID, 'video', '视频轨'],
+      [`${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-music`, 'audio', '音频轨道'],
+      [`${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-voice`, 'audio', '音频轨道'],
     ]);
     expect(
       getMediaClips(state.clips).map((clip) => [
@@ -1331,7 +1333,7 @@ describe('timelineStore video track layout', () => {
     draft.tracks.splice(
       2,
       0,
-      createAudioTrack('audio-track-2', '音频轨 2', 2),
+      createAudioTrack('audio-track-2', 2),
     );
     draft.tracks.forEach((track, index) => {
       track.zIndex = index;
@@ -1670,7 +1672,7 @@ describe('timelineStore video track layout', () => {
         },
         {
           id: 'audio-source-track-audio-source',
-          name: 'music.mp3',
+          name: '音频轨道',
           type: 'audio',
           muted: false,
           zIndex: 1,
@@ -1728,7 +1730,7 @@ describe('timelineStore video track layout', () => {
         },
         {
           id: 'audio-track',
-          name: '音频轨',
+          name: '音频轨道',
           type: 'audio',
           muted: false,
           zIndex: 1,
@@ -2233,7 +2235,7 @@ describe('timelineStore video track layout', () => {
     };
     const tracks = [
       createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 0),
-      createAudioTrack(audioTrackId, '音频轨 1', 1),
+      createAudioTrack(audioTrackId, 1),
     ];
     timelineStore.setState({
       clips: [leadingClip, restoredClip, followingClip],
@@ -2446,7 +2448,7 @@ describe('timelineStore video track layout', () => {
       selectedClipId: leading.id,
       tracks: [
         createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 0),
-        createAudioTrack(audioTrackId, '音频轨', 1),
+        createAudioTrack(audioTrackId, 1),
       ],
     });
 
@@ -2539,7 +2541,7 @@ describe('timelineStore clip copy and paste', () => {
       ],
       tracks: [
         ...state.tracks,
-        createAudioTrack('audio-track-1', '音频轨 1', 1),
+        createAudioTrack('audio-track-1', 1),
       ],
     }));
     const originalClip = timelineStore
@@ -2680,7 +2682,7 @@ describe('timelineStore clip copy and paste', () => {
       ],
       tracks: [
         ...state.tracks,
-        createAudioTrack('audio-track-1', '音频轨 1', 1),
+        createAudioTrack('audio-track-1', 1),
       ],
     }));
     timelineStore.getState().selectClip('clip-video-1');

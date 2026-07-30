@@ -64,8 +64,6 @@ const getNextDynamicTrackNumber = (
 const getNextTrackZIndex = (tracks: TimelineTrack[]) =>
   tracks.reduce((max, track) => Math.max(max, track.zIndex), 0) + 1;
 
-const getNextAudioTrackName = (tracks: TimelineTrack[]) =>
-  `音频轨 ${tracks.filter((track) => track.type === 'audio').length + 1}`;
 const getNextTextTrackName = (tracks: TimelineTrack[]) =>
   `文字轨 ${tracks.filter((track) => track.type === 'text').length + 1}`;
 
@@ -80,7 +78,7 @@ const createTimelineTrack = (
     type === 'video'
       ? '视频轨'
       : type === 'audio'
-        ? getNextAudioTrackName(tracks)
+        ? '音频轨道'
         : getNextTextTrackName(tracks),
   type,
   zIndex: getNextTrackZIndex(tracks),
