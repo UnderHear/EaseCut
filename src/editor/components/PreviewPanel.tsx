@@ -242,32 +242,6 @@ function PreviewMediaElement({
   );
 }
 
-const getPreviewDrawKey = (
-  canvas: HTMLCanvasElement,
-  clips: TimelineClip[],
-  previewFrame: PreviewFrame,
-  selectedClipId: string | null,
-) =>
-  [
-    canvas.width,
-    canvas.height,
-    previewFrame.offsetX,
-    previewFrame.offsetY,
-    previewFrame.width,
-    previewFrame.height,
-    selectedClipId ?? '',
-    ...clips.map((clip) => {
-      const transform = getTimelineClipTransform(clip);
-      return [
-        clip.id,
-        transform.x,
-        transform.y,
-        transform.width,
-        transform.height,
-      ].join(':');
-    }),
-  ].join('|');
-
 const hasPendingPreviewMedia = (
   clips: TimelineMediaClip[],
   previewObjectUrls: Record<string, string>,
@@ -623,7 +597,6 @@ export function PreviewPanel({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const interactionRef = useRef<PreviewInteractionState | null>(null);
   const lastPreviewCanvasSizeRef = useRef<TimelineCanvasSize | null>(null);
-  const lastPreviewDrawKeyRef = useRef<string | null>(null);
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const previewAudioEngineRef = useRef<PreviewAudioEngine | null>(null);
   const previewPlaybackControllerRef = useRef(
@@ -646,6 +619,9 @@ export function PreviewPanel({
   } | null>(null);
   const fontLoadStatusByTypeRef = useRef(
     new Map<string, PreviewFontLoadStatus>(),
+  );
+  const pendingFontLoadsByTypeRef = useRef(
+    new Map<string, Promise<PreviewFontLoadStatus>>(),
   );
   const renderedFontTypeByClipIdRef = useRef(new Map<string, string>());
   const [playbackWarning, setPlaybackWarning] = useState<string | null>(
@@ -723,6 +699,14 @@ export function PreviewPanel({
   const selectedFontKey = selectedTextClip
     ? selectedTextClip.fontType
     : null;
+  const previewFontTypesKey = Array.from(
+    new Set([
+      ...previewTextClips.map((clip) => clip.fontType),
+      ...(selectedFontKey ? [selectedFontKey] : []),
+    ]),
+  )
+    .sort()
+    .join('\n');
   const fontWarning =
     fontLoadState?.key === selectedFontKey
       ? fontLoadState.warning
@@ -843,22 +827,30 @@ export function PreviewPanel({
     drawPreviewRef.current(interactionRef.current);
   }, []);
   const ensurePreviewFontLoaded = useCallback(
-    async (clip: TimelineTextClip): Promise<PreviewFontLoadStatus> => {
+    (clip: TimelineTextClip): Promise<PreviewFontLoadStatus> => {
       const loadedStatus = fontLoadStatusByTypeRef.current.get(clip.fontType);
       if (loadedStatus) return Promise.resolve(loadedStatus);
-      try {
-        await mediaRuntime.measureTextLayout({
+
+      const pendingLoad = pendingFontLoadsByTypeRef.current.get(clip.fontType);
+      if (pendingLoad) return pendingLoad;
+
+      const load = mediaRuntime
+        .measureTextLayout({
           bold: clip.bold,
           fontSize: clip.fontSize,
           fontType: clip.fontType,
           italic: clip.italic,
           text: clip.text,
+        })
+        .then<PreviewFontLoadStatus>(() => 'ready')
+        .catch<PreviewFontLoadStatus>(() => 'failed')
+        .then((status) => {
+          fontLoadStatusByTypeRef.current.set(clip.fontType, status);
+          pendingFontLoadsByTypeRef.current.delete(clip.fontType);
+          return status;
         });
-        fontLoadStatusByTypeRef.current.set(clip.fontType, 'ready');
-        return 'ready';
-      } catch {
-        return 'failed';
-      }
+      pendingFontLoadsByTypeRef.current.set(clip.fontType, load);
+      return load;
     },
     [mediaRuntime],
   );
@@ -887,16 +879,9 @@ export function PreviewPanel({
       if (!canvas || !context) return;
 
       const selectedDrawClipId = interaction?.clipId ?? selectedClipId;
-      const previewDrawKey = getPreviewDrawKey(
-        canvas,
-        activeVisualClips,
-        previewFrame,
-        selectedDrawClipId,
-      );
       const lastCanvasSize = lastPreviewCanvasSizeRef.current;
       if (
         !interaction &&
-        lastPreviewDrawKeyRef.current !== null &&
         lastCanvasSize?.height === canvas.height &&
         lastCanvasSize.width === canvas.width &&
         hasPendingPreviewMedia(
@@ -973,6 +958,7 @@ export function PreviewPanel({
           if (
             video instanceof HTMLVideoElement &&
             objectUrl &&
+            !video.seeking &&
             video.readyState >= HAVE_CURRENT_DATA_READY_STATE
           ) {
             context.drawImage(
@@ -1011,7 +997,6 @@ export function PreviewPanel({
         height: canvas.height,
         width: canvas.width,
       };
-      lastPreviewDrawKeyRef.current = previewDrawKey;
     },
     [
       activeVideoClips,
@@ -1036,12 +1021,15 @@ export function PreviewPanel({
 
   useEffect(() => {
     let cancelled = false;
-    const clipsByFontType = new Map(
-      [...previewTextClips, ...(selectedTextClip ? [selectedTextClip] : [])].map(
-        (clip) => [clip.fontType, clip],
-      ),
-    );
-    for (const clip of clipsByFontType.values()) {
+    const fontTypes = previewFontTypesKey
+      ? previewFontTypesKey.split('\n')
+      : [];
+    for (const fontType of fontTypes) {
+      const clip = clips.find(
+        (candidate): candidate is TimelineTextClip =>
+          candidate.type === 'text' && candidate.fontType === fontType,
+      );
+      if (!clip) continue;
       const preset = getTimelineTextFontPreset(clip.fontType);
       if (!preset) continue;
 
@@ -1056,7 +1044,6 @@ export function PreviewPanel({
                 : null,
           });
         }
-        lastPreviewDrawKeyRef.current = null;
         drawPreviewRef.current(interactionRef.current);
       });
     }
@@ -1065,9 +1052,9 @@ export function PreviewPanel({
       cancelled = true;
     };
   }, [
+    clips,
     ensurePreviewFontLoaded,
-    previewTextClips,
-    selectedTextClip,
+    previewFontTypesKey,
     selectedFontKey,
   ]);
 

@@ -1498,6 +1498,89 @@ describe('PreviewPanel', () => {
     expect(drawImageMock).toHaveBeenCalled();
   });
 
+  it('keeps the previous video frame while scrubbing under an active text clip', async () => {
+    const textTrack: TimelineTrack = {
+      id: 'text-track-scrub',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 1,
+    };
+    const textClip: TimelineTextClip = {
+      bold: false,
+      durationUs: secondsToMicroseconds(5),
+      fontColor: '#FFFFFFFF',
+      fontSize: 120,
+      fontType: 'SY_Black',
+      id: 'text-clip-scrub',
+      italic: false,
+      layoutSize: { height: 200, width: 1_000 },
+      position: { x: 100, y: 300 },
+      startUs: 0,
+      text: '拖动时保持视频',
+      trackId: textTrack.id,
+      type: 'text',
+      underline: false,
+      zIndex: 0,
+    };
+    testTimelineStore.setState({
+      clips: [
+        createClip({
+          id: 'clip-under-text',
+          sourceId: 'source-under-text',
+          src: '/under-text.mp4',
+        }),
+        textClip,
+      ],
+      selectedClipId: 'clip-under-text',
+      tracks: [mainTrack, textTrack],
+    });
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    const video = await waitFor(() => {
+      const element = document.querySelector('video');
+      if (!(element instanceof HTMLVideoElement)) {
+        throw new Error('文字下方的视频预览元素尚未挂载');
+      }
+      expect(fillTextMock).toHaveBeenCalledWith(
+        textClip.text,
+        textClip.position.x,
+        textClip.position.y + textClip.layoutSize.height / 2,
+      );
+      return element;
+    });
+
+    seekingMediaElements.add(video);
+    drawImageMock.mockClear();
+    fillRectMock.mockClear();
+    fillTextMock.mockClear();
+
+    act(() => {
+      testTimelineStore
+        .getState()
+        .setCurrentTimeUs(secondsToMicroseconds(1.5));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fillRectMock).not.toHaveBeenCalled();
+    expect(drawImageMock).not.toHaveBeenCalled();
+    expect(fillTextMock).not.toHaveBeenCalled();
+
+    seekingMediaElements.delete(video);
+    fireEvent.seeked(video);
+
+    expect(drawImageMock).toHaveBeenCalledWith(video, 0, 0, 1280, 720);
+    expect(fillTextMock).toHaveBeenCalledWith(
+      textClip.text,
+      textClip.position.x,
+      textClip.position.y + textClip.layoutSize.height / 2,
+    );
+  });
+
   it('selects the topmost visible clip when pointer starts on preview content', () => {
     testTimelineStore.setState({ selectedClipId: null });
     renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
