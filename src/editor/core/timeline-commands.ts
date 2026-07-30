@@ -12,12 +12,13 @@ import {
 } from './clip-speed';
 import type {
   TimelineClip,
+  TimelineClipPosition,
   TimelineMediaClip,
   TimelineClipSpeed,
   TimelineClipTransform,
   TimelineClipVolume,
-  TimelineTextAlign,
   TimelineTextClip,
+  TimelineTextLayoutSize,
   TimelineTrack,
 } from './model';
 import {
@@ -25,6 +26,7 @@ import {
   isTimelineTextClip,
 } from './model';
 import {
+  DEFAULT_TIMELINE_TEXT_FONT_SIZE,
   DEFAULT_TIMELINE_TEXT_FONT_TYPE,
   isTimelineTextFontType,
 } from './text-fonts';
@@ -62,19 +64,12 @@ export const createDefaultClipTransform = (
   y: 0,
 });
 
-export const createDefaultTextClipTransform = (
+export const createCenteredTextClipPosition = (
   canvasSize: { height: number; width: number },
-): TimelineClipTransform => ({
-  height: Math.max(
-    MIN_CLIP_TRANSFORM_SIZE,
-    Math.round(canvasSize.height * (200 / 1080)),
-  ),
-  width: Math.max(
-    MIN_CLIP_TRANSFORM_SIZE,
-    Math.round(canvasSize.width * (1800 / 1920)),
-  ),
-  x: Math.round(canvasSize.width * (60 / 1920)),
-  y: Math.round(canvasSize.height * (440 / 1080)),
+  layoutSize: TimelineTextLayoutSize,
+): TimelineClipPosition => ({
+  x: (canvasSize.width - layoutSize.width) / 2,
+  y: (canvasSize.height - layoutSize.height) / 2,
 });
 
 export type TimelineEdit = {
@@ -109,17 +104,23 @@ export type ChangeClipSpeedParams = {
 
 export type AddTextClipParams = {
   canvasSize: { height: number; width: number };
+  layoutSize: TimelineTextLayoutSize;
   startUs: number;
   text: string;
 };
 
 export type ChangeTextClipPropertiesParams = {
-  alignType?: TimelineTextAlign;
   clipId: string;
   fontColor?: string;
   fontSize?: number;
   fontType?: string;
+  layoutSize?: TimelineTextLayoutSize;
   text?: string;
+};
+
+export type MoveClipPositionParams = {
+  clipId: string;
+  position: TimelineClipPosition;
 };
 
 export type ChangeTextClipTimingParams = {
@@ -129,6 +130,17 @@ export type ChangeTextClipTimingParams = {
 };
 
 const unchanged: TimelineEditResult = { changed: false };
+
+const isValidTextLayoutSize = (
+  layoutSize: TimelineTextLayoutSize | undefined,
+): layoutSize is TimelineTextLayoutSize =>
+  Boolean(
+    layoutSize &&
+      Number.isInteger(layoutSize.height) &&
+      layoutSize.height > 0 &&
+      Number.isInteger(layoutSize.width) &&
+      layoutSize.width > 0,
+  );
 
 const derivedId = (clips: readonly TimelineClip[], base: string) => {
   const ids = new Set(clips.map((clip) => clip.id));
@@ -201,11 +213,13 @@ export const addTextClip = (
   const text = params.text.trim();
   if (
     text === '' ||
+    /[\r\n]/.test(text) ||
     !isValidTimeUs(params.startUs) ||
     !Number.isFinite(params.canvasSize.height) ||
     !Number.isFinite(params.canvasSize.width) ||
     params.canvasSize.height <= 0 ||
-    params.canvasSize.width <= 0
+    params.canvasSize.width <= 0 ||
+    !isValidTextLayoutSize(params.layoutSize)
   ) {
     return unchanged;
   }
@@ -225,16 +239,19 @@ export const addTextClip = (
     (clip) => clip.trackId === track.id,
   ).length;
   const clip: TimelineTextClip = {
-    alignType: 1,
     durationUs: DEFAULT_TEXT_CLIP_DURATION_US,
     fontColor: '#FFFFFFFF',
-    fontSize: 120,
+    fontSize: DEFAULT_TIMELINE_TEXT_FONT_SIZE,
     fontType: DEFAULT_TIMELINE_TEXT_FONT_TYPE,
     id: nextNumberedClipId(edit.clips, 'text-clip-'),
+    layoutSize: { ...params.layoutSize },
+    position: createCenteredTextClipPosition(
+      params.canvasSize,
+      params.layoutSize,
+    ),
     startUs,
     text,
     trackId: track.id,
-    transform: createDefaultTextClipTransform(params.canvasSize),
     type: 'text',
     zIndex: trackClipCount,
   };
@@ -260,14 +277,21 @@ export const changeTextClipProperties = (
   const fontType = params.fontType ?? clip.fontType;
   const fontSize = params.fontSize ?? clip.fontSize;
   const fontColor = (params.fontColor ?? clip.fontColor).toUpperCase();
-  const alignType = params.alignType ?? clip.alignType;
+  const affectsLayout =
+    text !== clip.text ||
+    fontType !== clip.fontType ||
+    fontSize !== clip.fontSize;
+  const hasMeasuredLayout = params.layoutSize !== undefined;
+  const layoutSize = params.layoutSize ?? clip.layoutSize;
   if (
     text === '' ||
+    /[\r\n]/.test(text) ||
     !isTimelineTextFontType(fontType) ||
     !Number.isInteger(fontSize) ||
     fontSize <= 0 ||
     !/^#[\dA-F]{8}$/.test(fontColor) ||
-    ![0, 1, 2].includes(alignType)
+    affectsLayout !== hasMeasuredLayout ||
+    !isValidTextLayoutSize(layoutSize)
   ) {
     return unchanged;
   }
@@ -276,20 +300,27 @@ export const changeTextClipProperties = (
     fontType === clip.fontType &&
     fontSize === clip.fontSize &&
     fontColor === clip.fontColor &&
-    alignType === clip.alignType
+    layoutSize.height === clip.layoutSize.height &&
+    layoutSize.width === clip.layoutSize.width
   ) {
     return unchanged;
   }
+  const centerX = clip.position.x + clip.layoutSize.width / 2;
+  const centerY = clip.position.y + clip.layoutSize.height / 2;
   return changedEdit(
     edit,
     edit.clips.map((candidate) =>
       candidate.id === clip.id
         ? {
             ...clip,
-            alignType,
             fontColor,
             fontSize,
             fontType,
+            layoutSize: { ...layoutSize },
+            position: {
+              x: centerX - layoutSize.width / 2,
+              y: centerY - layoutSize.height / 2,
+            },
             text,
           }
         : candidate,
@@ -813,13 +844,67 @@ export const restoreClipTrim = (
   return end.changed ? end : start;
 };
 
-export const transformClip = (
+export const moveClipPosition = (
+  edit: TimelineEdit,
+  params: MoveClipPositionParams,
+): TimelineEditResult => {
+  const clip = edit.clips.find((candidate) => candidate.id === params.clipId);
+  if (
+    !clip ||
+    !Number.isFinite(params.position.x) ||
+    !Number.isFinite(params.position.y)
+  ) {
+    return unchanged;
+  }
+  const position = {
+    x: Math.round(params.position.x),
+    y: Math.round(params.position.y),
+  };
+  const currentPosition = isTimelineTextClip(clip)
+    ? clip.position
+    : clip.transform;
+  if (
+    currentPosition.x === position.x &&
+    currentPosition.y === position.y
+  ) {
+    return unchanged;
+  }
+  return changedEdit(
+    edit,
+    edit.clips.map((candidate) =>
+      candidate.id !== clip.id
+        ? candidate
+        : isTimelineTextClip(candidate)
+          ? { ...candidate, position }
+          : {
+              ...candidate,
+              transform: { ...candidate.transform, ...position },
+            },
+    ),
+    clip.id,
+  );
+};
+
+export const transformMediaClip = (
   edit: TimelineEdit,
   clipId: string,
   transform: TimelineClipTransform,
 ): TimelineEditResult => {
-  const clip = edit.clips.find((candidate) => candidate.id === clipId);
-  if (!clip) return unchanged;
+  const clip = edit.clips.find(
+    (candidate): candidate is TimelineMediaClip =>
+      candidate.id === clipId && isTimelineMediaClip(candidate),
+  );
+  if (
+    !clip ||
+    !Number.isFinite(transform.x) ||
+    !Number.isFinite(transform.y) ||
+    !Number.isFinite(transform.width) ||
+    !Number.isFinite(transform.height) ||
+    transform.width <= 0 ||
+    transform.height <= 0
+  ) {
+    return unchanged;
+  }
   if (
     clip.transform.x === transform.x &&
     clip.transform.y === transform.y &&
@@ -831,7 +916,9 @@ export const transformClip = (
   return changedEdit(
     edit,
     edit.clips.map((candidate) =>
-      candidate.id === clipId ? { ...candidate, transform } : candidate,
+      candidate.id === clipId && isTimelineMediaClip(candidate)
+        ? { ...candidate, transform }
+        : candidate,
     ),
     clipId,
   );

@@ -33,8 +33,8 @@ export function VideoFloatingInspector({
   const [activeSection, setActiveSection] =
     useState<VideoInspectorSection>('basic');
   const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const commitClipTransform = useTimelineStore(
-    (state) => state.commitClipTransform,
+  const commitMediaClipTransform = useTimelineStore(
+    (state) => state.commitMediaClipTransform,
   );
 
   const displayedTransform =
@@ -56,7 +56,7 @@ export function VideoFloatingInspector({
   };
 
   const commitTransformField = (field: TransformField, value: number) => {
-    commitClipTransform({
+    commitMediaClipTransform({
       clipId: clip.id,
       transform: { ...clip.transform, [field]: value },
     });

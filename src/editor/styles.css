@@ -520,6 +520,17 @@
   margin-top: 14px;
 }
 
+.ec-floating-inspector__layout-status {
+  margin: 12px 0 0;
+  color: var(--ec-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ec-floating-inspector__layout-status--error {
+  color: #fca5a5;
+}
+
 .ec-floating-inspector__number-field {
   display: flex;
   min-width: 0;

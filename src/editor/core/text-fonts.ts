@@ -51,6 +51,7 @@ export type TimelineTextFontPreset = Readonly<{
 }>;
 
 export const DEFAULT_TIMELINE_TEXT_FONT_TYPE = 'SY_Black';
+export const DEFAULT_TIMELINE_TEXT_FONT_SIZE = 120;
 
 const presetFontTypes = new Set<string>(
   TIMELINE_TEXT_FONT_PRESETS.map((preset) => preset.fontType),

@@ -23,6 +23,10 @@ import {
   type FramePreviewSubscriber,
 } from './frame-preview';
 import { createMediabunnyAudioWaveformExtractor } from './mediabunny-audio-waveform';
+import {
+  createTextLayoutRuntime,
+  type TextLayoutRequest,
+} from './text-layout-runtime';
 
 type MediaInput = string | VideoTimelineSource;
 
@@ -204,6 +208,10 @@ export type MediaRuntime = {
   ): Promise<VideoTimelineMediaMetadata | null>;
   getObjectUrl(input: MediaInput): Promise<string>;
   isDisposed(): boolean;
+  measureTextLayout(
+    request: TextLayoutRequest,
+    signal?: AbortSignal,
+  ): Promise<{ height: number; width: number }>;
   setSources(sources: VideoTimelineSource[]): void;
   subscribeFramePreviews(
     request: FramePreviewRequest,
@@ -343,6 +351,7 @@ export const createMediaRuntime = (
     (src) => getBlob(src),
     () => disposed,
   );
+  const textLayoutRuntime = createTextLayoutRuntime();
 
   const runtime: MediaRuntime = {
     dispose() {
@@ -351,6 +360,7 @@ export const createMediaRuntime = (
       framePreviewCache.clear();
       waveformCache.clear();
       audioWaveformExtractor?.dispose();
+      textLayoutRuntime.dispose();
       metadataEntries.forEach((entry) => {
         if (entry.status === 'pending') entry.controller.abort();
       });
@@ -372,6 +382,8 @@ export const createMediaRuntime = (
     getMetadata,
     getObjectUrl,
     isDisposed: () => disposed,
+    measureTextLayout: (request, signal) =>
+      textLayoutRuntime.measure(request, signal),
     setSources,
     subscribeFramePreviews(request, subscriber) {
       return framePreviewCache.subscribe(request, subscriber);

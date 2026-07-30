@@ -47,7 +47,7 @@ describe('createCompositionExportPayload', () => {
           zIndex: 0,
         },
       ],
-      schemaVersion: 8,
+      schemaVersion: 9,
       tracks: [
         {
           id: 'audio-track',
@@ -124,7 +124,7 @@ describe('createCompositionExportPayload', () => {
         volume: id === 'z' ? 0.3 : 0.8,
         zIndex: 0,
       })),
-      schemaVersion: 8,
+      schemaVersion: 9,
       tracks: [
         {
           id: 'video',
@@ -171,7 +171,7 @@ describe('createCompositionExportPayload', () => {
         volume: 1,
         zIndex: 0,
       }],
-      schemaVersion: 8,
+      schemaVersion: 9,
       tracks: [{
         id: 'video-track',
         name: '视频轨',
@@ -216,21 +216,21 @@ describe('createCompositionExportPayload', () => {
       canvasSize: { height: 1_080, width: 1_920 },
       clips: [
         {
-          alignType: 1,
           durationUs: 8_000_000,
           fontColor: '#FFFFFFFF',
           fontSize: 120,
           fontType: 'SY_Black',
           id: 'text-clip-1',
+          layoutSize: { height: 200, width: 1_800 },
+          position: { x: 60, y: 440 },
           startUs: 1_000_000,
           text: '我们的精彩旅程',
           trackId: 'text-track-1',
-          transform: { height: 200, width: 1_800, x: 60, y: 440 },
           type: 'text',
           zIndex: 0,
         },
       ],
-      schemaVersion: 8,
+      schemaVersion: 9,
       tracks: [
         {
           id: 'text-track-1',
@@ -243,7 +243,6 @@ describe('createCompositionExportPayload', () => {
     });
 
     expect(payload.Track[0]?.[0]).toEqual({
-      AlignType: 1,
       Extra: [
         {
           Height: 200,

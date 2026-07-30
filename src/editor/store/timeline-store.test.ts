@@ -302,7 +302,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().tracks).toEqual(draft.tracks);
     expect(timelineStore.getState().clips).toEqual(draft.clips);
-    expect(draft.schemaVersion).toBe(8);
+    expect(draft.schemaVersion).toBe(9);
   });
 
   it('compacts main-track gaps when restoring a saved composition draft', () => {
@@ -321,7 +321,7 @@ describe('timelineStore video track layout', () => {
             zIndex: 0,
           },
         ],
-        schemaVersion: 8,
+        schemaVersion: 9,
         tracks: [
           createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
           createVideoTrack('video-overlay-1', '视频轨 2', 1),
@@ -840,28 +840,25 @@ describe('timelineStore video track layout', () => {
   it('stores transform edits in undo and redo history', () => {
     const state = timelineStore.getState();
 
-    state.commitClipTransform({
+    state.commitMediaClipTransform({
       clipId: 'clip-video-1',
       transform: { height: 240, width: 360, x: 120, y: 80 },
     });
     expect(
-      timelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-video-1')?.transform,
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
     ).toEqual({ height: 240, width: 360, x: 120, y: 80 });
 
     state.undo();
     expect(
-      timelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-video-1')?.transform,
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
     ).toEqual(defaultClipTransform);
 
     state.redo();
     expect(
-      timelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-video-1')?.transform,
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
     ).toEqual({ height: 240, width: 360, x: 120, y: 80 });
   });
 
@@ -1184,7 +1181,7 @@ describe('timelineStore video track layout', () => {
       type: 'video',
     };
     timelineStore.getState().resetTimeline({ sources: [source] });
-    timelineStore.getState().commitClipTransform({
+    timelineStore.getState().commitMediaClipTransform({
       clipId: 'clip-video-source-1',
       transform: { height: 500, width: 500, x: 120, y: 80 },
     });
@@ -1798,7 +1795,11 @@ describe('timelineStore video track layout', () => {
       .getState()
       .clips.find((clip) => clip.trackId === audioTrack?.id);
     timelineStore.getState().setClipVolume(audioClip?.id ?? '', 0.45);
-    timelineStore.getState().addTextClip('最高层标题');
+    timelineStore.getState().addTextClip({
+      layoutSize: { height: 120, width: 600 },
+      startUs: timelineStore.getState().currentTimeUs,
+      text: '最高层标题',
+    });
 
     const payload = timelineStore.getState().createExportPayload();
     expect(payload.Track[0]).toEqual([
@@ -2502,7 +2503,7 @@ describe('timelineStore clip copy and paste', () => {
   it('copies the selected clip as a complete independent snapshot without history', () => {
     timelineStore.setState((state) => ({
       clips: state.clips.map((clip) =>
-        clip.id === 'clip-video-2'
+        clip.id === 'clip-video-2' && isTimelineMediaClip(clip)
           ? {
               ...clip,
               transform: { ...clip.transform, width: 900, x: 20 },
@@ -2513,7 +2514,9 @@ describe('timelineStore clip copy and paste', () => {
     const selectedClip = timelineStore
       .getState()
       .clips.find((clip) => clip.id === 'clip-video-2');
-    if (!selectedClip) throw new Error('测试片段不存在');
+    if (!selectedClip || !isTimelineMediaClip(selectedClip)) {
+      throw new Error('测试媒体片段不存在');
+    }
 
     timelineStore.getState().selectClip(selectedClip.id);
     timelineStore.getState().copySelectedClip();
@@ -2521,7 +2524,10 @@ describe('timelineStore clip copy and paste', () => {
     const copiedClip = timelineStore.getState().copiedClip;
     expect(copiedClip).toEqual(selectedClip);
     expect(copiedClip).not.toBe(selectedClip);
-    expect(copiedClip?.transform).not.toBe(selectedClip.transform);
+    if (!copiedClip || !isTimelineMediaClip(copiedClip)) {
+      throw new Error('预期复制媒体片段');
+    }
+    expect(copiedClip.transform).not.toBe(selectedClip.transform);
     expect(timelineStore.getState().past).toEqual([]);
     expect(timelineStore.getState().future).toEqual([]);
   });
@@ -2779,16 +2785,18 @@ describe('createTimelineStore source syncing', () => {
     const store = createTimelineStore({
       sources: [{ ...source, waveformSrc: 'https://example.com/old-waveform' }],
     });
-    const initialTransform = store.getState().clips[0]?.transform;
-    expect(initialTransform).toBeDefined();
+    const initialTransform = getMediaClipById(
+      store.getState().clips,
+      'clip-source-1',
+    ).transform;
 
-    store.getState().commitClipTransform({
+    store.getState().commitMediaClipTransform({
       clipId: 'clip-source-1',
-      transform: { ...initialTransform!, x: 10 },
+      transform: { ...initialTransform, x: 10 },
     });
-    store.getState().commitClipTransform({
+    store.getState().commitMediaClipTransform({
       clipId: 'clip-source-1',
-      transform: { ...initialTransform!, x: 20 },
+      transform: { ...initialTransform, x: 20 },
     });
     store.getState().undo();
 

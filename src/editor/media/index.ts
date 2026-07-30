@@ -20,4 +20,11 @@ export {
   HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   sampleAudioBuffer,
 } from './audio-waveform';
+export {
+  TextLayoutError,
+  createTextLayoutRuntime,
+  type TextLayoutErrorCode,
+  type TextLayoutRequest,
+  type TextLayoutRuntime,
+} from './text-layout-runtime';
 

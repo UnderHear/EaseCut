@@ -12,8 +12,16 @@ import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
 import { PreviewPanel } from './components/PreviewPanel';
 import { FormDialog } from './components/FormDialog';
 import { isTimelineMediaClip } from './core/model';
+import {
+  DEFAULT_TIMELINE_TEXT_FONT_SIZE,
+  DEFAULT_TIMELINE_TEXT_FONT_TYPE,
+} from './core/text-fonts';
 import { millisecondsToMicroseconds } from './core/time';
-import { MediaRuntimeProvider, useMediaRuntime } from './media';
+import {
+  MediaRuntimeProvider,
+  TextLayoutError,
+  useMediaRuntime,
+} from './media';
 import {
   createTimelineStore,
   createVideoTimelineDraft,
@@ -170,6 +178,7 @@ function VideoTimelineEditorView({
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isTitleDialogOpen, setIsTitleDialogOpen] = useState(false);
+  const [isAddingTitle, setIsAddingTitle] = useState(false);
   const [titleText, setTitleText] = useState('');
   const [titleTextError, setTitleTextError] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
@@ -181,6 +190,7 @@ function VideoTimelineEditorView({
   const importUrlInputRef = useRef<HTMLInputElement | null>(null);
   const titleDialogReturnFocusRef = useRef<HTMLElement | null>(null);
   const titleTextInputRef = useRef<HTMLInputElement | null>(null);
+  const titleLayoutRequestRef = useRef<AbortController | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const onDraftChangeRef = useRef(onDraftChange);
   const notifiedMetadataFailureSourceIdsRef = useRef(new Set<string>());
@@ -207,6 +217,13 @@ function VideoTimelineEditorView({
     }, 0);
     return () => window.clearTimeout(focusTimer);
   }, [isTitleDialogOpen]);
+
+  useEffect(
+    () => () => {
+      titleLayoutRequestRef.current?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     let previousDraftJson = JSON.stringify(
@@ -344,6 +361,9 @@ function VideoTimelineEditorView({
   };
 
   const closeTitleDialog = () => {
+    titleLayoutRequestRef.current?.abort();
+    titleLayoutRequestRef.current = null;
+    setIsAddingTitle(false);
     setIsTitleDialogOpen(false);
     setTitleText('');
     setTitleTextError(null);
@@ -359,15 +379,45 @@ function VideoTimelineEditorView({
     setIsTitleDialogOpen(true);
   };
 
-  const submitTitle = (event: FormEvent<HTMLFormElement>) => {
+  const submitTitle = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isAddingTitle) return;
     const text = titleText.trim();
     if (text === '') {
       setTitleTextError('请输入标题内容。');
       return;
     }
-    store.getState().addTextClip(text);
-    closeTitleDialog();
+    const startUs = store.getState().currentTimeUs;
+    const controller = new AbortController();
+    titleLayoutRequestRef.current?.abort();
+    titleLayoutRequestRef.current = controller;
+    setTitleTextError(null);
+    setIsAddingTitle(true);
+    try {
+      const layoutSize = await runtime.measureTextLayout(
+        {
+          fontSize: DEFAULT_TIMELINE_TEXT_FONT_SIZE,
+          fontType: DEFAULT_TIMELINE_TEXT_FONT_TYPE,
+          text,
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      store.getState().addTextClip({ layoutSize, startUs, text });
+      closeTitleDialog();
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return;
+      setTitleTextError(
+        error instanceof TextLayoutError
+          ? error.message
+          : '文字尺寸计算失败，请重试。',
+      );
+    } finally {
+      if (titleLayoutRequestRef.current === controller) {
+        titleLayoutRequestRef.current = null;
+        setIsAddingTitle(false);
+      }
+    }
   };
 
   const submitMediaImport = async (event: FormEvent<HTMLFormElement>) => {
@@ -677,8 +727,12 @@ function VideoTimelineEditorView({
             >
               取消
             </button>
-            <button className='ec-button ec-button--primary' type='submit'>
-              确认添加
+            <button
+              className='ec-button ec-button--primary'
+              disabled={isAddingTitle}
+              type='submit'
+            >
+              {isAddingTitle ? '计算尺寸中…' : '确认添加'}
             </button>
           </>
         }
@@ -695,6 +749,7 @@ function VideoTimelineEditorView({
           <input
             aria-invalid={Boolean(titleTextError)}
             id='ec-title-text'
+            disabled={isAddingTitle}
             onChange={(event) => {
               setTitleText(event.target.value);
               if (titleTextError) setTitleTextError(null);

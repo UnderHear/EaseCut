@@ -407,16 +407,16 @@ describe('TimelineViewport DOM interactions', () => {
       clips: [
         ...state.clips,
         {
-          alignType: 1,
           durationUs: secondsToMicroseconds(5),
           fontColor: '#FFFFFFFF',
           fontSize: 120,
           fontType: 'SY_Black',
           id: 'text-clip-1',
+          layoutSize: { height: 200, width: 1_800 },
+          position: { x: 60, y: 440 },
           startUs: 0,
           text: '我们的精彩旅程',
           trackId: textTrack.id,
-          transform: { height: 200, width: 1_800, x: 60, y: 440 },
           type: 'text',
           zIndex: 0,
         },

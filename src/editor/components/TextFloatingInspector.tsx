@@ -1,17 +1,21 @@
 import * as Separator from '@radix-ui/react-separator';
-import { AlignCenter, AlignLeft, AlignRight, Type as TypeIcon } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import { Type as TypeIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 
-import { TIMELINE_TEXT_FONT_PRESETS } from '../core/text-fonts';
+import {
+  isTimelineTextFontType,
+  TIMELINE_TEXT_FONT_PRESETS,
+} from '../core/text-fonts';
 import {
   microsecondsToSeconds,
   secondsToMicroseconds,
 } from '../core/time';
+import { TextLayoutError, useMediaRuntime } from '../media';
 import { useTimelineStore } from '../store/timeline-store-context';
 import type {
+  TimelineClipPosition,
   TimelineClipTimingPreview,
   TimelineClipTransform,
-  TimelineTextAlign,
   TimelineTextClip,
 } from '../types';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
@@ -26,17 +30,7 @@ type TextFloatingInspectorProps = {
   } | null;
 };
 
-type TransformField = keyof TimelineClipTransform;
-
-const alignments: Array<{
-  alignType: TimelineTextAlign;
-  icon: typeof AlignLeft;
-  label: string;
-}> = [
-  { alignType: 0, icon: AlignLeft, label: '左对齐' },
-  { alignType: 1, icon: AlignCenter, label: '居中对齐' },
-  { alignType: 2, icon: AlignRight, label: '右对齐' },
-];
+type PositionField = keyof TimelineClipPosition;
 
 const toRgbColor = (fontColor: string) => fontColor.slice(0, 7);
 
@@ -48,8 +42,20 @@ export function TextFloatingInspector({
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [textDraft, setTextDraft] = useState(clip.text);
   const [colorDraft, setColorDraft] = useState(clip.fontColor);
-  const commitClipTransform = useTimelineStore(
-    (state) => state.commitClipTransform,
+  const [fontTypeDraft, setFontTypeDraft] = useState(clip.fontType);
+  const [fontSizeDraft, setFontSizeDraft] = useState(clip.fontSize);
+  const [layoutStatus, setLayoutStatus] = useState<
+    | { message: string; state: 'error' }
+    | { message: string; state: 'loading' }
+    | null
+  >(null);
+  const layoutRequestRef = useRef<{
+    controller: AbortController;
+    id: number;
+  } | null>(null);
+  const mediaRuntime = useMediaRuntime();
+  const commitClipPosition = useTimelineStore(
+    (state) => state.commitClipPosition,
   );
   const commitTextClipProperties = useTimelineStore(
     (state) => state.commitTextClipProperties,
@@ -63,8 +69,86 @@ export function TextFloatingInspector({
   const displayedTransform =
     previewTransform?.clipId === clip.id
       ? previewTransform.transform
-      : clip.transform;
+      : {
+          height: clip.layoutSize.height,
+          width: clip.layoutSize.width,
+          x: clip.position.x,
+          y: clip.position.y,
+        };
   const endUs = displayedTiming.startUs + displayedTiming.durationUs;
+
+  useEffect(
+    () => () => {
+      layoutRequestRef.current?.controller.abort();
+    },
+    [],
+  );
+
+  const commitMeasuredProperties = async (
+    patch: Partial<
+      Pick<TimelineTextClip, 'fontSize' | 'fontType' | 'text'>
+    >,
+  ) => {
+    const text = (patch.text ?? textDraft).trim();
+    const fontType = patch.fontType ?? fontTypeDraft;
+    const fontSize = patch.fontSize ?? fontSizeDraft;
+    if (text === '') {
+      setTextDraft(clip.text);
+      return;
+    }
+    if (
+      text === clip.text &&
+      fontType === clip.fontType &&
+      fontSize === clip.fontSize
+    ) {
+      setLayoutStatus(null);
+      return;
+    }
+
+    layoutRequestRef.current?.controller.abort();
+    const controller = new AbortController();
+    const requestId = (layoutRequestRef.current?.id ?? 0) + 1;
+    layoutRequestRef.current = { controller, id: requestId };
+    setLayoutStatus({ message: '正在计算文字尺寸…', state: 'loading' });
+
+    try {
+      const layoutSize = await mediaRuntime.measureTextLayout(
+        { fontSize, fontType, text },
+        controller.signal,
+      );
+      if (
+        controller.signal.aborted ||
+        layoutRequestRef.current?.id !== requestId
+      ) {
+        return;
+      }
+      commitTextClipProperties({
+        clipId: clip.id,
+        fontSize,
+        fontType,
+        layoutSize,
+        text,
+      });
+      setLayoutStatus(null);
+    } catch (error: unknown) {
+      if (
+        controller.signal.aborted ||
+        layoutRequestRef.current?.id !== requestId
+      ) {
+        return;
+      }
+      setTextDraft(clip.text);
+      setFontTypeDraft(clip.fontType);
+      setFontSizeDraft(clip.fontSize);
+      setLayoutStatus({
+        message:
+          error instanceof TextLayoutError
+            ? error.message
+            : '文字尺寸计算失败，请重试。',
+        state: 'error',
+      });
+    }
+  };
 
   const commitText = () => {
     if (textDraft.trim() === '') {
@@ -72,7 +156,7 @@ export function TextFloatingInspector({
       return;
     }
     if (textDraft === clip.text) return;
-    commitTextClipProperties({ clipId: clip.id, text: textDraft });
+    void commitMeasuredProperties({ text: textDraft });
   };
   const commitColor = () => {
     if (!/^#[\dA-Fa-f]{8}$/.test(colorDraft)) {
@@ -88,10 +172,10 @@ export function TextFloatingInspector({
   const blurOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') event.currentTarget.blur();
   };
-  const commitTransformField = (field: TransformField, value: number) => {
-    commitClipTransform({
+  const commitPositionField = (field: PositionField, value: number) => {
+    commitClipPosition({
       clipId: clip.id,
-      transform: { ...clip.transform, [field]: value },
+      position: { ...clip.position, [field]: value },
     });
   };
 
@@ -188,13 +272,13 @@ export function TextFloatingInspector({
             <span>字体</span>
             <select
               aria-label='字体'
-              onChange={(event) =>
-                commitTextClipProperties({
-                  clipId: clip.id,
-                  fontType: event.target.value,
-                })
-              }
-              value={clip.fontType}
+              onChange={(event) => {
+                const fontType = event.target.value;
+                if (!isTimelineTextFontType(fontType)) return;
+                setFontTypeDraft(fontType);
+                void commitMeasuredProperties({ fontType });
+              }}
+              value={fontTypeDraft}
             >
               {TIMELINE_TEXT_FONT_PRESETS.map((preset) => (
                 <option key={preset.fontType} value={preset.fontType}>
@@ -208,10 +292,11 @@ export function TextFloatingInspector({
             <InputNumber
               label='字号'
               min={1}
-              onCommit={(fontSize) =>
-                commitTextClipProperties({ clipId: clip.id, fontSize })
-              }
-              value={clip.fontSize}
+              onCommit={(fontSize) => {
+                setFontSizeDraft(fontSize);
+                void commitMeasuredProperties({ fontSize });
+              }}
+              value={fontSizeDraft}
             />
           </div>
           <label className='ec-floating-inspector__field'>
@@ -239,25 +324,15 @@ export function TextFloatingInspector({
               />
             </span>
           </label>
-          <div
-            aria-label='文字对齐'
-            className='ec-floating-inspector__alignment'
-            role='group'
-          >
-            {alignments.map(({ alignType, icon: Icon, label }) => (
-              <button
-                aria-pressed={clip.alignType === alignType}
-                key={alignType}
-                onClick={() =>
-                  commitTextClipProperties({ clipId: clip.id, alignType })
-                }
-                type='button'
-              >
-                <Icon aria-hidden='true' size={16} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
+          {layoutStatus && (
+            <p
+              aria-live={layoutStatus.state === 'loading' ? 'polite' : undefined}
+              className={`ec-floating-inspector__layout-status ec-floating-inspector__layout-status--${layoutStatus.state}`}
+              role={layoutStatus.state === 'error' ? 'alert' : 'status'}
+            >
+              {layoutStatus.message}
+            </p>
+          )}
         </section>
 
         <Separator.Root
@@ -266,14 +341,12 @@ export function TextFloatingInspector({
           orientation='horizontal'
         />
         <section className='ec-floating-inspector__section'>
-          <h3>转换</h3>
+          <h3>位置</h3>
           <div className='ec-floating-inspector__number-grid'>
             {(
               [
                 ['x', 'X 位置', 'X'],
                 ['y', 'Y 位置', 'Y'],
-                ['width', '宽度', 'W'],
-                ['height', '高度', 'H'],
               ] as const
             ).map(([field, label, suffix]) => (
               <div
@@ -283,8 +356,7 @@ export function TextFloatingInspector({
                 <span>{label}</span>
                 <InputNumber
                   label={label}
-                  min={field === 'width' || field === 'height' ? 1 : undefined}
-                  onCommit={(value) => commitTransformField(field, value)}
+                  onCommit={(value) => commitPositionField(field, value)}
                   suffix={suffix}
                   value={displayedTransform[field]}
                 />

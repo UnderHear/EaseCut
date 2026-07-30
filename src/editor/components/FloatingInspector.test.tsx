@@ -1,8 +1,9 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { secondsToMicroseconds } from '../core/time';
+import { TextLayoutError } from '../media/text-layout-runtime';
 import type { TimelineClip, TimelineTrack } from '../types';
 import {
   renderWithEditorProviders,
@@ -10,6 +11,17 @@ import {
   testTimelineStore,
 } from './test-helpers';
 import { FloatingInspector } from './FloatingInspector';
+
+const measureTextLayoutMock = vi.hoisted(() =>
+  vi.fn(() => Promise.resolve({ height: 88, width: 420 })),
+);
+vi.mock('../media', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../media')>();
+  return {
+    ...actual,
+    useMediaRuntime: () => ({ measureTextLayout: measureTextLayoutMock }),
+  };
+});
 
 const videoTrack: TimelineTrack = {
   id: 'video-track',
@@ -72,16 +84,16 @@ const textTrack: TimelineTrack = {
 };
 
 const textClip: TimelineClip = {
-  alignType: 1,
   durationUs: secondsToMicroseconds(5),
   fontColor: '#FFFFFFFF',
   fontSize: 120,
   fontType: 'SY_Black',
   id: 'text-clip-1',
+  layoutSize: { height: 120, width: 800 },
+  position: { x: 560, y: 480 },
   startUs: secondsToMicroseconds(1),
   text: '我们的精彩旅程',
   trackId: textTrack.id,
-  transform: { height: 200, width: 1_800, x: 60, y: 440 },
   type: 'text',
   zIndex: 0,
 };
@@ -97,6 +109,8 @@ const getFirstMediaClip = () => {
 describe('FloatingInspector', () => {
   beforeEach(() => {
     resetTestTimelineStore();
+    measureTextLayoutMock.mockReset();
+    measureTextLayoutMock.mockResolvedValue({ height: 88, width: 420 });
     testTimelineStore.setState({
       clips: [videoClip],
       future: [],
@@ -205,7 +219,7 @@ describe('FloatingInspector', () => {
     await user.type(xInput, '160');
     await user.tab();
 
-    expect(testTimelineStore.getState().clips[0]?.transform.x).toBe(160);
+    expect(getFirstMediaClip().transform.x).toBe(160);
     expect(testTimelineStore.getState().past).toHaveLength(1);
 
     const volumeInput = screen.getByLabelText('片段音量');
@@ -362,6 +376,9 @@ describe('FloatingInspector', () => {
     expect(screen.getByLabelText('结束时间')).toHaveValue(6);
     expect(screen.getByLabelText('字体')).toHaveValue('SY_Black');
     expect(screen.getByLabelText('字号')).toHaveValue(120);
+    expect(screen.queryByLabelText('宽度')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('高度')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '文字对齐' })).not.toBeInTheDocument();
     expect(
       screen.getByRole('textbox', { name: '字体颜色' }),
     ).toHaveValue('#FFFFFFFF');
@@ -371,16 +388,68 @@ describe('FloatingInspector', () => {
     await user.type(textInput, '新的标题');
     await user.tab();
 
-    expect(testTimelineStore.getState().clips[0]).toMatchObject({
-      text: '新的标题',
-      type: 'text',
+    await waitFor(() => {
+      expect(testTimelineStore.getState().clips[0]).toMatchObject({
+        layoutSize: { height: 88, width: 420 },
+        position: { x: 750, y: 496 },
+        text: '新的标题',
+        type: 'text',
+      });
     });
     expect(testTimelineStore.getState().past).toHaveLength(1);
 
     await user.selectOptions(screen.getByLabelText('字体'), 'ALi_PuHui');
-    expect(testTimelineStore.getState().clips[0]).toMatchObject({
-      fontType: 'ALi_PuHui',
+    await waitFor(() => {
+      expect(testTimelineStore.getState().clips[0]).toMatchObject({
+        fontType: 'ALi_PuHui',
+        layoutSize: { height: 88, width: 420 },
+        position: { x: 750, y: 496 },
+      });
     });
     expect(testTimelineStore.getState().past).toHaveLength(2);
+
+    measureTextLayoutMock.mockResolvedValueOnce({
+      height: 160,
+      width: 600,
+    });
+    const fontSizeInput = screen.getByLabelText('字号');
+    await user.clear(fontSizeInput);
+    await user.type(fontSizeInput, '160');
+    await user.tab();
+    await waitFor(() => {
+      expect(testTimelineStore.getState().clips[0]).toMatchObject({
+        fontSize: 160,
+        layoutSize: { height: 160, width: 600 },
+        position: { x: 660, y: 460 },
+      });
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(3);
+  });
+
+  it('keeps the original text layout and exposes a measurement failure', async () => {
+    const user = userEvent.setup();
+    testTimelineStore.setState({
+      clips: [textClip],
+      future: [],
+      past: [],
+      selectedClipId: textClip.id,
+      tracks: [textTrack],
+    });
+    measureTextLayoutMock.mockRejectedValueOnce(
+      new TextLayoutError(
+        'font-load-failed',
+        '字体加载失败，请重新选择字体。',
+      ),
+    );
+    renderWithEditorProviders(<FloatingInspector />);
+
+    await user.selectOptions(screen.getByLabelText('字体'), 'ALi_PuHui');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '字体加载失败，请重新选择字体。',
+    );
+    expect(screen.getByLabelText('字体')).toHaveValue('SY_Black');
+    expect(testTimelineStore.getState().clips[0]).toEqual(textClip);
+    expect(testTimelineStore.getState().past).toEqual([]);
   });
 });

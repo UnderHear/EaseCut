@@ -4,6 +4,7 @@ import type {
   TimelineClip,
   TimelineTrack,
 } from './model';
+import { getTimelineClipTransform } from './model';
 import {
   createCompositionSnapshot,
   getCompositionTrackClips,
@@ -21,20 +22,20 @@ const createPayload = (
   Track: snapshot.tracks.map((track) =>
     getCompositionTrackClips(snapshot, track.id)
       .map((clip) => {
+        const clipTransform = getTimelineClipTransform(clip);
         const targetTime = [
           microsecondsToMilliseconds(clip.startUs),
           microsecondsToMilliseconds(clip.startUs + clip.durationUs),
         ] as [number, number];
         const transform = {
-          Height: Math.round(clip.transform.height),
-          PosX: Math.round(clip.transform.x),
-          PosY: Math.round(clip.transform.y),
+          Height: Math.round(clipTransform.height),
+          PosX: Math.round(clipTransform.x),
+          PosY: Math.round(clipTransform.y),
           Type: 'transform' as const,
-          Width: Math.round(clip.transform.width),
+          Width: Math.round(clipTransform.width),
         };
         if (clip.type === 'text') {
           return {
-            AlignType: clip.alignType,
             Extra: [transform] as [typeof transform],
             FontColor: clip.fontColor.toUpperCase(),
             FontSize: clip.fontSize,

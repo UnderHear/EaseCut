@@ -63,13 +63,23 @@ vi.mock('./timeline/TimelinePanel', async () => {
             data-clip-count={clips.length}
             data-current-time={currentTimeUs}
             data-first-duration={firstClip?.durationUs ?? ''}
-            data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
+            data-first-transform={JSON.stringify(
+              firstClip && firstClip.type !== 'text'
+                ? firstClip.transform
+                : null,
+            )}
             data-first-clip-volume={
               firstClip && firstClip.type !== 'text'
                 ? firstClip.volume
                 : ''
             }
             data-last-duration={lastClip?.durationUs ?? ''}
+            data-last-layout={JSON.stringify(
+              lastClip?.type === 'text' ? lastClip.layoutSize : null,
+            )}
+            data-last-position={JSON.stringify(
+              lastClip?.type === 'text' ? lastClip.position : null,
+            )}
             data-last-text={lastClip?.type === 'text' ? lastClip.text : ''}
             data-last-type={lastClip?.type ?? ''}
             data-playing={String(isPlaying)}
@@ -157,15 +167,41 @@ const readBlobText = (blob: Blob) =>
   });
 
 describe('VideoTimelineEditor', () => {
+  const fontsDescriptor = Object.getOwnPropertyDescriptor(document, 'fonts');
+
   beforeEach(() => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { load: vi.fn(() => Promise.resolve([{}])) },
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      font: '',
+      measureText: (text: string) =>
+        ({
+          actualBoundingBoxAscent: 100,
+          actualBoundingBoxDescent: 20,
+          actualBoundingBoxLeft: 0,
+          actualBoundingBoxRight: text.length * 100,
+          fontBoundingBoxAscent: 100,
+          fontBoundingBoxDescent: 20,
+          width: text.length * 100,
+        }) as TextMetrics,
+      textAlign: 'left',
+      textBaseline: 'alphabetic',
+    } as CanvasRenderingContext2D);
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    if (fontsDescriptor) {
+      Object.defineProperty(document, 'fonts', fontsDescriptor);
+    } else {
+      Reflect.deleteProperty(document, 'fonts');
+    }
   });
 
   it('always shows JSON export and only renders optional export and close actions', async () => {
@@ -253,9 +289,11 @@ describe('VideoTimelineEditor', () => {
     await user.type(screen.getByLabelText('标题内容'), '我们的精彩旅程');
     await user.click(screen.getByRole('button', { name: '确认添加' }));
 
-    expect(
-      screen.queryByRole('dialog', { name: '添加文字标题' }),
-    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('dialog', { name: '添加文字标题' }),
+      ).not.toBeInTheDocument();
+    });
     const timelineState = screen.getByTestId('timeline-state');
     expect(timelineState).toHaveAttribute('data-clip-count', '2');
     expect(timelineState).toHaveAttribute('data-last-type', 'text');
@@ -266,6 +304,41 @@ describe('VideoTimelineEditor', () => {
     expect(timelineState).toHaveAttribute(
       'data-last-duration',
       String(secondsToMicroseconds(5)),
+    );
+    expect(timelineState).toHaveAttribute(
+      'data-last-layout',
+      JSON.stringify({ height: 120, width: 700 }),
+    );
+    expect(timelineState).toHaveAttribute(
+      'data-last-position',
+      JSON.stringify({ x: 290, y: 300 }),
+    );
+  });
+
+  it('keeps the title dialog open when natural-size measurement fails', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        load: vi.fn(() => Promise.reject(new Error('font unavailable'))),
+      },
+    });
+    render(<VideoTimelineEditor sources={[videoSource]} />);
+
+    await user.click(screen.getByRole('button', { name: '添加标题' }));
+    await user.type(screen.getByLabelText('标题内容'), '无法测量的标题');
+    await user.click(screen.getByRole('button', { name: '确认添加' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '字体资源加载失败，无法计算文字尺寸',
+    );
+    expect(
+      screen.getByRole('dialog', { name: '添加文字标题' }),
+    ).toBeVisible();
+    expect(screen.getByLabelText('标题内容')).toHaveValue('无法测量的标题');
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '1',
     );
   });
 

@@ -196,16 +196,6 @@ const findClosestSnap = (
   return closest;
 };
 
-const normalizePreviewTransform = (
-  transform: TimelineClipTransform,
-  minimumSize: number,
-): TimelineClipTransform => ({
-  height: Math.max(minimumSize, Math.round(transform.height)),
-  width: Math.max(minimumSize, Math.round(transform.width)),
-  x: Math.round(transform.x),
-  y: Math.round(transform.y),
-});
-
 const getMovedTransform = (
   initialTransform: TimelineClipTransform,
   deltaX: number,
@@ -430,7 +420,6 @@ const getMoveUpdate = (
   initialTransform: TimelineClipTransform,
   deltaX: number,
   deltaY: number,
-  minimumSize: number,
   targets: PreviewSnapTarget[],
   threshold: number,
   snappingEnabled: boolean,
@@ -464,7 +453,11 @@ const getMoveUpdate = (
 
   return {
     guides,
-    transform: normalizePreviewTransform(transform, minimumSize),
+    transform: {
+      ...initialTransform,
+      x: Math.round(transform.x),
+      y: Math.round(transform.y),
+    },
   };
 };
 
@@ -491,7 +484,6 @@ export const getPreviewInteractionUpdate = ({
       initialTransform,
       deltaX,
       deltaY,
-      minimumSize,
       targets,
       threshold,
       snappingEnabled,

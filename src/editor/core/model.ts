@@ -3,7 +3,6 @@ export type TimelineClipType = TimelineMediaType | 'text';
 export type TimelineClipTrimEdge = 'start' | 'end';
 export type TimelineClipSpeed = number;
 export type TimelineClipVolume = number;
-export type TimelineTextAlign = 0 | 1 | 2;
 
 export type TimelineTrack = {
   id: string;
@@ -20,12 +19,21 @@ export type TimelineClipTransform = {
   y: number;
 };
 
+export type TimelineClipPosition = {
+  x: number;
+  y: number;
+};
+
+export type TimelineTextLayoutSize = {
+  height: number;
+  width: number;
+};
+
 type TimelineClipBase = {
   durationUs: number;
   id: string;
   startUs: number;
   trackId: string;
-  transform: TimelineClipTransform;
   zIndex: number;
 };
 
@@ -37,6 +45,7 @@ type TimelineMediaClipFields = TimelineClipBase & {
   src: string;
   trimEndUs: number;
   trimStartUs: number;
+  transform: TimelineClipTransform;
   volume: TimelineClipVolume;
   waveformSrc?: string;
 };
@@ -52,10 +61,11 @@ export type TimelineAudioClip = TimelineMediaClipFields & {
 export type TimelineMediaClip = TimelineVideoClip | TimelineAudioClip;
 
 export type TimelineTextClip = TimelineClipBase & {
-  alignType: TimelineTextAlign;
   fontColor: string;
   fontSize: number;
   fontType: TimelineTextFontType;
+  layoutSize: TimelineTextLayoutSize;
+  position: TimelineClipPosition;
   text: string;
   type: 'text';
 };
@@ -70,6 +80,18 @@ export const isTimelineTextClip = (
   clip: TimelineClip,
 ): clip is TimelineTextClip => clip.type === 'text';
 
+export const getTimelineClipTransform = (
+  clip: TimelineClip,
+): TimelineClipTransform =>
+  isTimelineTextClip(clip)
+    ? {
+        height: clip.layoutSize.height,
+        width: clip.layoutSize.width,
+        x: clip.position.x,
+        y: clip.position.y,
+      }
+    : clip.transform;
+
 export const getTimelineClipLabel = (clip: TimelineClip) =>
   clip.type === 'text' ? clip.text : clip.name;
 
@@ -81,7 +103,7 @@ export type TimelineCanvasSize = {
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
-  schemaVersion: 8;
+  schemaVersion: 9;
   /** Bottom-to-top layer order. Track zIndex equals its array index. */
   tracks: TimelineTrack[];
 };
@@ -140,7 +162,6 @@ export type CompositionExportMediaClip = {
 };
 
 export type CompositionExportTextClip = {
-  AlignType: TimelineTextAlign;
   Extra: [CompositionExportTransform];
   FontColor: string;
   FontSize: number;

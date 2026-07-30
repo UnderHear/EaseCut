@@ -25,7 +25,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
       zIndex: 0,
     },
   ],
-  schemaVersion: 8,
+  schemaVersion: 9,
   tracks: [
     {
       id: MAIN_VIDEO_TRACK_ID,
@@ -46,6 +46,21 @@ const getOnlyMediaClip = (draft: VideoTimelineDraft) => {
 };
 
 describe('timeline draft validation', () => {
+  it('明确拒绝 v8 草稿且不尝试迁移', () => {
+    const legacyDraft: Omit<VideoTimelineDraft, 'schemaVersion'> & {
+      schemaVersion: number;
+    } = {
+      ...createValidDraft(),
+      schemaVersion: 8,
+    };
+
+    expect(() =>
+      createTimelineStore({
+        draft: legacyDraft as VideoTimelineDraft,
+      }),
+    ).toThrow('不支持的草稿版本：8');
+  });
+
   it.each([
     {
       label: '负时间',

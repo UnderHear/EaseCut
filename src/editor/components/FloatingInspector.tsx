@@ -30,7 +30,7 @@ export function FloatingInspector({
   if (selectedClip.type === 'text') {
     return (
       <TextFloatingInspector
-        key={`${selectedClip.id}:${selectedClip.text}:${selectedClip.fontColor}`}
+        key={`${selectedClip.id}:${selectedClip.text}:${selectedClip.fontType}:${selectedClip.fontSize}:${selectedClip.fontColor}`}
         clip={selectedClip}
         previewTiming={previewTiming}
         previewTransform={previewTransform}

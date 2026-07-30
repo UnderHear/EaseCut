@@ -1,17 +1,35 @@
 import { describe, expect, it } from 'vitest';
 
-import type { TimelineEdit, TimelineEditResult } from './timeline-commands';
+import type {
+  AddTextClipParams,
+  TimelineEdit,
+  TimelineEditResult,
+} from './timeline-commands';
 import {
-  addTextClip,
+  addTextClip as addTextClipCommand,
   changeTextClipProperties,
   changeTextClipTiming,
   deleteClip,
   getTrimmedClip,
   moveClip,
+  moveClipPosition,
   pasteClip,
   splitClip,
+  transformMediaClip,
 } from './timeline-commands';
 import { secondsToMicroseconds } from './time';
+
+const defaultTextLayoutSize = { height: 120, width: 800 };
+
+const addTextClip = (
+  edit: TimelineEdit,
+  params: Omit<AddTextClipParams, 'layoutSize'> & {
+    layoutSize?: AddTextClipParams['layoutSize'];
+  },
+) => {
+  const { layoutSize = defaultTextLayoutSize, ...command } = params;
+  return addTextClipCommand(edit, { ...command, layoutSize });
+};
 
 const createEdit = (): TimelineEdit => ({
   clips: [],
@@ -51,16 +69,16 @@ describe('text clip commands', () => {
       ['text-track-1', 'text'],
     ]);
     expect(result.clips[0]).toEqual({
-      alignType: 1,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-1',
+      layoutSize: defaultTextLayoutSize,
+      position: { x: 560, y: 480 },
       startUs: secondsToMicroseconds(1),
       text: '我们的精彩旅程',
       trackId: 'text-track-1',
-      transform: { height: 200, width: 1_800, x: 60, y: 440 },
       type: 'text',
       zIndex: 0,
     });
@@ -95,7 +113,8 @@ describe('text clip commands', () => {
     ).toMatchObject({
       id: 'text-clip-3',
       trackId: 'text-track-2',
-      transform: { height: 133, width: 1_200, x: 40, y: 293 },
+      layoutSize: defaultTextLayoutSize,
+      position: { x: 240, y: 300 },
     });
   });
 
@@ -146,6 +165,13 @@ describe('text clip commands', () => {
       }).changed,
     ).toBe(false);
     expect(
+      changeTextClipProperties(created, {
+        clipId: 'text-clip-1',
+        layoutSize: { height: 120, width: 800 },
+        text: '第一行\n第二行',
+      }).changed,
+    ).toBe(false);
+    expect(
       changeTextClipTiming(created, {
         clipId: 'text-clip-1',
         endUs: 500_000,
@@ -158,24 +184,102 @@ describe('text clip commands', () => {
         fontType: 'PM_ZhengDao',
       }).changed,
     ).toBe(false);
+    expect(
+      changeTextClipProperties(created, {
+        clipId: 'text-clip-1',
+        fontSize: 88,
+        layoutSize: { height: 0, width: 420 },
+      }),
+    ).toEqual({ changed: false });
+    expect(
+      changeTextClipProperties(created, {
+        clipId: 'text-clip-1',
+        fontColor: '#12345678',
+        layoutSize: { height: 88, width: 420 },
+      }),
+    ).toEqual({ changed: false });
+    expect(created.clips[0]).toMatchObject({
+      fontSize: 120,
+      layoutSize: defaultTextLayoutSize,
+      position: { x: 560, y: 480 },
+      text: '标题',
+    });
 
     const changed = expectChanged(
       changeTextClipProperties(created, {
-        alignType: 2,
         clipId: 'text-clip-1',
         fontColor: '#12345678',
         fontSize: 88,
         fontType: 'ALi_PuHui',
+        layoutSize: { height: 88, width: 420 },
         text: '新标题',
       }),
     );
     expect(changed.clips[0]).toMatchObject({
-      alignType: 2,
       fontColor: '#12345678',
       fontSize: 88,
       fontType: 'ALi_PuHui',
+      layoutSize: { height: 88, width: 420 },
+      position: { x: 750, y: 496 },
       text: '新标题',
     });
+  });
+
+  it('preserves the exact center when an odd natural dimension changes', () => {
+    const created = expectChanged(
+      addTextClip(createEdit(), {
+        canvasSize: { height: 721, width: 1_281 },
+        layoutSize: { height: 101, width: 501 },
+        startUs: 0,
+        text: '旧标题',
+      }),
+    );
+    const changed = expectChanged(
+      changeTextClipProperties(created, {
+        clipId: 'text-clip-1',
+        fontSize: 121,
+        layoutSize: { height: 100, width: 500 },
+        text: '新标题',
+      }),
+    );
+    const clip = changed.clips[0];
+    if (!clip || clip.type !== 'text') {
+      throw new Error('Expected a text clip');
+    }
+
+    expect(clip.position.x + clip.layoutSize.width / 2).toBe(640.5);
+    expect(clip.position.y + clip.layoutSize.height / 2).toBe(360.5);
+  });
+
+  it('moves text without changing natural size and rejects media transforms', () => {
+    const created = expectChanged(
+      addTextClip(createEdit(), {
+        canvasSize: { height: 1_080, width: 1_920 },
+        startUs: 0,
+        text: '标题',
+      }),
+    );
+    const moved = expectChanged(
+      moveClipPosition(created, {
+        clipId: 'text-clip-1',
+        position: { x: -100, y: 80 },
+      }),
+    );
+    const clip = moved.clips[0];
+    if (!clip || clip.type !== 'text') {
+      throw new Error('Expected a text clip');
+    }
+
+    expect(clip.position).toEqual({ x: -100, y: 80 });
+    expect(clip.layoutSize).toEqual(defaultTextLayoutSize);
+    expect(
+      transformMediaClip(moved, clip.id, {
+        height: 20,
+        width: 20,
+        x: 0,
+        y: 0,
+      }),
+    ).toEqual({ changed: false });
   });
 
   it('moves, trims, splits, pastes and deletes text clips without media fields', () => {

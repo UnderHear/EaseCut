@@ -12,6 +12,7 @@ import {
   findClipAtTime,
   MIN_CLIP_DURATION_US,
   moveClip,
+  moveClipPosition,
   normalizeClipVolume,
   normalizeClipTransform,
   normalizeTimelineClips,
@@ -19,8 +20,9 @@ import {
   removeEmptyTimelineTracks,
   restoreClipTrim,
   splitClip,
-  transformClip,
+  transformMediaClip,
   trimClip,
+  type AddTextClipParams,
   type MoveClipParams,
   type ChangeTextClipPropertiesParams,
   type ChangeTextClipTimingParams,
@@ -70,6 +72,7 @@ import type {
   CompositionExportPayload,
   TimelineCanvasSize,
   TimelineClip,
+  TimelineClipPosition,
   TimelineMediaClip,
   TimelineClipTransform,
   TimelineSnapshot,
@@ -77,9 +80,9 @@ import type {
   VideoTimelineDraft,
   VideoTimelineSource,
 } from '../types';
-import { isTimelineMediaClip } from '../core/model';
+import { isTimelineMediaClip, isTimelineTextClip } from '../core/model';
 
-export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 8;
+export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 9;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
   width: 1280,
@@ -98,7 +101,15 @@ const defaultTracks: TimelineTrack[] = [{
 export type CommitClipDropParams = MoveClipParams;
 export type CommitClipSpeedParams = ChangeClipSpeedParams;
 export type CommitClipTrimParams = TrimClipParams;
-export type CommitClipTransformParams = {
+export type AddTextClipCommand = Pick<
+  AddTextClipParams,
+  'layoutSize' | 'startUs' | 'text'
+>;
+export type CommitClipPositionParams = {
+  clipId: string;
+  position: TimelineClipPosition;
+};
+export type CommitMediaClipTransformParams = {
   clipId: string;
   transform: TimelineClipTransform;
 };
@@ -131,10 +142,11 @@ export type TimelineDraftSource = Pick<
 >;
 
 export type TimelineActions = {
-  addTextClip: (text: string) => void;
+  addTextClip: (params: AddTextClipCommand) => void;
   commitClipDrop: (params: CommitClipDropParams) => void;
+  commitClipPosition: (params: CommitClipPositionParams) => void;
   commitClipSpeed: (params: CommitClipSpeedParams) => void;
-  commitClipTransform: (params: CommitClipTransformParams) => void;
+  commitMediaClipTransform: (params: CommitMediaClipTransformParams) => void;
   commitClipTrim: (params: CommitClipTrimParams) => void;
   commitClipVolume: (
     clipId: string,
@@ -170,10 +182,14 @@ export type TimelineActions = {
 export type TimelineStore = TimelineState & TimelineActions;
 export type TimelineStoreApi = StoreApi<TimelineStore>;
 
-const cloneClip = (clip: TimelineClip): TimelineClip => ({
-  ...clip,
-  transform: { ...clip.transform },
-});
+const cloneClip = (clip: TimelineClip): TimelineClip =>
+  isTimelineTextClip(clip)
+    ? {
+        ...clip,
+        layoutSize: { ...clip.layoutSize },
+        position: { ...clip.position },
+      }
+    : { ...clip, transform: { ...clip.transform } };
 const cloneClips = (clips: readonly TimelineClip[]) => clips.map(cloneClip);
 const cloneTracks = (tracks: readonly TimelineTrack[]) =>
   tracks.map((track) => ({ ...track }));
@@ -554,12 +570,13 @@ export const createTimelineStore = (
     return {
       ...createInitialState(params),
 
-      addTextClip: (text) => {
+      addTextClip: ({ layoutSize, startUs, text }) => {
         const state = get();
         commit(
           addTextClip(asEdit(state), {
             canvasSize: state.canvasSize,
-            startUs: state.currentTimeUs,
+            layoutSize,
+            startUs,
             text,
           }),
         );
@@ -567,12 +584,15 @@ export const createTimelineStore = (
 
       commitClipDrop: (command) => commit(moveClip(asEdit(get()), command)),
 
+      commitClipPosition: (command) =>
+        commit(moveClipPosition(asEdit(get()), command)),
+
       commitClipSpeed: (command) =>
         commit(changeClipSpeed(asEdit(get()), command)),
 
-      commitClipTransform: ({ clipId, transform }) =>
+      commitMediaClipTransform: ({ clipId, transform }) =>
         commit(
-          transformClip(
+          transformMediaClip(
             asEdit(get()),
             clipId,
             normalizeClipTransform(transform),

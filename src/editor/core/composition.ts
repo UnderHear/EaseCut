@@ -8,6 +8,7 @@ import type {
   TimelineTrack,
 } from './model';
 import {
+  getTimelineClipTransform,
   isTimelineMediaClip,
   isTimelineTextClip,
 } from './model';
@@ -30,7 +31,7 @@ export type CompositionSnapshotInput = Readonly<{
 export type CompositionSnapshot = Readonly<{
   canvasSize: TimelineCanvasSize;
   clips: readonly TimelineClip[];
-  schemaVersion: 8;
+  schemaVersion: 9;
   tracks: readonly TimelineTrack[];
 }>;
 
@@ -117,6 +118,7 @@ const validateClip = (
     isTimelineTextClip(clip) &&
     (
       clip.text.trim() === '' ||
+      /[\r\n]/.test(clip.text) ||
       !isTimelineTextFontType(clip.fontType) ||
       'sourceId' in clip ||
       'src' in clip ||
@@ -126,8 +128,7 @@ const validateClip = (
       'volume' in clip ||
       !Number.isInteger(clip.fontSize) ||
       clip.fontSize <= 0 ||
-      !/^#[\dA-F]{8}$/i.test(clip.fontColor) ||
-      ![0, 1, 2].includes(clip.alignType)
+      !/^#[\dA-F]{8}$/i.test(clip.fontColor)
     )
   ) {
     throw new TypeError(`文字片段 ${clip.id} 的文字属性无效`);
@@ -138,16 +139,29 @@ const validateClip = (
       (
         !Number.isFinite(clip.volume) ||
         clip.volume < 0 ||
-        clip.volume > 1
+        clip.volume > 1 ||
+        ![
+          clip.transform.height,
+          clip.transform.width,
+          clip.transform.x,
+          clip.transform.y,
+        ].every(Number.isFinite) ||
+        !isPositiveFinite(clip.transform.height) ||
+        !isPositiveFinite(clip.transform.width)
       )) ||
-    ![
-      clip.transform.height,
-      clip.transform.width,
-      clip.transform.x,
-      clip.transform.y,
-    ].every(Number.isFinite) ||
-    !isPositiveFinite(clip.transform.height) ||
-    !isPositiveFinite(clip.transform.width)
+    (isTimelineTextClip(clip) &&
+      (
+        ![
+          clip.layoutSize.height,
+          clip.layoutSize.width,
+          clip.position.x,
+          clip.position.y,
+        ].every(Number.isFinite) ||
+        !Number.isInteger(clip.layoutSize.height) ||
+        !Number.isInteger(clip.layoutSize.width) ||
+        !isPositiveFinite(clip.layoutSize.height) ||
+        !isPositiveFinite(clip.layoutSize.width)
+      ))
   ) {
     throw new RangeError(`片段 ${clip.id} 的布局无效`);
   }
@@ -156,7 +170,7 @@ const validateClip = (
 export const createCompositionSnapshot = (
   input: CompositionSnapshotInput,
 ): CompositionSnapshot => {
-  if (input.schemaVersion !== undefined && input.schemaVersion !== 8) {
+  if (input.schemaVersion !== undefined && input.schemaVersion !== 9) {
     throw new RangeError(`不支持的草稿版本：${input.schemaVersion}`);
   }
   if (
@@ -200,7 +214,7 @@ export const createCompositionSnapshot = (
   return {
     canvasSize: { ...input.canvasSize },
     clips,
-    schemaVersion: 8,
+    schemaVersion: 9,
     tracks,
   };
 };
@@ -243,7 +257,7 @@ export const evaluateCompositionAt = (
       textLayers.push({
         clip,
         track,
-        transform: clip.transform,
+        transform: getTimelineClipTransform(clip),
       });
       continue;
     }

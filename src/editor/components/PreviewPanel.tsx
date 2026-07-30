@@ -14,6 +14,7 @@ import {
   createCompositionSnapshot,
   getCompositionActiveClips,
 } from '../core/composition';
+import { getTimelineClipTransform } from '../core/model';
 import { getTimelineTextFontPreset } from '../core/text-fonts';
 import { secondsToMicroseconds } from '../core/time';
 import {
@@ -49,9 +50,8 @@ const HAVE_METADATA_READY_STATE = 1;
 const HAVE_CURRENT_DATA_READY_STATE = 2;
 const PREVIEW_PRELOAD_LOOKAHEAD_US = secondsToMicroseconds(5);
 const MAX_PRELOADED_MEDIA_CLIPS = 4;
-const PREVIEW_FONT_LOAD_SIZE_PX = 16;
 
-type PreviewFontLoadStatus = 'failed' | 'ready' | 'unsupported';
+type PreviewFontLoadStatus = 'failed' | 'ready';
 
 type PreviewPoint = {
   x: number;
@@ -70,6 +70,7 @@ type PreviewInteractionState = {
   initialPointer: PreviewPoint;
   initialTransform: TimelineClipTransform;
   mode: PreviewInteractionMode;
+  resizable: boolean;
   transform: TimelineClipTransform;
 };
 type PreviewCursor = 'default' | 'move' | 'nesw-resize' | 'nwse-resize';
@@ -84,12 +85,6 @@ const previewResizeHandles: PreviewResizeHandle[] = ['nw', 'ne', 'sw', 'se'];
 const canUseMediaElement = () =>
   typeof navigator === 'undefined' ||
   !navigator.userAgent.toLowerCase().includes('jsdom');
-
-const getDocumentFontFaceSet = () =>
-  typeof document === 'undefined' || !document.fonts ? null : document.fonts;
-
-const getPreviewFontDescriptor = (family: string) =>
-  `${PREVIEW_FONT_LOAD_SIZE_PX}px "${family}"`;
 
 type PreviewClipIndex = ReadonlyMap<string, readonly TimelineMediaClip[]>;
 
@@ -258,15 +253,16 @@ const getPreviewDrawKey = (
     previewFrame.width,
     previewFrame.height,
     selectedClipId ?? '',
-    ...clips.map((clip) =>
-      [
+    ...clips.map((clip) => {
+      const transform = getTimelineClipTransform(clip);
+      return [
         clip.id,
-        clip.transform.x,
-        clip.transform.y,
-        clip.transform.width,
-        clip.transform.height,
-      ].join(':'),
-    ),
+        transform.x,
+        transform.y,
+        transform.width,
+        transform.height,
+      ].join(':');
+    }),
   ].join('|');
 
 const hasPendingPreviewMedia = (
@@ -377,7 +373,7 @@ const getVisibleClipAtPoint = (
 
   for (let index = clips.length - 1; index >= 0; index -= 1) {
     const clip = clips[index];
-    if (isPointInTransform(point, clip.transform)) {
+    if (clip && isPointInTransform(point, getTimelineClipTransform(clip))) {
       return clip;
     }
   }
@@ -401,32 +397,16 @@ const drawTextClip = (
   previewFrame: PreviewFrame,
 ) => {
   const previewTransform = toPreviewTransform(transform, previewFrame);
-  const textAlign = clip.alignType === 0 ? 'left' : clip.alignType === 2 ? 'right' : 'center';
-  const textX =
-    textAlign === 'left'
-      ? previewTransform.x
-      : textAlign === 'right'
-        ? previewTransform.x + previewTransform.width
-        : previewTransform.x + previewTransform.width / 2;
 
   context.save();
-  context.beginPath();
-  context.rect(
-    previewTransform.x,
-    previewTransform.y,
-    previewTransform.width,
-    previewTransform.height,
-  );
-  context.clip();
   context.fillStyle = toCanvasColor(clip.fontColor);
   context.font = `${clip.fontSize * previewFrame.scale}px "${fontFamily}", sans-serif`;
-  context.textAlign = textAlign;
+  context.textAlign = 'left';
   context.textBaseline = 'middle';
   context.fillText(
     clip.text,
-    textX,
+    previewTransform.x,
     previewTransform.y + previewTransform.height / 2,
-    previewTransform.width,
   );
   context.restore();
 };
@@ -476,6 +456,7 @@ const drawSelectedClipFrame = (
   context: CanvasRenderingContext2D,
   transform: TimelineClipTransform,
   previewFrame: PreviewFrame,
+  resizable: boolean,
 ) => {
   const previewTransform = toPreviewTransform(transform, previewFrame);
 
@@ -489,6 +470,11 @@ const drawSelectedClipFrame = (
     previewTransform.width,
     previewTransform.height,
   );
+  if (!resizable) {
+    context.restore();
+    return;
+  }
+
   context.setLineDash([]);
   context.fillStyle = '#00cae0';
   context.strokeStyle = '#ffffff';
@@ -583,8 +569,11 @@ export function PreviewPanel({
   );
   const canvasSize = useTimelineStore((state) => state.canvasSize);
   const clips = useTimelineStore((state) => state.clips);
-  const commitClipTransform = useTimelineStore(
-    (state) => state.commitClipTransform,
+  const commitClipPosition = useTimelineStore(
+    (state) => state.commitClipPosition,
+  );
+  const commitMediaClipTransform = useTimelineStore(
+    (state) => state.commitMediaClipTransform,
   );
   const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
@@ -616,12 +605,8 @@ export function PreviewPanel({
     key: string;
     warning: string | null;
   } | null>(null);
-  const fontFaceSet = getDocumentFontFaceSet();
   const fontLoadStatusByTypeRef = useRef(
     new Map<string, PreviewFontLoadStatus>(),
-  );
-  const pendingFontLoadsByTypeRef = useRef(
-    new Map<string, Promise<PreviewFontLoadStatus>>(),
   );
   const renderedFontTypeByClipIdRef = useRef(new Map<string, string>());
   const [playbackWarning, setPlaybackWarning] = useState<string | null>(
@@ -699,18 +684,8 @@ export function PreviewPanel({
   const selectedFontKey = selectedTextClip
     ? selectedTextClip.fontType
     : null;
-  const previewFontTypesKey = Array.from(
-    new Set([
-      ...previewTextClips.map((clip) => clip.fontType),
-      ...(selectedTextClip ? [selectedTextClip.fontType] : []),
-    ]),
-  )
-    .sort()
-    .join('\n');
   const fontWarning =
-    !fontFaceSet && selectedFontKey
-      ? '当前浏览器不支持字体加载检测，预览可能使用系统字体回退'
-      : fontLoadState?.key === selectedFontKey
+    fontLoadState?.key === selectedFontKey
       ? fontLoadState.warning
       : null;
   const previewSourcesKey = useMemo(
@@ -755,8 +730,9 @@ export function PreviewPanel({
     )
     .join('\n');
   const activeVisualConfigurationKey = activeVisualClips
-    .map((clip) =>
-      [
+    .map((clip) => {
+      const transform = getTimelineClipTransform(clip);
+      return [
         clip.id,
         clip.type === 'text'
           ? [
@@ -764,15 +740,14 @@ export function PreviewPanel({
               clip.fontType,
               clip.fontSize,
               clip.fontColor,
-              clip.alignType,
             ].join(':')
           : '',
-        clip.transform.height,
-        clip.transform.width,
-        clip.transform.x,
-        clip.transform.y,
-      ].join(':'),
-    )
+        transform.height,
+        transform.width,
+        transform.x,
+        transform.y,
+      ].join(':');
+    })
     .join('\n');
   const activeMediaClipsRef = useRef(activeMediaClips);
   const currentTimeUsRef = useRef(currentTimeUs);
@@ -829,30 +804,22 @@ export function PreviewPanel({
     drawPreviewRef.current(interactionRef.current);
   }, []);
   const ensurePreviewFontLoaded = useCallback(
-    (fontType: string, family: string): Promise<PreviewFontLoadStatus> => {
-      if (!fontFaceSet) return Promise.resolve('unsupported');
-
-      const loadedStatus = fontLoadStatusByTypeRef.current.get(fontType);
+    async (clip: TimelineTextClip): Promise<PreviewFontLoadStatus> => {
+      const loadedStatus = fontLoadStatusByTypeRef.current.get(clip.fontType);
       if (loadedStatus) return Promise.resolve(loadedStatus);
-
-      const pendingLoad = pendingFontLoadsByTypeRef.current.get(fontType);
-      if (pendingLoad) return pendingLoad;
-
-      const load = Promise.resolve()
-        .then(() => fontFaceSet.load(getPreviewFontDescriptor(family)))
-        .then<PreviewFontLoadStatus>((faces) =>
-          faces.length > 0 ? 'ready' : 'failed',
-        )
-        .catch<PreviewFontLoadStatus>(() => 'failed')
-        .then((status) => {
-          fontLoadStatusByTypeRef.current.set(fontType, status);
-          pendingFontLoadsByTypeRef.current.delete(fontType);
-          return status;
+      try {
+        await mediaRuntime.measureTextLayout({
+          fontSize: clip.fontSize,
+          fontType: clip.fontType,
+          text: clip.text,
         });
-      pendingFontLoadsByTypeRef.current.set(fontType, load);
-      return load;
+        fontLoadStatusByTypeRef.current.set(clip.fontType, 'ready');
+        return 'ready';
+      } catch {
+        return 'failed';
+      }
     },
-    [fontFaceSet],
+    [mediaRuntime],
   );
   const handleLoadedMediaMetadata = useCallback(
     (
@@ -911,6 +878,7 @@ export function PreviewPanel({
       );
 
       let selectedTransform: TimelineClipTransform | null = null;
+      let selectedTransformResizable = false;
 
       context.save();
       context.beginPath();
@@ -926,7 +894,7 @@ export function PreviewPanel({
         const transform =
           interaction?.clipId === clip.id
             ? interaction.transform
-            : clip.transform;
+            : getTimelineClipTransform(clip);
         if (clip.type === 'text') {
           const preset = getTimelineTextFontPreset(clip.fontType);
           const fontLoadStatus = fontLoadStatusByTypeRef.current.get(
@@ -940,7 +908,7 @@ export function PreviewPanel({
           const fallbackFontFamily =
             renderedFontPreset?.family ?? 'Microsoft YaHei';
           const fontFamily =
-            !fontFaceSet || fontLoadStatus === 'ready'
+            fontLoadStatus === 'ready'
               ? (preset?.family ?? fallbackFontFamily)
               : fallbackFontFamily;
 
@@ -978,6 +946,7 @@ export function PreviewPanel({
 
         if (clip.id === selectedDrawClipId) {
           selectedTransform = transform;
+          selectedTransformResizable = clip.type !== 'text';
         }
       }
 
@@ -990,7 +959,12 @@ export function PreviewPanel({
       );
 
       if (selectedTransform) {
-        drawSelectedClipFrame(context, selectedTransform, previewFrame);
+        drawSelectedClipFrame(
+          context,
+          selectedTransform,
+          previewFrame,
+          selectedTransformResizable,
+        );
       }
       lastPreviewCanvasSizeRef.current = {
         height: canvas.height,
@@ -1001,7 +975,6 @@ export function PreviewPanel({
     [
       activeVideoClips,
       activeVisualClips,
-      fontFaceSet,
       previewFrame,
       previewObjectUrls,
       selectedClipId,
@@ -1022,21 +995,18 @@ export function PreviewPanel({
 
   useEffect(() => {
     let cancelled = false;
-
-    if (!fontFaceSet) {
-      return undefined;
-    }
-
-    const fontTypes = previewFontTypesKey
-      ? previewFontTypesKey.split('\n')
-      : [];
-    for (const fontType of fontTypes) {
-      const preset = getTimelineTextFontPreset(fontType);
+    const clipsByFontType = new Map(
+      [...previewTextClips, ...(selectedTextClip ? [selectedTextClip] : [])].map(
+        (clip) => [clip.fontType, clip],
+      ),
+    );
+    for (const clip of clipsByFontType.values()) {
+      const preset = getTimelineTextFontPreset(clip.fontType);
       if (!preset) continue;
 
-      void ensurePreviewFontLoaded(fontType, preset.family).then((status) => {
+      void ensurePreviewFontLoaded(clip).then((status) => {
         if (cancelled) return;
-        if (fontType === selectedFontKey) {
+        if (clip.fontType === selectedFontKey) {
           setFontLoadState({
             key: selectedFontKey,
             warning:
@@ -1055,8 +1025,8 @@ export function PreviewPanel({
     };
   }, [
     ensurePreviewFontLoaded,
-    fontFaceSet,
-    previewFontTypesKey,
+    previewTextClips,
+    selectedTextClip,
     selectedFontKey,
   ]);
 
@@ -1375,10 +1345,14 @@ export function PreviewPanel({
     if (!canvas) return;
 
     const point = getCanvasPoint(canvas, event, previewFrame);
-    const resizeHandle = selectedActiveClip
+    const selectedTransform = selectedActiveClip
+      ? getTimelineClipTransform(selectedActiveClip)
+      : null;
+    const resizeHandle =
+      selectedActiveClip?.type !== 'text' && selectedTransform
       ? getResizeHandleAtPoint(
           point,
-          selectedActiveClip.transform,
+          selectedTransform,
           previewFrame.scale,
         )
       : null;
@@ -1386,7 +1360,8 @@ export function PreviewPanel({
       ? selectedActiveClip
       : (getVisibleClipAtPoint(point, activeVisualClips, canvasSize) ??
         (selectedActiveClip &&
-        isPointInTransform(point, selectedActiveClip.transform)
+        selectedTransform &&
+        isPointInTransform(point, selectedTransform)
           ? selectedActiveClip
           : null));
     if (!targetClip) return;
@@ -1398,17 +1373,19 @@ export function PreviewPanel({
     canvas.style.cursor =
       mode === 'move' ? 'move' : getResizeHandleCursor(mode);
     event.currentTarget.setPointerCapture(event.pointerId);
+    const targetTransform = getTimelineClipTransform(targetClip);
     interactionRef.current = {
       clipId: targetClip.id,
       guides: [],
       initialPointer: point,
-      initialTransform: targetClip.transform,
+      initialTransform: targetTransform,
       mode,
-      transform: targetClip.transform,
+      resizable: targetClip.type !== 'text',
+      transform: targetTransform,
     };
     setLiveTransform({
       clipId: targetClip.id,
-      transform: targetClip.transform,
+      transform: targetTransform,
     });
     drawPreview(interactionRef.current);
   };
@@ -1423,11 +1400,18 @@ export function PreviewPanel({
     if (!interaction) {
       const point = getCanvasPoint(canvas, event, previewFrame);
       const selectedCursor = selectedActiveClip
-        ? getPreviewCursor(
-            point,
-            selectedActiveClip.transform,
-            previewFrame.scale,
-          )
+        ? selectedActiveClip.type === 'text'
+          ? isPointInTransform(
+              point,
+              getTimelineClipTransform(selectedActiveClip),
+            )
+            ? 'move'
+            : 'default'
+          : getPreviewCursor(
+              point,
+              selectedActiveClip.transform,
+              previewFrame.scale,
+            )
         : 'default';
       const visibleClip = getVisibleClipAtPoint(
         point,
@@ -1459,7 +1443,7 @@ export function PreviewPanel({
       snappingEnabled: canvasSnappingEnabled,
       targetTransforms: activeVisualClips
         .filter((clip) => clip.id !== interaction.clipId)
-        .map((clip) => clip.transform),
+        .map(getTimelineClipTransform),
     });
 
     interactionRef.current = {
@@ -1480,16 +1464,27 @@ export function PreviewPanel({
     event.preventDefault();
     event.currentTarget.releasePointerCapture(event.pointerId);
     interactionRef.current = null;
-    event.currentTarget.style.cursor = getPreviewCursor(
-      getCanvasPoint(event.currentTarget, event, previewFrame),
-      interaction.transform,
-      previewFrame.scale,
-    );
+    const endPoint = getCanvasPoint(event.currentTarget, event, previewFrame);
+    event.currentTarget.style.cursor = interaction.resizable
+      ? getPreviewCursor(endPoint, interaction.transform, previewFrame.scale)
+      : isPointInTransform(endPoint, interaction.transform)
+        ? 'move'
+        : 'default';
     drawPreview({ ...interaction, guides: [] });
-    commitClipTransform({
-      clipId: interaction.clipId,
-      transform: interaction.transform,
-    });
+    if (interaction.mode === 'move') {
+      commitClipPosition({
+        clipId: interaction.clipId,
+        position: {
+          x: interaction.transform.x,
+          y: interaction.transform.y,
+        },
+      });
+    } else if (interaction.resizable) {
+      commitMediaClipTransform({
+        clipId: interaction.clipId,
+        transform: interaction.transform,
+      });
+    }
     setLiveTransform(null);
   };
 

@@ -16,8 +16,10 @@ import {
 import type {
   TimelineMediaClip,
   TimelineTextClip,
+  TimelineTextLayoutSize,
   TimelineTrack,
 } from '../types';
+import type { TextLayoutRequest } from '../media/text-layout-runtime';
 import { PreviewAudioEngine } from '../media/preview-audio-engine';
 import { PreviewPanel } from './PreviewPanel';
 import {
@@ -29,11 +31,19 @@ import {
 const getObjectUrlMock = vi.hoisted(() =>
   vi.fn((src: string) => Promise.resolve(`blob:${src}`)),
 );
+const measureTextLayoutMock = vi.hoisted(() =>
+  vi.fn<
+    (request: TextLayoutRequest) => Promise<TimelineTextLayoutSize>
+  >(() => Promise.resolve({ height: 120, width: 800 })),
+);
 vi.mock('../media', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../media')>();
   return {
     ...actual,
-    useMediaRuntime: () => ({ getObjectUrl: getObjectUrlMock }),
+    useMediaRuntime: () => ({
+      getObjectUrl: getObjectUrlMock,
+      measureTextLayout: measureTextLayoutMock,
+    }),
   };
 });
 
@@ -129,6 +139,16 @@ const createClip = (
     : { ...clip, type: 'video' };
 };
 
+const getMediaClipById = (clipId: string) => {
+  const clip = testTimelineStore
+    .getState()
+    .clips.find((candidate) => candidate.id === clipId);
+  if (!clip || clip.type === 'text') {
+    throw new Error(`Expected media clip ${clipId}`);
+  }
+  return clip;
+};
+
 describe('PreviewPanel', () => {
   const originalUserAgent = window.navigator.userAgent;
   const resizeObserverDescriptor = Object.getOwnPropertyDescriptor(
@@ -174,6 +194,8 @@ describe('PreviewPanel', () => {
 
   beforeEach(() => {
     resetTestTimelineStore();
+    measureTextLayoutMock.mockReset();
+    measureTextLayoutMock.mockResolvedValue({ height: 120, width: 800 });
     drawCalls = [];
     drawnTextFonts = [];
     currentCanvasFont = '';
@@ -538,7 +560,7 @@ describe('PreviewPanel', () => {
     });
   });
 
-  it('draws active text with its content, transform, font and alignment', () => {
+  it('draws active text at its natural layout without a maximum width', () => {
     const textTrack: TimelineTrack = {
       id: 'text-track-1',
       muted: false,
@@ -547,21 +569,22 @@ describe('PreviewPanel', () => {
       zIndex: 3,
     };
     const textClip: TimelineTextClip = {
-      alignType: 1,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#12345680',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-1',
+      layoutSize: { height: 200, width: 2_000 },
+      position: { x: -100, y: 300 },
       startUs: 0,
       text: '我们的精彩旅程',
       trackId: textTrack.id,
-      transform: { height: 200, width: 1_000, x: 100, y: 300 },
       type: 'text',
       zIndex: 0,
     };
     testTimelineStore.setState((state) => ({
       clips: [...state.clips, textClip],
+      selectedClipId: textClip.id,
       tracks: [...state.tracks, textTrack],
     }));
 
@@ -571,23 +594,27 @@ describe('PreviewPanel', () => {
 
     expect(fillTextMock).toHaveBeenCalledWith(
       '我们的精彩旅程',
-      600,
+      -100,
       400,
-      1_000,
     );
+    expect(strokeRectMock).toHaveBeenCalledWith(-100, 300, 2_000, 200);
+    expect(
+      drawCalls.some(
+        (call) =>
+          call.kind === 'rect' &&
+          hasRectArgs(call.args, [-100, 300, 2_000, 200]),
+      ),
+    ).toBe(false);
+    expect(drawCalls.some((call) => call.kind === 'roundRect')).toBe(false);
   });
 
   it('preloads an upcoming text font and draws a fallback on its first active frame', async () => {
-    const upcomingFontLoad = createDeferred<object[]>();
-    const fontLoadMock = vi.fn((descriptor: string) =>
-      descriptor.includes('Alibaba PuHuiTi')
+    const upcomingFontLoad = createDeferred<{ height: number; width: number }>();
+    measureTextLayoutMock.mockImplementation((request) =>
+      request.fontType === 'ALi_PuHui'
         ? upcomingFontLoad.promise
-        : Promise.resolve([{}]),
+        : Promise.resolve({ height: 120, width: 800 }),
     );
-    Object.defineProperty(document, 'fonts', {
-      configurable: true,
-      value: { load: fontLoadMock },
-    });
     const textTrack: TimelineTrack = {
       id: 'text-track-upcoming-font',
       muted: false,
@@ -596,16 +623,16 @@ describe('PreviewPanel', () => {
       zIndex: 3,
     };
     const textClip: TimelineTextClip = {
-      alignType: 1,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'ALi_PuHui',
       id: 'text-clip-upcoming-font',
+      layoutSize: { height: 200, width: 1_000 },
+      position: { x: 100, y: 300 },
       startUs: secondsToMicroseconds(4),
       text: '交界首帧文字',
       trackId: textTrack.id,
-      transform: { height: 200, width: 1_000, x: 100, y: 300 },
       type: 'text',
       zIndex: 0,
     };
@@ -620,13 +647,14 @@ describe('PreviewPanel', () => {
     );
 
     await waitFor(() => {
-      expect(fontLoadMock).toHaveBeenCalledWith(
-        '16px "Alibaba PuHuiTi"',
-      );
+      expect(measureTextLayoutMock).toHaveBeenCalledWith({
+        fontSize: 120,
+        fontType: 'ALi_PuHui',
+        text: '交界首帧文字',
+      });
     });
     expect(fillTextMock).not.toHaveBeenCalledWith(
       '交界首帧文字',
-      expect.any(Number),
       expect.any(Number),
       expect.any(Number),
     );
@@ -641,15 +669,14 @@ describe('PreviewPanel', () => {
 
     expect(fillTextMock).toHaveBeenCalledWith(
       '交界首帧文字',
-      600,
+      100,
       400,
-      1_000,
     );
     expect(drawnTextFonts).toContain(
       '120px "Microsoft YaHei", sans-serif',
     );
 
-    upcomingFontLoad.resolve([{}]);
+    upcomingFontLoad.resolve({ height: 120, width: 800 });
     await waitFor(() => {
       expect(drawnTextFonts).toContain(
         '120px "Alibaba PuHuiTi", sans-serif',
@@ -658,23 +685,19 @@ describe('PreviewPanel', () => {
   });
 
   it('keeps the last rendered font until a newly selected font is ready', async () => {
-    const alibabaFontLoad = createDeferred<object[]>();
-    const zcoolFontLoad = createDeferred<object[]>();
-    const fontLoadMock = vi.fn((descriptor: string) => {
-      if (descriptor.includes('Source Han Sans SC')) {
-        return Promise.resolve([{}]);
+    const alibabaFontLoad = createDeferred<{ height: number; width: number }>();
+    const zcoolFontLoad = createDeferred<{ height: number; width: number }>();
+    measureTextLayoutMock.mockImplementation((request) => {
+      if (request.fontType === 'SY_Black') {
+        return Promise.resolve({ height: 120, width: 800 });
       }
-      if (descriptor.includes('Alibaba PuHuiTi')) {
+      if (request.fontType === 'ALi_PuHui') {
         return alibabaFontLoad.promise;
       }
-      if (descriptor.includes('ZCOOL GaoDuanHei')) {
+      if (request.fontType === '1187221') {
         return zcoolFontLoad.promise;
       }
-      return Promise.resolve([]);
-    });
-    Object.defineProperty(document, 'fonts', {
-      configurable: true,
-      value: { load: fontLoadMock },
+      return Promise.reject(new Error('Unexpected font'));
     });
     const textTrack: TimelineTrack = {
       id: 'text-track-font-loading',
@@ -684,16 +707,16 @@ describe('PreviewPanel', () => {
       zIndex: 3,
     };
     const textClip: TimelineTextClip = {
-      alignType: 1,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-font-loading',
+      layoutSize: { height: 200, width: 1_000 },
+      position: { x: 100, y: 300 },
       startUs: 0,
       text: '字体切换预览',
       trackId: textTrack.id,
-      transform: { height: 200, width: 1_000, x: 100, y: 300 },
       type: 'text',
       zIndex: 0,
     };
@@ -728,9 +751,11 @@ describe('PreviewPanel', () => {
 
     setTextFont('ALi_PuHui');
     await waitFor(() => {
-      expect(fontLoadMock).toHaveBeenCalledWith(
-        '16px "Alibaba PuHuiTi"',
-      );
+      expect(measureTextLayoutMock).toHaveBeenCalledWith({
+        fontSize: 120,
+        fontType: 'ALi_PuHui',
+        text: '字体切换预览',
+      });
     });
     expect(drawnTextFonts).not.toContain(
       '120px "Alibaba PuHuiTi", sans-serif',
@@ -741,15 +766,17 @@ describe('PreviewPanel', () => {
 
     setTextFont('1187221');
     await waitFor(() => {
-      expect(fontLoadMock).toHaveBeenCalledWith(
-        '16px "ZCOOL GaoDuanHei"',
-      );
+      expect(measureTextLayoutMock).toHaveBeenCalledWith({
+        fontSize: 120,
+        fontType: '1187221',
+        text: '字体切换预览',
+      });
     });
     expect(drawnTextFonts).not.toContain(
       '120px "ZCOOL GaoDuanHei", sans-serif',
     );
 
-    alibabaFontLoad.resolve([{}]);
+    alibabaFontLoad.resolve({ height: 120, width: 800 });
     await alibabaFontLoad.promise;
     await Promise.resolve();
     expect(drawnTextFonts).not.toContain(
@@ -759,7 +786,7 @@ describe('PreviewPanel', () => {
       '120px "ZCOOL GaoDuanHei", sans-serif',
     );
 
-    zcoolFontLoad.resolve([{}]);
+    zcoolFontLoad.resolve({ height: 120, width: 800 });
     await waitFor(() => {
       expect(drawnTextFonts).toContain(
         '120px "ZCOOL GaoDuanHei", sans-serif',
@@ -913,16 +940,16 @@ describe('PreviewPanel', () => {
       zIndex: 2,
     };
     const textClip: TimelineTextClip = {
-      alignType: 1,
       durationUs: secondsToMicroseconds(1),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-media-continuity',
+      layoutSize: { height: 200, width: 1_000 },
+      position: { x: 100, y: 300 },
       startUs: secondsToMicroseconds(4),
       text: '不打断视频',
       trackId: textTrack.id,
-      transform: { height: 200, width: 1_000, x: 100, y: 300 },
       type: 'text',
       zIndex: 0,
     };
@@ -1482,22 +1509,88 @@ describe('PreviewPanel', () => {
 
     expect(screen.getByLabelText('X 位置')).toHaveValue(160);
     expect(screen.getByLabelText('Y 位置')).toHaveValue(110);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 100, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 100,
+      y: 80,
+    });
     expect(testTimelineStore.getState().past).toHaveLength(0);
 
     fireEvent.pointerUp(canvas, { clientX: 370, clientY: 170, pointerId: 1 });
 
     expect(screen.getByLabelText('X 位置')).toHaveValue(160);
     expect(screen.getByLabelText('Y 位置')).toHaveValue(110);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 160, y: 110 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 160,
+      y: 110,
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+  });
+
+  it('treats a selected text corner as move-only and preserves natural size', () => {
+    const textTrack: TimelineTrack = {
+      id: 'text-track-move-only',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 3,
+    };
+    const textClip: TimelineTextClip = {
+      durationUs: secondsToMicroseconds(5),
+      fontColor: '#FFFFFFFF',
+      fontSize: 120,
+      fontType: 'SY_Black',
+      id: 'text-clip-move-only',
+      layoutSize: { height: 180, width: 320 },
+      position: { x: 100, y: 80 },
+      startUs: 0,
+      text: '只能移动',
+      trackId: textTrack.id,
+      type: 'text',
+      zIndex: 0,
+    };
+    testTimelineStore.setState((state) => ({
+      clips: [...state.clips, textClip],
+      selectedClipId: textClip.id,
+      tracks: [...state.tracks, textTrack],
+    }));
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+    drawCalls = [];
+
+    fireEvent.pointerDown(canvas, {
+      clientX: 590,
+      clientY: 280,
+      pointerId: 1,
+    });
+    expect(canvas).toHaveStyle({ cursor: 'move' });
+    fireEvent.pointerMove(canvas, {
+      clientX: 650,
+      clientY: 310,
+      pointerId: 1,
+    });
+    fireEvent.pointerUp(canvas, {
+      clientX: 650,
+      clientY: 310,
+      pointerId: 1,
+    });
+
+    const movedClip = testTimelineStore
+      .getState()
+      .clips.find(({ id }) => id === textClip.id);
+    if (!movedClip || movedClip.type !== 'text') {
+      throw new Error('Expected moved text clip');
+    }
+    expect(movedClip.position).toEqual({ x: 160, y: 110 });
+    expect(movedClip.layoutSize).toEqual({ height: 180, width: 320 });
+    expect(drawCalls.some((call) => call.kind === 'roundRect')).toBe(false);
     expect(testTimelineStore.getState().past).toHaveLength(1);
   });
 
@@ -1517,11 +1610,12 @@ describe('PreviewPanel', () => {
 
     expect(screen.getByLabelText('X 位置')).toHaveValue(100);
     expect(screen.getByLabelText('Y 位置')).toHaveValue(80);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 100, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 100,
+      y: 80,
+    });
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 
@@ -1549,11 +1643,12 @@ describe('PreviewPanel', () => {
     fireEvent.pointerUp(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
 
     expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 480, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 480,
+      y: 80,
+    });
 
     fireEvent.pointerDown(canvas, { clientX: 650, clientY: 140, pointerId: 2 });
     fireEvent.pointerMove(canvas, { clientX: 650, clientY: 140, pointerId: 2 });
@@ -1611,11 +1706,12 @@ describe('PreviewPanel', () => {
     fireEvent.pointerMove(canvas, { clientX: 388, clientY: 140, pointerId: 1 });
     fireEvent.pointerUp(canvas, { clientX: 388, clientY: 140, pointerId: 1 });
 
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 180, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 180,
+      y: 80,
+    });
   });
 
   it('ignores the selected clip, inactive video clips and audio clips as targets', () => {
@@ -1650,11 +1746,12 @@ describe('PreviewPanel', () => {
     fireEvent.pointerUp(canvas, { clientX: 314, clientY: 140, pointerId: 1 });
 
     expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 104, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 104,
+      y: 80,
+    });
   });
 
   it('moves freely and does not draw guides when canvas snapping is disabled', () => {
@@ -1670,11 +1767,12 @@ describe('PreviewPanel', () => {
     fireEvent.pointerUp(canvas, { clientX: 688, clientY: 140, pointerId: 1 });
 
     expect(drawCalls.some((call) => call.kind === 'moveTo')).toBe(false);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 478, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 478,
+      y: 80,
+    });
   });
 
   it('shows a resized transform live and commits it from a corner handle', () => {
@@ -1688,21 +1786,23 @@ describe('PreviewPanel', () => {
 
     expect(screen.getByLabelText('宽度')).toHaveValue(370);
     expect(screen.getByLabelText('高度')).toHaveValue(220);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 180, width: 320, x: 100, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 180,
+      width: 320,
+      x: 100,
+      y: 80,
+    });
 
     fireEvent.pointerUp(canvas, { clientX: 640, clientY: 320, pointerId: 1 });
 
     expect(screen.getByLabelText('宽度')).toHaveValue(370);
     expect(screen.getByLabelText('高度')).toHaveValue(220);
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 220, width: 370, x: 100, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 220,
+      width: 370,
+      x: 100,
+      y: 80,
+    });
   });
 
   it('keeps the initial aspect ratio when shift-resizing from a corner handle', () => {
@@ -1720,11 +1820,12 @@ describe('PreviewPanel', () => {
     });
     fireEvent.pointerUp(canvas, { clientX: 640, clientY: 320, pointerId: 1 });
 
-    expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'clip-overlay')?.transform,
-    ).toEqual({ height: 211, width: 375, x: 100, y: 80 });
+    expect(getMediaClipById('clip-overlay').transform).toEqual({
+      height: 211,
+      width: 375,
+      x: 100,
+      y: 80,
+    });
   });
 
   it('resizes continuously when opposing pointer axes cross the control threshold', () => {
