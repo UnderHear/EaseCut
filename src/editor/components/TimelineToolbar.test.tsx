@@ -84,23 +84,39 @@ describe('TimelineToolbar', () => {
   it('only shows the import action when the editor provides an import handler', async () => {
     const user = userEvent.setup();
     const onRequestImport = vi.fn();
+    const onRequestAddTitle = vi.fn();
     const { rerender } = renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar
+        onRequestAddTitle={onRequestAddTitle}
+        onRequestPreviewFullscreen={vi.fn()}
+      />,
     );
 
     expect(
       screen.queryByRole('button', { name: '导入素材' }),
     ).not.toBeInTheDocument();
+    const titleButtonWithoutImport = screen.getByRole('button', {
+      name: '添加标题',
+    });
+    expect(titleButtonWithoutImport.querySelector('.lucide-type')).not.toBeNull();
+    await user.click(titleButtonWithoutImport);
+    expect(onRequestAddTitle).toHaveBeenCalledOnce();
 
     rerender(
       <TimelineToolbar
+        onRequestAddTitle={onRequestAddTitle}
         onRequestImport={onRequestImport}
         onRequestPreviewFullscreen={vi.fn()}
       />,
     );
 
     const importButton = screen.getByRole('button', { name: '导入素材' });
+    const titleButton = screen.getByRole('button', { name: '添加标题' });
     expect(importButton).toHaveAttribute('title', '导入素材');
+    expect(
+      importButton.compareDocumentPosition(titleButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await user.click(importButton);
     expect(onRequestImport).toHaveBeenCalledOnce();
   });

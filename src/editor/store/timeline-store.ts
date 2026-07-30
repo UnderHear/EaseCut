@@ -3,6 +3,9 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import { createCompositionSnapshot } from '../core/composition';
 import { createCompositionExportPayload } from '../core/export-schema';
 import {
+  addTextClip,
+  changeTextClipProperties,
+  changeTextClipTiming,
   changeClipSpeed,
   createDefaultClipTransform,
   deleteClip,
@@ -19,6 +22,8 @@ import {
   transformClip,
   trimClip,
   type MoveClipParams,
+  type ChangeTextClipPropertiesParams,
+  type ChangeTextClipTimingParams,
   type ChangeClipSpeedParams,
   type TimelineEdit,
   type TimelineEditResult,
@@ -38,6 +43,7 @@ export {
   AUDIO_TRACK_ID_PREFIX,
   DYNAMIC_VIDEO_TRACK_ID_PREFIX,
   MAIN_VIDEO_TRACK_ID,
+  TEXT_TRACK_ID_PREFIX,
   isDynamicVideoTrack,
   normalizeTimelineTracks,
   type TrackDropTarget,
@@ -64,14 +70,16 @@ import type {
   CompositionExportPayload,
   TimelineCanvasSize,
   TimelineClip,
+  TimelineMediaClip,
   TimelineClipTransform,
   TimelineSnapshot,
   TimelineTrack,
   VideoTimelineDraft,
   VideoTimelineSource,
 } from '../types';
+import { isTimelineMediaClip } from '../core/model';
 
-export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 7;
+export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 8;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
   width: 1280,
@@ -123,6 +131,7 @@ export type TimelineDraftSource = Pick<
 >;
 
 export type TimelineActions = {
+  addTextClip: (text: string) => void;
   commitClipDrop: (params: CommitClipDropParams) => void;
   commitClipSpeed: (params: CommitClipSpeedParams) => void;
   commitClipTransform: (params: CommitClipTransformParams) => void;
@@ -132,6 +141,10 @@ export type TimelineActions = {
     previousVolume: number,
     volume: number,
   ) => void;
+  commitTextClipProperties: (
+    params: ChangeTextClipPropertiesParams,
+  ) => void;
+  commitTextClipTiming: (params: ChangeTextClipTimingParams) => void;
   copySelectedClip: () => void;
   createExportPayload: () => CompositionExportPayload;
   deleteSelectedClip: () => void;
@@ -322,7 +335,11 @@ const createInitialState = (params?: ResetTimelineParams): TimelineState => {
         cloneClips(snapshot.clips),
       ),
     );
-    const sourceIds = new Set(state.clips.map((clip) => clip.sourceId));
+    const sourceIds = new Set(
+      state.clips.flatMap((clip) =>
+        isTimelineMediaClip(clip) ? [clip.sourceId] : [],
+      ),
+    );
     const merged = mergeSources(
       state,
       params.sources ?? [],
@@ -398,6 +415,7 @@ function mergeSources(
     trackId: string;
   }> = [];
   const mergedExistingClips = state.clips.map((clip) => {
+    if (!isTimelineMediaClip(clip)) return clip;
     const source = sourceById.get(clip.sourceId);
     if (!source || source.type !== clip.type) return clip;
     const durationUs = getSourceDurationUs(source);
@@ -536,6 +554,17 @@ export const createTimelineStore = (
     return {
       ...createInitialState(params),
 
+      addTextClip: (text) => {
+        const state = get();
+        commit(
+          addTextClip(asEdit(state), {
+            canvasSize: state.canvasSize,
+            startUs: state.currentTimeUs,
+            text,
+          }),
+        );
+      },
+
       commitClipDrop: (command) => commit(moveClip(asEdit(get()), command)),
 
       commitClipSpeed: (command) =>
@@ -554,6 +583,11 @@ export const createTimelineStore = (
 
       commitClipVolume: (clipId, previousVolume, volume) => {
         const state = get();
+        const target = state.clips.find(
+          (clip): clip is TimelineMediaClip =>
+            clip.id === clipId && isTimelineMediaClip(clip),
+        );
+        if (!target) return;
         const nextVolume = normalizeClipVolume(volume);
         const previous = normalizeClipVolume(previousVolume);
         if (nextVolume === previous) return;
@@ -564,15 +598,25 @@ export const createTimelineStore = (
             {
               ...createSnapshot(state),
               clips: state.clips.map((clip) =>
-                clip.id === clipId ? { ...clip, volume: previous } : clip,
+                clip.id === clipId && isTimelineMediaClip(clip)
+                  ? { ...clip, volume: previous }
+                  : clip,
               ),
             },
           ],
           clips: state.clips.map((clip) =>
-            clip.id === clipId ? { ...clip, volume: nextVolume } : clip,
+            clip.id === clipId && isTimelineMediaClip(clip)
+              ? { ...clip, volume: nextVolume }
+              : clip,
           ),
         });
       },
+
+      commitTextClipProperties: (params) =>
+        commit(changeTextClipProperties(asEdit(get()), params)),
+
+      commitTextClipTiming: (params) =>
+        commit(changeTextClipTiming(asEdit(get()), params)),
 
       copySelectedClip: () => {
         const state = get();
@@ -674,7 +718,7 @@ export const createTimelineStore = (
       setClipVolume: (clipId, volume) =>
         set((state) => ({
           clips: state.clips.map((clip) =>
-            clip.id === clipId
+            clip.id === clipId && isTimelineMediaClip(clip)
               ? { ...clip, volume: normalizeClipVolume(volume) }
               : clip,
           ),
@@ -772,6 +816,9 @@ export const selectHasAudibleMedia = (
 ) => {
   const tracksById = new Map(state.tracks.map((track) => [track.id, track]));
   return state.clips.some(
-    (clip) => !tracksById.get(clip.trackId)?.muted && clip.volume > 0,
+    (clip) =>
+      isTimelineMediaClip(clip) &&
+      !tracksById.get(clip.trackId)?.muted &&
+      clip.volume > 0,
   );
 };

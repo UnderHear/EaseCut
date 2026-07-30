@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { useTimelineStore } from '../store/timeline-store-context';
 import type {
-  TimelineClip,
+  TimelineMediaClip,
   TimelineClipTimingPreview,
   TimelineClipTransform,
 } from '../types';
@@ -17,7 +17,7 @@ type VideoInspectorSection = 'basic' | 'background' | 'speed';
 type TransformField = keyof TimelineClipTransform;
 
 type VideoFloatingInspectorProps = {
-  clip: TimelineClip;
+  clip: TimelineMediaClip & { type: 'video' };
   previewTiming: TimelineClipTimingPreview | null;
   previewTransform: {
     clipId: string;

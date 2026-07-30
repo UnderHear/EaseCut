@@ -1,7 +1,7 @@
 import { Gauge, Music2 } from 'lucide-react';
 import { useState } from 'react';
 
-import type { TimelineClip, TimelineClipTimingPreview } from '../types';
+import type { TimelineMediaClip, TimelineClipTimingPreview } from '../types';
 import { FloatingInspectorBasicPanel } from './FloatingInspectorBasicPanel';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
 import { FloatingInspectorSpeedPanel } from './FloatingInspectorSpeedPanel';
@@ -9,7 +9,7 @@ import { FloatingInspectorSpeedPanel } from './FloatingInspectorSpeedPanel';
 type AudioInspectorSection = 'basic' | 'speed';
 
 type AudioFloatingInspectorProps = {
-  clip: TimelineClip;
+  clip: TimelineMediaClip & { type: 'audio' };
   previewTiming: TimelineClipTimingPreview | null;
 };
 

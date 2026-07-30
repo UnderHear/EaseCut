@@ -10,7 +10,10 @@ import {
 } from '../core/timeline-math';
 import { secondsToMicroseconds } from '../core/time';
 import { MAIN_VIDEO_TRACK_ID } from '../store/timeline-store';
-import type { TimelineClip, TimelineTrack } from '../types';
+import type {
+  TimelineMediaClip,
+  TimelineTrack,
+} from '../types';
 import {
   renderWithEditorProviders,
   resetTestTimelineStore,
@@ -58,7 +61,10 @@ const overlayVideoTrack: TimelineTrack = {
   zIndex: 1,
 };
 
-const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
+const createClip = (
+  patch: Partial<TimelineMediaClip>,
+): TimelineMediaClip => {
+  const clip = {
   durationUs: secondsToMicroseconds(4),
   id: 'video-clip',
   name: 'opening.mp4',
@@ -75,7 +81,20 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
   volume: 1,
   zIndex: 0,
   ...patch,
-});
+  };
+  return clip.type === 'audio'
+    ? { ...clip, type: 'audio' }
+    : { ...clip, type: 'video' };
+};
+const getStoreMediaClip = (clipId: string) => {
+  const clip = testTimelineStore
+    .getState()
+    .clips.find((candidate) => candidate.id === clipId);
+  if (!clip || clip.type === 'text') {
+    throw new Error(`Expected media clip ${clipId}`);
+  }
+  return clip;
+};
 
 const videoClip = createClip({});
 const audioClip = createClip({
@@ -374,6 +393,52 @@ describe('TimelineViewport DOM interactions', () => {
         width: image.style.width,
       })),
     ).toEqual(thumbnailStateBeforeTrim);
+  });
+
+  it('renders a dedicated text track and title clip without mute controls', () => {
+    const textTrack: TimelineTrack = {
+      id: 'text-track-1',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 2,
+    };
+    testTimelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        {
+          alignType: 1,
+          durationUs: secondsToMicroseconds(5),
+          fontColor: '#FFFFFFFF',
+          fontSize: 120,
+          fontType: 'SY_Black',
+          id: 'text-clip-1',
+          startUs: 0,
+          text: '我们的精彩旅程',
+          trackId: textTrack.id,
+          transform: { height: 200, width: 1_800, x: 60, y: 440 },
+          type: 'text',
+          zIndex: 0,
+        },
+      ],
+      tracks: [...state.tracks, textTrack],
+    }));
+
+    renderTimeline();
+
+    expect(screen.getByTitle('文字轨道')).toHaveClass(
+      'ec-timeline-track__icon',
+    );
+    expect(
+      screen.queryByRole('button', { name: /文字轨道.*静音/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('article', {
+        name: 'text clip: 我们的精彩旅程',
+      }),
+    ).toHaveAttribute('data-type', 'text');
+    expect(screen.getAllByText('我们的精彩旅程')).toHaveLength(2);
+    expect(screen.getByText('00:05:00')).toBeVisible();
   });
 
   it('requests and lays out video frames at speed-adjusted source density', () => {
@@ -2091,11 +2156,9 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 11,
     });
 
-    expect(testTimelineStore.getState().clips.find((clip) => clip.id === audioClip.id)?.volume).toBe(1);
+    expect(getStoreMediaClip(audioClip.id).volume).toBe(1);
     expect(
-      testTimelineStore
-        .getState()
-        .clips.find((clip) => clip.id === 'audio-clip-independent')?.volume,
+      getStoreMediaClip('audio-clip-independent').volume,
     ).toBe(0.2);
     expect(
       screen.getByRole('button', {
@@ -2138,7 +2201,7 @@ describe('TimelineViewport DOM interactions', () => {
       pointerId: 13,
     });
 
-    expect(testTimelineStore.getState().clips.find((clip) => clip.id === audioClip.id)?.volume).toBe(0.75);
+    expect(getStoreMediaClip(audioClip.id).volume).toBe(0.75);
     expect(testTimelineStore.getState().past).toHaveLength(0);
   });
 });

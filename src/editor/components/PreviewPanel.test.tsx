@@ -13,7 +13,11 @@ import {
   DEFAULT_COMPOSITION_CANVAS_SIZE,
   MAIN_VIDEO_TRACK_ID,
 } from '../store/timeline-store';
-import type { TimelineClip, TimelineTrack } from '../types';
+import type {
+  TimelineMediaClip,
+  TimelineTextClip,
+  TimelineTrack,
+} from '../types';
 import { PreviewAudioEngine } from '../media/preview-audio-engine';
 import { PreviewPanel } from './PreviewPanel';
 import {
@@ -41,6 +45,7 @@ type CanvasDrawCall = {
     | 'clip'
     | 'drawImage'
     | 'fill'
+    | 'fillText'
     | 'fillRect'
     | 'lineTo'
     | 'moveTo'
@@ -81,7 +86,10 @@ const audioTrack: TimelineTrack = {
   zIndex: 2,
 };
 
-const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
+const createClip = (
+  patch: Partial<TimelineMediaClip>,
+): TimelineMediaClip => {
+  const clip = {
   durationUs: secondsToMicroseconds(5),
   id: 'clip-main',
   name: 'clip.mp4',
@@ -98,7 +106,11 @@ const createClip = (patch: Partial<TimelineClip>): TimelineClip => ({
   volume: 1,
   zIndex: 0,
   ...patch,
-});
+  };
+  return clip.type === 'audio'
+    ? { ...clip, type: 'audio' }
+    : { ...clip, type: 'video' };
+};
 
 describe('PreviewPanel', () => {
   const originalUserAgent = window.navigator.userAgent;
@@ -125,6 +137,7 @@ describe('PreviewPanel', () => {
   let drawImageMock: ReturnType<typeof vi.fn>;
   let drawCalls: CanvasDrawCall[];
   let fillRectMock: ReturnType<typeof vi.fn>;
+  let fillTextMock: ReturnType<typeof vi.fn>;
   let mediaReadyState: number;
   let preservesPitchByMedia: WeakMap<HTMLMediaElement, boolean>;
   let preservesPitchWrites: Array<{
@@ -143,6 +156,7 @@ describe('PreviewPanel', () => {
       });
     drawImageMock = createCanvasCallMock('drawImage');
     fillRectMock = createCanvasCallMock('fillRect');
+    fillTextMock = createCanvasCallMock('fillText');
     mediaReadyState = 4;
     preservesPitchByMedia = new WeakMap();
     preservesPitchWrites = [];
@@ -202,6 +216,8 @@ describe('PreviewPanel', () => {
             fill: createCanvasCallMock('fill'),
             fillRect: fillRectMock,
             fillStyle: '',
+            fillText: fillTextMock,
+            font: '',
             lineWidth: 0,
             lineTo: createCanvasCallMock('lineTo'),
             moveTo: createCanvasCallMock('moveTo'),
@@ -213,6 +229,8 @@ describe('PreviewPanel', () => {
             stroke: createCanvasCallMock('stroke'),
             strokeRect: strokeRectMock,
             strokeStyle: '',
+            textAlign: 'start',
+            textBaseline: 'alphabetic',
           }
         : null) as HTMLCanvasElement['getContext']);
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
@@ -458,6 +476,45 @@ describe('PreviewPanel', () => {
     await waitFor(() => {
       expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
     });
+  });
+
+  it('draws active text with its content, transform, font and alignment', () => {
+    const textTrack: TimelineTrack = {
+      id: 'text-track-1',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 3,
+    };
+    const textClip: TimelineTextClip = {
+      alignType: 1,
+      durationUs: secondsToMicroseconds(5),
+      fontColor: '#12345680',
+      fontSize: 120,
+      fontType: 'SY_Black',
+      id: 'text-clip-1',
+      startUs: 0,
+      text: '我们的精彩旅程',
+      trackId: textTrack.id,
+      transform: { height: 200, width: 1_000, x: 100, y: 300 },
+      type: 'text',
+      zIndex: 0,
+    };
+    testTimelineStore.setState((state) => ({
+      clips: [...state.clips, textClip],
+      tracks: [...state.tracks, textTrack],
+    }));
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    expect(fillTextMock).toHaveBeenCalledWith(
+      '我们的精彩旅程',
+      600,
+      400,
+      1_000,
+    );
   });
 
   it('maps timeline time and playback rate for speed-adjusted video and audio', async () => {

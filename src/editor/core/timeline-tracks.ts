@@ -4,6 +4,7 @@ export const MAIN_VIDEO_TRACK_ID = 'video-main';
 export const DYNAMIC_VIDEO_TRACK_ID_PREFIX = 'video-overlay-';
 export const AUDIO_TRACK_ID_PREFIX = 'audio-track-';
 export const AUDIO_SOURCE_TRACK_ID_PREFIX = 'audio-source-track-';
+export const TEXT_TRACK_ID_PREFIX = 'text-track-';
 
 export type TrackInsertTarget = {
   index: number;
@@ -18,6 +19,7 @@ export const normalizeTimelineTracks = (tracks: TimelineTrack[]) =>
   [
     ...tracks.filter((track) => track.type === 'video'),
     ...tracks.filter((track) => track.type === 'audio'),
+    ...tracks.filter((track) => track.type === 'text'),
   ].map((track, zIndex) => ({
     ...track,
     zIndex,
@@ -29,6 +31,9 @@ const dynamicVideoTrackIdPattern = new RegExp(
 const dynamicAudioTrackIdPattern = new RegExp(
   `^${AUDIO_TRACK_ID_PREFIX}(\\d+)$`,
 );
+const dynamicTextTrackIdPattern = new RegExp(
+  `^${TEXT_TRACK_ID_PREFIX}(\\d+)$`,
+);
 
 export const isDynamicVideoTrack = (track: TimelineTrack) =>
   track.type === 'video' && dynamicVideoTrackIdPattern.test(track.id);
@@ -37,7 +42,9 @@ const getDynamicTrackNumber = (track: TimelineTrack) => {
   const pattern =
     track.type === 'video'
       ? dynamicVideoTrackIdPattern
-      : dynamicAudioTrackIdPattern;
+      : track.type === 'audio'
+        ? dynamicAudioTrackIdPattern
+        : dynamicTextTrackIdPattern;
   const match = pattern.exec(track.id);
   return match ? Number(match[1]) : 0;
 };
@@ -59,6 +66,8 @@ const getNextTrackZIndex = (tracks: TimelineTrack[]) =>
 
 const getNextAudioTrackName = (tracks: TimelineTrack[]) =>
   `音频轨 ${tracks.filter((track) => track.type === 'audio').length + 1}`;
+const getNextTextTrackName = (tracks: TimelineTrack[]) =>
+  `文字轨 ${tracks.filter((track) => track.type === 'text').length + 1}`;
 
 const createTimelineTrack = (
   tracks: TimelineTrack[],
@@ -67,7 +76,12 @@ const createTimelineTrack = (
 ): TimelineTrack => ({
   id,
   muted: false,
-  name: type === 'video' ? '视频轨' : getNextAudioTrackName(tracks),
+  name:
+    type === 'video'
+      ? '视频轨'
+      : type === 'audio'
+        ? getNextAudioTrackName(tracks)
+        : getNextTextTrackName(tracks),
   type,
   zIndex: getNextTrackZIndex(tracks),
 });
@@ -81,7 +95,9 @@ const createDynamicTrack = (
     type,
     type === 'video'
       ? `${DYNAMIC_VIDEO_TRACK_ID_PREFIX}${getNextDynamicTrackNumber(tracks, type)}`
-      : `${AUDIO_TRACK_ID_PREFIX}${getNextDynamicTrackNumber(tracks, type)}`,
+      : type === 'audio'
+        ? `${AUDIO_TRACK_ID_PREFIX}${getNextDynamicTrackNumber(tracks, type)}`
+        : `${TEXT_TRACK_ID_PREFIX}${getNextDynamicTrackNumber(tracks, type)}`,
   );
 
 export const getSafeTrackInsertIndex = (
@@ -91,9 +107,21 @@ export const getSafeTrackInsertIndex = (
   const videoTrackCount = tracks.filter(
     (track) => track.type === 'video',
   ).length;
-  const minimum = target.type === 'video' ? 0 : videoTrackCount;
+  const audioTrackCount = tracks.filter(
+    (track) => track.type === 'audio',
+  ).length;
+  const minimum =
+    target.type === 'video'
+      ? 0
+      : target.type === 'audio'
+        ? videoTrackCount
+        : videoTrackCount + audioTrackCount;
   const maximum =
-    target.type === 'video' ? videoTrackCount : tracks.length;
+    target.type === 'video'
+      ? videoTrackCount
+      : target.type === 'audio'
+        ? videoTrackCount + audioTrackCount
+        : tracks.length;
 
   return Math.min(Math.max(minimum, target.index), maximum);
 };

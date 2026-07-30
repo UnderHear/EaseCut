@@ -30,6 +30,10 @@ import {
   getSpeedAdjustedPixelsPerSecond,
   scaleTimelineOffsetToSourceUs,
 } from '../core/clip-speed';
+import {
+  getTimelineClipLabel,
+  isTimelineMediaClip,
+} from '../core/model';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
 import {
   durationUsToWidth,
@@ -76,6 +80,11 @@ const useTimelineClipPresentation = (
   visibleTimeEndUs: number,
   visibleTimeStartUs: number,
 ) => {
+  const mediaSourceDurationUs =
+    clip.type === 'text' ? 0 : clip.sourceDurationUs;
+  const mediaSpeed = clip.type === 'text' ? 1 : clip.speed;
+  const mediaSrc = clip.type === 'text' ? '' : clip.src;
+  const mediaTrimStartUs = clip.type === 'text' ? 0 : clip.trimStartUs;
   const previewRequest = useMemo<FramePreviewRequest | null>(() => {
     if (
       clip.type !== 'video' ||
@@ -91,30 +100,30 @@ const useTimelineClipPresentation = (
     );
     const sourcePixelsPerSecond = getSpeedAdjustedPixelsPerSecond(
       pixelsPerSecond,
-      clip.speed,
+      mediaSpeed,
     );
     const visibleSourceStartUs =
-      clip.trimStartUs +
+      mediaTrimStartUs +
       scaleTimelineOffsetToSourceUs(
         visibleTimeStartUs - timelineStartUs,
-        clip.speed,
+        mediaSpeed,
       );
     const visibleSourceEndUs =
-      clip.trimStartUs +
+      mediaTrimStartUs +
       scaleTimelineOffsetToSourceUs(
         visibleTimeEndUs - timelineStartUs,
-        clip.speed,
+        mediaSpeed,
       );
     const sourceOverscanUs = scaleTimelineOffsetToSourceUs(
       viewportDurationUs,
-      clip.speed,
+      mediaSpeed,
     );
     const rawRangeStartUs = Math.max(
       0,
       visibleSourceStartUs - sourceOverscanUs,
     );
     const rawRangeEndUs = Math.min(
-      clip.sourceDurationUs,
+      mediaSourceDurationUs,
       visibleSourceEndUs + sourceOverscanUs,
     );
     const rangeStartUs = Math.max(
@@ -124,7 +133,7 @@ const useTimelineClipPresentation = (
       ) * FRAME_PREVIEW_CHUNK_DURATION_US,
     );
     const rangeEndUs = Math.min(
-      clip.sourceDurationUs,
+      mediaSourceDurationUs,
       Math.ceil(rawRangeEndUs / FRAME_PREVIEW_CHUNK_DURATION_US) *
         FRAME_PREVIEW_CHUNK_DURATION_US,
     );
@@ -134,15 +143,15 @@ const useTimelineClipPresentation = (
       pixelsPerSecond: sourcePixelsPerSecond,
       rangeEndUs,
       rangeStartUs,
-      sourceDurationUs: clip.sourceDurationUs,
-      src: clip.src,
+      sourceDurationUs: mediaSourceDurationUs,
+      src: mediaSrc,
     };
   }, [
     clip.durationUs,
-    clip.sourceDurationUs,
-    clip.speed,
-    clip.src,
-    clip.trimStartUs,
+    mediaSourceDurationUs,
+    mediaSpeed,
+    mediaSrc,
+    mediaTrimStartUs,
     clip.type,
     pixelsPerSecond,
     timelineStartUs,
@@ -156,17 +165,17 @@ const useTimelineClipPresentation = (
         ? getAudioWaveformTiles({
             clipDurationUs: clip.durationUs,
             pixelsPerSecond,
-            speed: clip.speed,
+            speed: mediaSpeed,
             timelineStartUs,
-            trimStartUs: clip.trimStartUs,
+            trimStartUs: mediaTrimStartUs,
             visibleTimeEndUs,
             visibleTimeStartUs,
           })
         : [],
     [
       clip.durationUs,
-      clip.speed,
-      clip.trimStartUs,
+      mediaSpeed,
+      mediaTrimStartUs,
       clip.type,
       pixelsPerSecond,
       timelineStartUs,
@@ -175,14 +184,14 @@ const useTimelineClipPresentation = (
     ],
   );
   const waveformSamples = useAudioWaveformSamples(
-    clip.waveformSrc ?? clip.src,
+    clip.type === 'audio' ? (clip.waveformSrc ?? clip.src) : '',
     waveformTiles.length > 0,
     HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   );
 
   return {
     previewStrip,
-    volume: clampUnit(clip.volume),
+    volume: isTimelineMediaClip(clip) ? clampUnit(clip.volume) : 1,
     waveformTiles,
     waveformSamples,
   };
@@ -207,16 +216,23 @@ function TimelineClipVisual({
 }: TimelineClipVisualProps) {
   const previewPixelsPerSecond =
     previewStrip?.pixelsPerSecond ??
-    getSpeedAdjustedPixelsPerSecond(pixelsPerSecond, clip.speed);
+    getSpeedAdjustedPixelsPerSecond(
+      pixelsPerSecond,
+      isTimelineMediaClip(clip) ? clip.speed : 1,
+    );
   const previewOffset = durationUsToWidth(
-    clip.trimStartUs,
+    isTimelineMediaClip(clip) ? clip.trimStartUs : 0,
     previewPixelsPerSecond,
   );
 
   return (
     <>
       <div className='ec-timeline-clip__media'>
-        {clip.type === 'video' ? (
+        {clip.type === 'text' ? (
+          <div aria-hidden='true' className='ec-timeline-clip__text-preview'>
+            {clip.text}
+          </div>
+        ) : clip.type === 'video' ? (
           <div
             className='ec-timeline-clip__preview-strip'
             aria-hidden='true'
@@ -258,8 +274,11 @@ function TimelineClipVisual({
       </div>
 
       <header className='ec-timeline-clip__meta'>
-        <span className='ec-timeline-clip__name' title={clip.name}>
-          {clip.name}
+        <span
+          className='ec-timeline-clip__name'
+          title={getTimelineClipLabel(clip)}
+        >
+          {getTimelineClipLabel(clip)}
         </span>
         <time
           className='ec-timeline-clip__duration'
@@ -323,9 +342,13 @@ export function TimelineClipView({
       if (event.button === 0) onTrimStart(event, clip, edge);
     };
   const isTrimmedAt = (edge: TimelineClipTrimEdge) =>
-    edge === 'start'
-      ? clip.trimStartUs > 0
-      : clip.trimEndUs < clip.sourceDurationUs;
+    isTimelineMediaClip(clip) &&
+    (
+      edge === 'start'
+        ? clip.trimStartUs > 0
+        : clip.trimEndUs < clip.sourceDurationUs
+    );
+  const clipLabel = getTimelineClipLabel(clip);
   const handleContextMenu = (event: MouseEvent<HTMLElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const pointerRatio =
@@ -342,7 +365,7 @@ export function TimelineClipView({
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
         <article
-          aria-label={`${clip.type} clip: ${clip.name}`}
+          aria-label={`${clip.type} clip: ${clipLabel}`}
           className='ec-timeline-clip'
           data-clip-id={clip.id}
           data-selected={isSelected}
@@ -368,7 +391,7 @@ export function TimelineClipView({
 
           {clip.type === 'audio' && (
             <button
-              aria-label={`Adjust ${clip.name} volume, ${Math.round(volume * 100)} percent`}
+              aria-label={`Adjust ${clipLabel} volume, ${Math.round(volume * 100)} percent`}
               className='ec-timeline-clip__volume'
               onPointerDown={(event) => {
                 event.stopPropagation();
@@ -383,7 +406,7 @@ export function TimelineClipView({
           {isSelected &&
             (['start', 'end'] as const).map((edge) => (
               <button
-                aria-label={`Trim ${edge} of ${clip.name}`}
+                aria-label={`Trim ${edge} of ${clipLabel}`}
                 className='ec-timeline-clip__trim-handle'
                 data-edge={edge}
                 data-trimmed={isTrimmedAt(edge)}
@@ -397,7 +420,7 @@ export function TimelineClipView({
 
       <ContextMenu.Portal>
         <ContextMenu.Content
-          aria-label={`${clip.name} 操作菜单`}
+          aria-label={`${clipLabel} 操作菜单`}
           className='ec-clip-context-menu'
           collisionPadding={8}
           onPointerDown={(event) => event.stopPropagation()}
@@ -426,15 +449,19 @@ export function TimelineClipView({
             <ClipboardPaste aria-hidden='true' />
             <span>粘贴</span>
           </ContextMenu.Item>
-          <ContextMenu.Separator className='ec-clip-context-menu__separator' />
-          <ContextMenu.Item
-            className='ec-clip-context-menu__item'
-            onSelect={() => void onDownload()}
-          >
-            <Download aria-hidden='true' />
-            <span>下载原始素材</span>
-          </ContextMenu.Item>
-          <ContextMenu.Separator className='ec-clip-context-menu__separator' />
+          {isTimelineMediaClip(clip) && (
+            <>
+              <ContextMenu.Separator className='ec-clip-context-menu__separator' />
+              <ContextMenu.Item
+                className='ec-clip-context-menu__item'
+                onSelect={() => void onDownload()}
+              >
+                <Download aria-hidden='true' />
+                <span>下载原始素材</span>
+              </ContextMenu.Item>
+              <ContextMenu.Separator className='ec-clip-context-menu__separator' />
+            </>
+          )}
           <ContextMenu.Item
             className='ec-clip-context-menu__item ec-clip-context-menu__item--danger'
             onSelect={onDelete}

@@ -6,11 +6,11 @@ import {
   MIN_CLIP_SPEED,
 } from '../core/clip-speed';
 import { useTimelineStore } from '../store/timeline-store-context';
-import type { TimelineClip } from '../types';
+import type { TimelineMediaClip } from '../types';
 import { InputNumber } from './ui/InputNumber';
 
 type FloatingInspectorSpeedPanelProps = {
-  clip: TimelineClip;
+  clip: TimelineMediaClip;
 };
 
 export function FloatingInspectorSpeedPanel({

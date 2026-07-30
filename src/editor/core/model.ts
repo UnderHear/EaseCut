@@ -1,13 +1,15 @@
 export type TimelineMediaType = 'video' | 'audio';
+export type TimelineClipType = TimelineMediaType | 'text';
 export type TimelineClipTrimEdge = 'start' | 'end';
 export type TimelineClipSpeed = number;
 export type TimelineClipVolume = number;
+export type TimelineTextAlign = 0 | 1 | 2;
 
 export type TimelineTrack = {
   id: string;
   muted: boolean;
   name: string;
-  type: TimelineMediaType;
+  type: TimelineClipType;
   zIndex: number;
 };
 
@@ -18,24 +20,58 @@ export type TimelineClipTransform = {
   y: number;
 };
 
-export type TimelineClip = {
+type TimelineClipBase = {
   durationUs: number;
   id: string;
+  startUs: number;
+  trackId: string;
+  transform: TimelineClipTransform;
+  zIndex: number;
+};
+
+type TimelineMediaClipFields = TimelineClipBase & {
   name: string;
   sourceDurationUs: number;
   sourceId: string;
   speed: TimelineClipSpeed;
   src: string;
-  startUs: number;
-  trackId: string;
-  transform: TimelineClipTransform;
   trimEndUs: number;
   trimStartUs: number;
-  type: TimelineMediaType;
   volume: TimelineClipVolume;
   waveformSrc?: string;
-  zIndex: number;
 };
+
+export type TimelineVideoClip = TimelineMediaClipFields & {
+  type: 'video';
+};
+
+export type TimelineAudioClip = TimelineMediaClipFields & {
+  type: 'audio';
+};
+
+export type TimelineMediaClip = TimelineVideoClip | TimelineAudioClip;
+
+export type TimelineTextClip = TimelineClipBase & {
+  alignType: TimelineTextAlign;
+  fontColor: string;
+  fontSize: number;
+  fontType: TimelineTextFontType;
+  text: string;
+  type: 'text';
+};
+
+export type TimelineClip = TimelineMediaClip | TimelineTextClip;
+
+export const isTimelineMediaClip = (
+  clip: TimelineClip,
+): clip is TimelineMediaClip => clip.type !== 'text';
+
+export const isTimelineTextClip = (
+  clip: TimelineClip,
+): clip is TimelineTextClip => clip.type === 'text';
+
+export const getTimelineClipLabel = (clip: TimelineClip) =>
+  clip.type === 'text' ? clip.text : clip.name;
 
 export type TimelineCanvasSize = {
   height: number;
@@ -45,7 +81,7 @@ export type TimelineCanvasSize = {
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
-  schemaVersion: 7;
+  schemaVersion: 8;
   tracks: TimelineTrack[];
 };
 
@@ -90,7 +126,7 @@ export type CompositionExportVolume = {
   Volume: TimelineClipVolume;
 };
 
-export type CompositionExportClip = {
+export type CompositionExportMediaClip = {
   Extra: Array<
     | CompositionExportSpeed
     | CompositionExportTransform
@@ -102,10 +138,25 @@ export type CompositionExportClip = {
   Type: TimelineMediaType;
 };
 
+export type CompositionExportTextClip = {
+  AlignType: TimelineTextAlign;
+  Extra: [CompositionExportTransform];
+  FontColor: string;
+  FontSize: number;
+  FontType: TimelineTextFontType;
+  TargetTime: [number, number];
+  Text: string;
+  Type: 'text';
+};
+
+export type CompositionExportClip =
+  | CompositionExportMediaClip
+  | CompositionExportTextClip;
+
 export type CompositionExportPayload = {
   Canvas: CompositionExportCanvas;
   Track: CompositionExportClip[][];
 };
 
-export type TimelineClipType = TimelineMediaType;
 export type VideoTimelineDraft = TimelineProject;
+import type { TimelineTextFontType } from './text-fonts';

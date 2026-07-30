@@ -21,6 +21,29 @@ const createPayload = (
   Track: snapshot.tracks.map((track) =>
     getCompositionTrackClips(snapshot, track.id)
       .map((clip) => {
+        const targetTime = [
+          microsecondsToMilliseconds(clip.startUs),
+          microsecondsToMilliseconds(clip.startUs + clip.durationUs),
+        ] as [number, number];
+        const transform = {
+          Height: Math.round(clip.transform.height),
+          PosX: Math.round(clip.transform.x),
+          PosY: Math.round(clip.transform.y),
+          Type: 'transform' as const,
+          Width: Math.round(clip.transform.width),
+        };
+        if (clip.type === 'text') {
+          return {
+            AlignType: clip.alignType,
+            Extra: [transform] as [typeof transform],
+            FontColor: clip.fontColor.toUpperCase(),
+            FontSize: clip.fontSize,
+            FontType: clip.fontType,
+            TargetTime: targetTime,
+            Text: clip.text,
+            Type: 'text' as const,
+          };
+        }
         const trim = {
           EndTime: microsecondsToMilliseconds(clip.trimEndUs),
           StartTime: microsecondsToMilliseconds(clip.trimStartUs),
@@ -42,20 +65,11 @@ const createPayload = (
               : [
                   trim,
                   speed,
-                  {
-                    Height: Math.round(clip.transform.height),
-                    PosX: Math.round(clip.transform.x),
-                    PosY: Math.round(clip.transform.y),
-                    Type: 'transform' as const,
-                    Width: Math.round(clip.transform.width),
-                  },
+                  transform,
                   volume,
                 ],
           Source: clip.src,
-          TargetTime: [
-            microsecondsToMilliseconds(clip.startUs),
-            microsecondsToMilliseconds(clip.startUs + clip.durationUs),
-          ] as [number, number],
+          TargetTime: targetTime,
           Type: clip.type,
         };
       }),

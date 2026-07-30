@@ -7,7 +7,13 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
-import { Music2, SquarePlay, Volume2, VolumeX } from 'lucide-react';
+import {
+  Music2,
+  SquarePlay,
+  Type as TypeIcon,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 
 import {
   createCompositionSnapshot,
@@ -372,13 +378,20 @@ export function TimelineViewport({
           {trackLayouts.map(({ height, track }) => {
             const isMainVideoTrack = track.id === MAIN_VIDEO_TRACK_ID;
             const muted = track.muted;
-            const TrackIcon = track.type === 'audio' ? Music2 : SquarePlay;
+            const TrackIcon =
+              track.type === 'audio'
+                ? Music2
+                : track.type === 'text'
+                  ? TypeIcon
+                  : SquarePlay;
             const trackLabel =
               isMainVideoTrack
                 ? '主视频轨道'
                 : track.type === 'video'
                   ? '视频轨道'
-                  : track.name;
+                  : track.type === 'text'
+                    ? '文字轨道'
+                    : track.name;
 
             return (
               <div
@@ -395,20 +408,22 @@ export function TimelineViewport({
                 >
                   <TrackIcon aria-hidden='true' />
                 </span>
-                <button
-                  aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
-                  aria-pressed={muted}
-                  className='ec-timeline-track__mute'
-                  onClick={() => toggleTrackMute(track.id)}
-                  title={muted ? '取消静音' : '静音'}
-                  type='button'
-                >
-                  {muted ? (
-                    <VolumeX aria-hidden='true' />
-                  ) : (
-                    <Volume2 aria-hidden='true' />
-                  )}
-                </button>
+                {track.type !== 'text' && (
+                  <button
+                    aria-label={`${trackLabel}${muted ? '取消静音' : '静音'}`}
+                    aria-pressed={muted}
+                    className='ec-timeline-track__mute'
+                    onClick={() => toggleTrackMute(track.id)}
+                    title={muted ? '取消静音' : '静音'}
+                    type='button'
+                  >
+                    {muted ? (
+                      <VolumeX aria-hidden='true' />
+                    ) : (
+                      <Volume2 aria-hidden='true' />
+                    )}
+                  </button>
+                )}
               </div>
             );
           })}

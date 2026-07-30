@@ -97,8 +97,7 @@ export type ClipDropPreview = {
 export type TrimPreview = {
   clipId: string;
   edge: TimelineClipTrimEdge;
-  trimEndUs: number;
-  trimStartUs: number;
+  timeUs: number;
 };
 
 export const DRAG_ACTIVATION_DISTANCE = 4;
@@ -143,8 +142,21 @@ const getTrackInsertTargets = (
   const videoTrackCount = tracks.filter(
     (track) => track.type === 'video',
   ).length;
-  const firstIndex = type === 'video' ? 0 : videoTrackCount;
-  const lastIndex = type === 'video' ? videoTrackCount : tracks.length;
+  const audioTrackCount = tracks.filter(
+    (track) => track.type === 'audio',
+  ).length;
+  const firstIndex =
+    type === 'video'
+      ? 0
+      : type === 'audio'
+        ? videoTrackCount
+        : videoTrackCount + audioTrackCount;
+  const lastIndex =
+    type === 'video'
+      ? videoTrackCount
+      : type === 'audio'
+        ? videoTrackCount + audioTrackCount
+        : tracks.length;
 
   return Array.from(
     { length: lastIndex - firstIndex + 1 },
@@ -218,6 +230,8 @@ const getDropTarget = (
 
   const hoveredTrack = getTrackAtY(tracks, pointerY);
   const videoTrackCount = tracks.filter(({ type }) => type === 'video').length;
+  const audioTrackCount = tracks.filter(({ type }) => type === 'audio').length;
+  const textStartIndex = videoTrackCount + audioTrackCount;
 
   if (hoveredTrack?.type === clip.type) {
     return {
@@ -234,7 +248,9 @@ const getDropTarget = (
   }
   if (
     clip.type === 'video' &&
-    (hoveredTrack?.type === 'audio' || pointerY >= tracksBottom)
+    (hoveredTrack?.type === 'audio' ||
+      hoveredTrack?.type === 'text' ||
+      pointerY >= tracksBottom)
   ) {
     return createInsertDropTarget(tracks, {
       index: videoTrackCount,
@@ -250,10 +266,32 @@ const getDropTarget = (
       type: 'audio',
     });
   }
-  if (clip.type === 'audio' && pointerY >= tracksBottom) {
+  if (
+    clip.type === 'audio' &&
+    (hoveredTrack?.type === 'text' || pointerY >= tracksBottom)
+  ) {
+    return createInsertDropTarget(tracks, {
+      index: textStartIndex,
+      type: 'audio',
+    });
+  }
+  if (
+    clip.type === 'text' &&
+    (
+      hoveredTrack?.type === 'video' ||
+      hoveredTrack?.type === 'audio' ||
+      pointerY < TIMELINE_RULER_HEIGHT
+    )
+  ) {
+    return createInsertDropTarget(tracks, {
+      index: textStartIndex,
+      type: 'text',
+    });
+  }
+  if (clip.type === 'text' && pointerY >= tracksBottom) {
     return createInsertDropTarget(tracks, {
       index: tracks.length,
-      type: 'audio',
+      type: 'text',
     });
   }
 

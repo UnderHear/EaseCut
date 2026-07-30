@@ -13,6 +13,7 @@ import {
   createCompositionSnapshot,
   getCompositionActiveClips,
 } from '../core/composition';
+import { getTimelineTextFontPreset } from '../core/text-fonts';
 import { timelineTimeToClipSourceTimeUs } from '../core/clip-speed';
 import {
   microsecondsToSeconds,
@@ -31,6 +32,8 @@ import type {
   TimelineClip,
   TimelineClipTimingPreview,
   TimelineClipTransform,
+  TimelineMediaClip,
+  TimelineTextClip,
   TimelineTrack,
 } from '../types';
 import { useMediaRuntime } from '../media';
@@ -80,19 +83,20 @@ const canUseMediaElement = () =>
   typeof navigator === 'undefined' ||
   !navigator.userAgent.toLowerCase().includes('jsdom');
 
-type PreviewClipIndex = ReadonlyMap<string, readonly TimelineClip[]>;
+type PreviewClipIndex = ReadonlyMap<string, readonly TimelineMediaClip[]>;
 
 const comparePreviewClipOrder = (
-  left: TimelineClip,
-  right: TimelineClip,
+  left: TimelineMediaClip,
+  right: TimelineMediaClip,
 ) => left.startUs - right.startUs || left.id.localeCompare(right.id);
 
 const createPreviewClipIndex = (
   clips: TimelineClip[],
 ): PreviewClipIndex => {
-  const clipsByTrack = new Map<string, TimelineClip[]>();
+  const clipsByTrack = new Map<string, TimelineMediaClip[]>();
 
   for (const clip of clips) {
+    if (clip.type === 'text') continue;
     const trackClips = clipsByTrack.get(clip.trackId);
     if (trackClips) {
       trackClips.push(clip);
@@ -108,7 +112,7 @@ const createPreviewClipIndex = (
 };
 
 const findNextClip = (
-  clips: readonly TimelineClip[],
+  clips: readonly TimelineMediaClip[],
   currentTimeUs: number,
 ) => {
   let lower = 0;
@@ -127,11 +131,11 @@ const findNextClip = (
 
 const getPreviewMediaClips = (
   clipIndex: PreviewClipIndex,
-  activeClips: TimelineClip[],
+  activeClips: TimelineMediaClip[],
   currentTimeUs: number,
 ) => {
   const preloadEndUs = currentTimeUs + PREVIEW_PRELOAD_LOOKAHEAD_US;
-  const preloadCandidates: TimelineClip[] = [];
+  const preloadCandidates: TimelineMediaClip[] = [];
 
   for (const trackClips of clipIndex.values()) {
     const nextClip = findNextClip(trackClips, currentTimeUs);
@@ -148,7 +152,7 @@ const getPreviewMediaClips = (
 };
 
 const getClipMediaTimeSeconds = (
-  clip: TimelineClip,
+  clip: TimelineMediaClip,
   timelineTimeUs: number,
 ) =>
   microsecondsToSeconds(
@@ -156,7 +160,7 @@ const getClipMediaTimeSeconds = (
   );
 
 type PreviewMediaElementProps = {
-  clip: TimelineClip;
+  clip: TimelineMediaClip;
   isActive: boolean;
   muted: boolean;
   onElementChange: (
@@ -164,7 +168,7 @@ type PreviewMediaElementProps = {
     element: HTMLMediaElement | null,
   ) => void;
   onLoadedMetadata: (
-    clip: TimelineClip,
+    clip: TimelineMediaClip,
     isActive: boolean,
     element: HTMLMediaElement,
   ) => void;
@@ -206,7 +210,7 @@ function PreviewMediaElement({
 }
 
 const getPreviewAudioConfiguration = (
-  clip: TimelineClip,
+  clip: TimelineMediaClip,
   tracksById: ReadonlyMap<string, TimelineTrack>,
   forceMuted = false,
 ): PreviewAudioConfiguration => ({
@@ -244,7 +248,7 @@ const getPreviewDrawKey = (
   ].join('|');
 
 const hasPendingPreviewMedia = (
-  clips: TimelineClip[],
+  clips: TimelineMediaClip[],
   previewObjectUrls: Record<string, string>,
   mediaElements: Map<string, HTMLMediaElement>,
 ) =>
@@ -341,6 +345,52 @@ const getVisibleClipAtPoint = (
   }
 
   return null;
+};
+
+const toCanvasColor = (fontColor: string) => {
+  const red = Number.parseInt(fontColor.slice(1, 3), 16);
+  const green = Number.parseInt(fontColor.slice(3, 5), 16);
+  const blue = Number.parseInt(fontColor.slice(5, 7), 16);
+  const alpha = Number.parseInt(fontColor.slice(7, 9), 16) / 255;
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
+
+const drawTextClip = (
+  context: CanvasRenderingContext2D,
+  clip: Extract<TimelineClip, { type: 'text' }>,
+  transform: TimelineClipTransform,
+  previewFrame: PreviewFrame,
+) => {
+  const previewTransform = toPreviewTransform(transform, previewFrame);
+  const preset = getTimelineTextFontPreset(clip.fontType);
+  const textAlign = clip.alignType === 0 ? 'left' : clip.alignType === 2 ? 'right' : 'center';
+  const textX =
+    textAlign === 'left'
+      ? previewTransform.x
+      : textAlign === 'right'
+        ? previewTransform.x + previewTransform.width
+        : previewTransform.x + previewTransform.width / 2;
+
+  context.save();
+  context.beginPath();
+  context.rect(
+    previewTransform.x,
+    previewTransform.y,
+    previewTransform.width,
+    previewTransform.height,
+  );
+  context.clip();
+  context.fillStyle = toCanvasColor(clip.fontColor);
+  context.font = `${clip.fontSize * previewFrame.scale}px "${preset?.family ?? 'Microsoft YaHei'}", sans-serif`;
+  context.textAlign = textAlign;
+  context.textBaseline = 'middle';
+  context.fillText(
+    clip.text,
+    textX,
+    previewTransform.y + previewTransform.height / 2,
+    previewTransform.width,
+  );
+  context.restore();
 };
 
 const getResizeHandlePosition = (
@@ -520,6 +570,10 @@ export function PreviewPanel({
   const [previewContainerSize, setPreviewContainerSize] =
     useState<TimelineCanvasSize | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
+  const [fontLoadState, setFontLoadState] = useState<{
+    key: string;
+    warning: string | null;
+  } | null>(null);
   const [playbackWarning, setPlaybackWarning] = useState<string | null>(
     null,
   );
@@ -535,6 +589,14 @@ export function PreviewPanel({
     () => activeClips.filter((clip) => clip.type === 'video'),
     [activeClips],
   );
+  const activeMediaClips = useMemo(
+    () => activeClips.filter((clip) => clip.type !== 'text'),
+    [activeClips],
+  );
+  const activeVisualClips = useMemo(
+    () => activeClips.filter((clip) => clip.type !== 'audio'),
+    [activeClips],
+  );
   const activeClipIds = useMemo(
     () => new Set(activeClips.map((clip) => clip.id)),
     [activeClips],
@@ -547,15 +609,30 @@ export function PreviewPanel({
     () =>
       getPreviewMediaClips(
         previewClipIndex,
-        activeClips,
+        activeMediaClips,
         currentTimeUs,
       ),
-    [activeClips, currentTimeUs, previewClipIndex],
+    [activeMediaClips, currentTimeUs, previewClipIndex],
   );
   const trackById = useMemo(
     () => new Map(tracks.map((track) => [track.id, track])),
     [tracks],
   );
+  const selectedTextClip = useMemo(
+    () =>
+      clips.find(
+        (clip): clip is TimelineTextClip =>
+          clip.id === selectedClipId && clip.type === 'text',
+      ) ?? null,
+    [clips, selectedClipId],
+  );
+  const selectedFontKey = selectedTextClip
+    ? `${selectedTextClip.fontType}:${selectedTextClip.fontSize}`
+    : null;
+  const fontWarning =
+    fontLoadState?.key === selectedFontKey
+      ? fontLoadState.warning
+      : null;
   const previewSourcesKey = useMemo(
     () =>
       Array.from(new Set(previewMediaClips.map((clip) => clip.src))).join(
@@ -579,7 +656,7 @@ export function PreviewPanel({
       ].join(':');
     })
     .join('\n');
-  const activeSeekConfigurationKey = activeClips
+  const activeSeekConfigurationKey = activeMediaClips
     .map((clip) =>
       [
         clip.id,
@@ -591,10 +668,19 @@ export function PreviewPanel({
       ].join(':'),
     )
     .join('\n');
-  const activeVideoVisualConfigurationKey = activeVideoClips
+  const activeVisualConfigurationKey = activeVisualClips
     .map((clip) =>
       [
         clip.id,
+        clip.type === 'text'
+          ? [
+              clip.text,
+              clip.fontType,
+              clip.fontSize,
+              clip.fontColor,
+              clip.alignType,
+            ].join(':')
+          : '',
         clip.transform.height,
         clip.transform.width,
         clip.transform.x,
@@ -602,7 +688,7 @@ export function PreviewPanel({
       ].join(':'),
     )
     .join('\n');
-  const activeClipsRef = useRef(activeClips);
+  const activeMediaClipsRef = useRef(activeMediaClips);
   const currentTimeUsRef = useRef(currentTimeUs);
   const drawPreviewRef = useRef<
     (interaction?: PreviewInteractionState | null) => void
@@ -611,20 +697,20 @@ export function PreviewPanel({
   const previewMediaClipsRef = useRef(previewMediaClips);
   const trackByIdRef = useRef(trackById);
   useEffect(() => {
-    activeClipsRef.current = activeClips;
+    activeMediaClipsRef.current = activeMediaClips;
     currentTimeUsRef.current = currentTimeUs;
     isPlayingRef.current = isPlaying;
     previewMediaClipsRef.current = previewMediaClips;
     trackByIdRef.current = trackById;
   }, [
-    activeClips,
+    activeMediaClips,
     currentTimeUs,
     isPlaying,
     previewMediaClips,
     trackById,
   ]);
   const selectedActiveClip =
-    activeVideoClips.find((clip) => clip.id === selectedClipId) ?? null;
+    activeVisualClips.find((clip) => clip.id === selectedClipId) ?? null;
   const previewCanvasSize = previewContainerSize ?? canvasSize;
   const previewFrame = useMemo(
     () => getPreviewFrame(canvasSize, previewCanvasSize),
@@ -652,7 +738,7 @@ export function PreviewPanel({
   }, []);
   const handleLoadedMediaMetadata = useCallback(
     (
-      clip: TimelineClip,
+      clip: TimelineMediaClip,
       isActive: boolean,
       element: HTMLMediaElement,
     ) => {
@@ -675,7 +761,7 @@ export function PreviewPanel({
       const selectedDrawClipId = interaction?.clipId ?? selectedClipId;
       const previewDrawKey = getPreviewDrawKey(
         canvas,
-        activeVideoClips,
+        activeVisualClips,
         previewFrame,
         selectedDrawClipId,
       );
@@ -713,28 +799,33 @@ export function PreviewPanel({
       );
       context.clip();
 
-      for (const clip of activeVideoClips) {
-        const video = mediaElementsRef.current.get(clip.id) as
-          HTMLVideoElement | undefined;
-        const objectUrl = previewObjectUrls[clip.src];
+      for (const clip of activeVisualClips) {
         const transform =
           interaction?.clipId === clip.id
             ? interaction.transform
             : clip.transform;
-        const previewTransform = toPreviewTransform(transform, previewFrame);
-
-        if (
-          video &&
-          objectUrl &&
-          video.readyState >= HAVE_CURRENT_DATA_READY_STATE
-        ) {
-          context.drawImage(
-            video,
-            previewTransform.x,
-            previewTransform.y,
-            previewTransform.width,
-            previewTransform.height,
+        if (clip.type === 'text') {
+          drawTextClip(context, clip, transform, previewFrame);
+        } else {
+          const video = mediaElementsRef.current.get(clip.id);
+          const objectUrl = previewObjectUrls[clip.src];
+          const previewTransform = toPreviewTransform(
+            transform,
+            previewFrame,
           );
+          if (
+            video instanceof HTMLVideoElement &&
+            objectUrl &&
+            video.readyState >= HAVE_CURRENT_DATA_READY_STATE
+          ) {
+            context.drawImage(
+              video,
+              previewTransform.x,
+              previewTransform.y,
+              previewTransform.width,
+              previewTransform.height,
+            );
+          }
         }
 
         if (clip.id === selectedDrawClipId) {
@@ -755,11 +846,51 @@ export function PreviewPanel({
       }
       lastPreviewDrawKeyRef.current = previewDrawKey;
     },
-    [activeVideoClips, previewFrame, previewObjectUrls, selectedClipId],
+    [
+      activeVideoClips,
+      activeVisualClips,
+      previewFrame,
+      previewObjectUrls,
+      selectedClipId,
+    ],
   );
   useEffect(() => {
     drawPreviewRef.current = drawPreview;
   }, [drawPreview]);
+
+  useEffect(() => {
+    if (!selectedTextClip || !selectedFontKey || !document.fonts) {
+      return undefined;
+    }
+    const preset = getTimelineTextFontPreset(selectedTextClip.fontType);
+    if (!preset) return undefined;
+
+    let cancelled = false;
+    document.fonts
+      .load(`${selectedTextClip.fontSize}px "${preset.family}"`)
+      .then((faces) => {
+        if (cancelled) return;
+        setFontLoadState({
+          key: selectedFontKey,
+          warning:
+            faces.length === 0
+              ? `${preset.label}加载失败，预览已使用系统字体回退`
+              : null,
+        });
+        drawPreviewRef.current(interactionRef.current);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFontLoadState({
+            key: selectedFontKey,
+            warning: `${preset.label}加载失败，预览已使用系统字体回退`,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFontKey, selectedTextClip]);
 
   useEffect(() => {
     const engine = new PreviewAudioEngine();
@@ -790,7 +921,7 @@ export function PreviewPanel({
   useEffect(() => {
     drawPreviewRef.current(interactionRef.current);
   }, [
-    activeVideoVisualConfigurationKey,
+    activeVisualConfigurationKey,
     previewCanvasSize.height,
     previewCanvasSize.width,
     previewObjectUrls,
@@ -866,7 +997,7 @@ export function PreviewPanel({
   }, [mediaRuntime, previewSourcesKey]);
 
   const syncActiveMediaToTime = useCallback((timelineTimeUs: number) => {
-    for (const clip of activeClipsRef.current) {
+    for (const clip of activeMediaClipsRef.current) {
       const media = mediaElementsRef.current.get(clip.id);
       if (!media || media.readyState < HAVE_METADATA_READY_STATE) continue;
 
@@ -902,7 +1033,7 @@ export function PreviewPanel({
 
       let hasDegradedRetime = false;
       const activeIds = new Set(
-        activeClipsRef.current.map((clip) => clip.id),
+        activeMediaClipsRef.current.map((clip) => clip.id),
       );
       for (const clip of previewMediaClipsRef.current) {
         const media = mediaElementsRef.current.get(clip.id);
@@ -953,7 +1084,7 @@ export function PreviewPanel({
 
     let cancelled = false;
     const activeIds = new Set(
-      activeClipsRef.current.map((clip) => clip.id),
+      activeMediaClipsRef.current.map((clip) => clip.id),
     );
     for (const [clipId, media] of mediaElementsRef.current) {
       if (!isPlaying || !activeIds.has(clipId)) {
@@ -965,7 +1096,7 @@ export function PreviewPanel({
 
     const startActiveMedia = async () => {
       const engine = previewAudioEngineRef.current;
-      const clipsToStart = activeClipsRef.current;
+      const clipsToStart = activeMediaClipsRef.current;
       if (engine) {
         await Promise.all(
           clipsToStart.map(async (clip) => {
@@ -1022,7 +1153,7 @@ export function PreviewPanel({
     drawPreviewRef.current(interactionRef.current);
     if (!isPlaying || !canUseMediaElement()) return undefined;
 
-    const videos = activeClipsRef.current.flatMap((clip) => {
+    const videos = activeMediaClipsRef.current.flatMap((clip) => {
       if (clip.type !== 'video') return [];
       const media = mediaElementsRef.current.get(clip.id);
       return media instanceof HTMLVideoElement ? [media] : [];
@@ -1078,7 +1209,7 @@ export function PreviewPanel({
       : null;
     const targetClip = resizeHandle
       ? selectedActiveClip
-      : (getVisibleClipAtPoint(point, activeVideoClips, canvasSize) ??
+      : (getVisibleClipAtPoint(point, activeVisualClips, canvasSize) ??
         (selectedActiveClip &&
         isPointInTransform(point, selectedActiveClip.transform)
           ? selectedActiveClip
@@ -1125,7 +1256,7 @@ export function PreviewPanel({
         : 'default';
       const visibleClip = getVisibleClipAtPoint(
         point,
-        activeVideoClips,
+        activeVisualClips,
         canvasSize,
       );
       canvas.style.cursor =
@@ -1151,7 +1282,7 @@ export function PreviewPanel({
       mode: interaction.mode,
       previewScale: previewFrame.scale,
       snappingEnabled: canvasSnappingEnabled,
-      targetTransforms: activeVideoClips
+      targetTransforms: activeVisualClips
         .filter((clip) => clip.id !== interaction.clipId)
         .map((clip) => clip.transform),
     });
@@ -1225,11 +1356,11 @@ export function PreviewPanel({
             onPointerUp={endPreviewInteraction}
             width={Math.round(previewCanvasSize.width)}
           />
-          {(mediaError || playbackWarning) && (
+          {(mediaError || playbackWarning || fontWarning) && (
             <p className='ec-preview-panel__error' role='status'>
               {mediaError
                 ? `无法加载部分媒体：${mediaError}`
-                : playbackWarning}
+                : (playbackWarning ?? fontWarning)}
             </p>
           )}
           <div aria-hidden className='ec-preview-panel__media'>

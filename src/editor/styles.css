@@ -1,3 +1,68 @@
+@font-face {
+  font-family: 'ZCOOL CangEr YuYang';
+  src: url('./assets/fonts/zcool-canger-yuyang-w03.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'ZCOOL GaoDuanHei';
+  src: url('./assets/fonts/zcool-gaoduanhei.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'ZCOOL KuHei';
+  src: url('./assets/fonts/zcool-kuhei.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'ZCOOL KuaiLe';
+  src: url('./assets/fonts/zcool-kuaile.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'ZCOOL WenYi';
+  src: url('./assets/fonts/zcool-wenyi.ttf') format('truetype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'ZCOOL XiaoWei';
+  src: url('./assets/fonts/zcool-xiaowei-logo.otf') format('opentype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Source Han Sans SC';
+  src: url('./assets/fonts/source-han-sans-cn-bold.otf') format('opentype');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Alibaba PuHuiTi';
+  src:
+    url('./assets/fonts/alibaba-puhuiti-2-regular.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
 .ec-editor {
   --ec-background: #141414;
   --ec-panel: #1d1d1d;
@@ -463,6 +528,58 @@
   margin-top: 14px;
 }
 
+.ec-floating-inspector__field {
+  display: grid;
+  gap: 7px;
+  color: var(--ec-muted-text);
+  font-size: 12px;
+}
+
+.ec-floating-inspector__field input,
+.ec-floating-inspector__field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--ec-border);
+  border-radius: 6px;
+  background: var(--ec-panel);
+  color: var(--ec-text);
+  padding: 0 9px;
+}
+
+.ec-floating-inspector__color-field {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 7px;
+}
+
+.ec-floating-inspector__color-field input[type='color'] {
+  padding: 3px;
+}
+
+.ec-floating-inspector__alignment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ec-floating-inspector__alignment button {
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  min-height: 42px;
+  border: 1px solid var(--ec-border);
+  border-radius: 6px;
+  background: var(--ec-panel);
+  color: var(--ec-muted-text);
+  font-size: 10px;
+}
+
+.ec-floating-inspector__alignment button[aria-pressed='true'] {
+  border-color: var(--ec-accent);
+  color: var(--ec-accent);
+}
+
 .ec-floating-inspector__number-grid .ec-floating-inspector__number-field {
   margin-top: 0;
 }
@@ -609,6 +726,11 @@
 }
 
 .ec-import-dialog {
+  position: fixed;
+  z-index: 51;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: min(100%, 420px);
   padding: 16px;
   border: 1px solid var(--ec-border-strong);
@@ -1081,6 +1203,10 @@
   background-color: #262626;
 }
 
+.ec-timeline-track__lane[data-type='text'] {
+  background-color: #25232d;
+}
+
 .ec-timeline-track__empty-hint {
   position: absolute;
   inset: 0;
@@ -1155,6 +1281,22 @@
 .ec-timeline-clip[data-type="audio"] {
   --ec-timeline-waveform-bar: rgb(250 245 255 / 82%);
   background: #8051ad;
+}
+
+.ec-timeline-clip[data-type='text'] {
+  background: linear-gradient(135deg, #5b3fa3, #7c4dca);
+}
+
+.ec-timeline-clip__text-preview {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  color: rgb(255 255 255 / 24%);
+  font-size: 22px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .ec-timeline-clip[data-selected="true"] {

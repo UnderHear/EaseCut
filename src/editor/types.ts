@@ -15,17 +15,27 @@ import type {
 export type {
   TimelineCanvasSize,
   TimelineClip,
+  TimelineClipType,
+  TimelineMediaClip,
+  TimelineAudioClip,
+  TimelineVideoClip,
   TimelineClipSpeed,
   TimelineClipTimingPreview,
   TimelineClipTransform,
   TimelineMediaType,
   TimelineProject,
+  TimelineTextAlign,
+  TimelineTextClip,
   TimelineSnapshot,
   TimelineTrack,
   TimelineClipVolume,
 } from './core/model';
 
 export type VideoTimelineMediaType = TimelineMediaType;
+export type {
+  TimelineTextFontPreset,
+  TimelineTextFontType,
+} from './core/text-fonts';
 export type VideoTimelineClipTrimEdge = 'start' | 'end';
 export type VideoTimelineClipSpeed = TimelineClipSpeed;
 export type VideoTimelineClipVolume = TimelineClipVolume;
@@ -72,10 +82,12 @@ export interface VideoTimelineMediaLoader {
 export type {
   CompositionExportCanvas,
   CompositionExportClip,
+  CompositionExportMediaClip,
   CompositionExportPayload,
   CompositionExportSpeed,
   CompositionExportTransform,
   CompositionExportTrim,
+  CompositionExportTextClip,
   CompositionExportVolume,
 } from './core/model';
 
@@ -106,7 +118,6 @@ export type VideoTimelineEditorProps = {
 };
 
 /** Internal aliases retained to keep the timeline implementation concise. */
-export type TimelineClipType = VideoTimelineMediaType;
 export type TimelineClipTrimEdge = VideoTimelineClipTrimEdge;
 export type TimelineTrackDraft = VideoTimelineTrackDraft;
 export type TimelineClipDraft = VideoTimelineClipDraft;

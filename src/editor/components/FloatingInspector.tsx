@@ -4,6 +4,7 @@ import type {
   TimelineClipTransform,
 } from '../types';
 import { AudioFloatingInspector } from './AudioFloatingInspector';
+import { TextFloatingInspector } from './TextFloatingInspector';
 import { VideoFloatingInspector } from './VideoFloatingInspector';
 
 type FloatingInspectorProps = {
@@ -25,6 +26,17 @@ export function FloatingInspector({
   );
 
   if (!selectedClip) return null;
+
+  if (selectedClip.type === 'text') {
+    return (
+      <TextFloatingInspector
+        key={`${selectedClip.id}:${selectedClip.text}:${selectedClip.fontColor}`}
+        clip={selectedClip}
+        previewTiming={previewTiming}
+        previewTransform={previewTransform}
+      />
+    );
+  }
 
   if (selectedClip.type === 'audio') {
     return (

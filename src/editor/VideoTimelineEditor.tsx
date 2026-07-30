@@ -10,6 +10,8 @@ import * as Toast from '@radix-ui/react-toast';
 import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
+import { FormDialog } from './components/FormDialog';
+import { isTimelineMediaClip } from './core/model';
 import { millisecondsToMicroseconds } from './core/time';
 import { MediaRuntimeProvider, useMediaRuntime } from './media';
 import {
@@ -167,17 +169,23 @@ function VideoTimelineEditorView({
   const [importUrl, setImportUrl] = useState('');
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isTitleDialogOpen, setIsTitleDialogOpen] = useState(false);
+  const [titleText, setTitleText] = useState('');
+  const [titleTextError, setTitleTextError] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [clipTimingPreview, setClipTimingPreview] =
     useState<TimelineClipTimingPreview | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const importDialogReturnFocusRef = useRef<HTMLElement | null>(null);
   const importUrlInputRef = useRef<HTMLInputElement | null>(null);
+  const titleDialogReturnFocusRef = useRef<HTMLElement | null>(null);
+  const titleTextInputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const onDraftChangeRef = useRef(onDraftChange);
   const notifiedMetadataFailureSourceIdsRef = useRef(new Set<string>());
-  const importDialogTitleId = useId();
   const importErrorId = useId();
+  const titleTextErrorId = useId();
 
   useEffect(() => {
     onDraftChangeRef.current = onDraftChange;
@@ -191,6 +199,14 @@ function VideoTimelineEditorView({
     }, 0);
     return () => window.clearTimeout(focusTimer);
   }, [isImportDialogOpen]);
+
+  useEffect(() => {
+    if (!isTitleDialogOpen) return undefined;
+    const focusTimer = window.setTimeout(() => {
+      titleTextInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [isTitleDialogOpen]);
 
   useEffect(() => {
     let previousDraftJson = JSON.stringify(
@@ -319,8 +335,39 @@ function VideoTimelineEditorView({
   };
 
   const openImportDialog = () => {
+    importDialogReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     resetImportForm();
     setIsImportDialogOpen(true);
+  };
+
+  const closeTitleDialog = () => {
+    setIsTitleDialogOpen(false);
+    setTitleText('');
+    setTitleTextError(null);
+  };
+
+  const openTitleDialog = () => {
+    titleDialogReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setTitleText('');
+    setTitleTextError(null);
+    setIsTitleDialogOpen(true);
+  };
+
+  const submitTitle = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = titleText.trim();
+    if (text === '') {
+      setTitleTextError('请输入标题内容。');
+      return;
+    }
+    store.getState().addTextClip(text);
+    closeTitleDialog();
   };
 
   const submitMediaImport = async (event: FormEvent<HTMLFormElement>) => {
@@ -367,6 +414,12 @@ function VideoTimelineEditorView({
       event.preventDefault();
       event.stopPropagation();
       closeImportDialog();
+      return;
+    }
+    if (isTitleDialogOpen && event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeTitleDialog();
       return;
     }
     if (shouldIgnoreShortcutTarget(event.target)) return;
@@ -446,6 +499,7 @@ function VideoTimelineEditorView({
   });
 
   const downloadOriginalClip = async (clip: TimelineClip) => {
+    if (!isTimelineMediaClip(clip)) return;
     try {
       const blob = await runtime.getBlob(clip.src);
       downloadBlob(clip.name, blob);
@@ -558,82 +612,110 @@ function VideoTimelineEditorView({
         <TimelinePanel
           onClipTimingPreviewChange={setClipTimingPreview}
           onDownloadClip={downloadOriginalClip}
+          onRequestAddTitle={openTitleDialog}
           onRequestImport={onImportMedia ? openImportDialog : undefined}
           onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
         />
       </main>
 
-      {isImportDialogOpen && (
-        <div
-          className='ec-import-dialog__backdrop'
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeImportDialog();
-          }}
-        >
-          <div
-            aria-describedby={importError ? importErrorId : undefined}
-            aria-labelledby={importDialogTitleId}
-            aria-modal='true'
-            className='ec-import-dialog'
-            role='dialog'
+      <FormDialog
+        actions={
+          <>
+            <button
+              className='ec-button ec-button--secondary'
+              disabled={isImporting}
+              onClick={closeImportDialog}
+              type='button'
+            >
+              取消
+            </button>
+            <button
+              className='ec-button ec-button--primary'
+              disabled={isImporting}
+              type='submit'
+            >
+              {isImporting ? '导入中…' : '确认导入'}
+            </button>
+          </>
+        }
+        closeLabel='关闭导入素材弹窗'
+        describedBy={importError ? importErrorId : undefined}
+        disabled={isImporting}
+        onClose={closeImportDialog}
+        onSubmit={(event) => void submitMediaImport(event)}
+        open={isImportDialogOpen}
+        returnFocusRef={importDialogReturnFocusRef}
+        title='导入在线素材'
+      >
+        <label className='ec-import-dialog__field' htmlFor='ec-import-url'>
+          <span>素材 URL</span>
+          <input
+            aria-invalid={Boolean(importError)}
+            autoComplete='url'
+            id='ec-import-url'
+            onChange={(event) => setImportUrl(event.target.value)}
+            placeholder='https://example.com/video.mp4'
+            ref={importUrlInputRef}
+            required
+            type='url'
+            value={importUrl}
+          />
+        </label>
+        {importError && (
+          <p className='ec-import-dialog__error' id={importErrorId} role='alert'>
+            {importError}
+          </p>
+        )}
+      </FormDialog>
+      <FormDialog
+        actions={
+          <>
+            <button
+              className='ec-button ec-button--secondary'
+              onClick={closeTitleDialog}
+              type='button'
+            >
+              取消
+            </button>
+            <button className='ec-button ec-button--primary' type='submit'>
+              确认添加
+            </button>
+          </>
+        }
+        closeLabel='关闭添加文字标题弹窗'
+        describedBy={titleTextError ? titleTextErrorId : undefined}
+        onClose={closeTitleDialog}
+        onSubmit={submitTitle}
+        open={isTitleDialogOpen}
+        returnFocusRef={titleDialogReturnFocusRef}
+        title='添加文字标题'
+      >
+        <label className='ec-import-dialog__field' htmlFor='ec-title-text'>
+          <span>标题内容</span>
+          <input
+            aria-invalid={Boolean(titleTextError)}
+            id='ec-title-text'
+            onChange={(event) => {
+              setTitleText(event.target.value);
+              if (titleTextError) setTitleTextError(null);
+            }}
+            placeholder='请输入文字标题'
+            ref={titleTextInputRef}
+            required
+            type='text'
+            value={titleText}
+          />
+        </label>
+        {titleTextError && (
+          <p
+            className='ec-import-dialog__error'
+            id={titleTextErrorId}
+            role='alert'
           >
-            <form noValidate onSubmit={(event) => void submitMediaImport(event)}>
-              <div className='ec-import-dialog__header'>
-                <h2 id={importDialogTitleId}>导入在线素材</h2>
-                <button
-                  aria-label='关闭导入素材弹窗'
-                  className='ec-icon-button'
-                  disabled={isImporting}
-                  onClick={closeImportDialog}
-                  title='关闭'
-                  type='button'
-                >
-                  <X aria-hidden='true' size={17} />
-                </button>
-              </div>
-
-              <label className='ec-import-dialog__field' htmlFor='ec-import-url'>
-                <span>素材 URL</span>
-                <input
-                  aria-invalid={Boolean(importError)}
-                  autoComplete='url'
-                  id='ec-import-url'
-                  onChange={(event) => setImportUrl(event.target.value)}
-                  placeholder='https://example.com/video.mp4'
-                  ref={importUrlInputRef}
-                  required
-                  type='url'
-                  value={importUrl}
-                />
-              </label>
-
-              {importError && (
-                <p className='ec-import-dialog__error' id={importErrorId} role='alert'>
-                  {importError}
-                </p>
-              )}
-
-              <div className='ec-import-dialog__actions'>
-                <button
-                  className='ec-button ec-button--secondary'
-                  disabled={isImporting}
-                  onClick={closeImportDialog}
-                  type='button'
-                >
-                  取消
-                </button>
-                <button
-                  className='ec-button ec-button--primary'
-                  disabled={isImporting}
-                  type='submit'
-                >
-                  {isImporting ? '导入中…' : '确认导入'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            {titleTextError}
+          </p>
+        )}
+      </FormDialog>
         <Toast.Root
           className='ec-editor__toast ec-editor__toast--error'
           duration={Infinity}

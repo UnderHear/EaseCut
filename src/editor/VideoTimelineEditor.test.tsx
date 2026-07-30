@@ -31,10 +31,12 @@ vi.mock('./timeline/TimelinePanel', async () => {
   return {
     TimelinePanel: ({
       onDownloadClip,
+      onRequestAddTitle,
       onRequestImport,
       onRequestPreviewFullscreen,
     }: {
       onDownloadClip: (clip: TimelineClip) => void | Promise<void>;
+      onRequestAddTitle: () => void;
       onRequestImport?: () => void;
       onRequestPreviewFullscreen: () => void;
     }) => {
@@ -48,10 +50,12 @@ vi.mock('./timeline/TimelinePanel', async () => {
         (state) => state.toggleTrackMute,
       );
       const firstClip = clips[0];
+      const lastClip = clips.at(-1);
 
       return (
         <>
           <TimelineToolbar
+            onRequestAddTitle={onRequestAddTitle}
             onRequestImport={onRequestImport}
             onRequestPreviewFullscreen={onRequestPreviewFullscreen}
           />
@@ -60,7 +64,14 @@ vi.mock('./timeline/TimelinePanel', async () => {
             data-current-time={currentTimeUs}
             data-first-duration={firstClip?.durationUs ?? ''}
             data-first-transform={JSON.stringify(firstClip?.transform ?? null)}
-            data-first-clip-volume={firstClip?.volume ?? ''}
+            data-first-clip-volume={
+              firstClip && firstClip.type !== 'text'
+                ? firstClip.volume
+                : ''
+            }
+            data-last-duration={lastClip?.durationUs ?? ''}
+            data-last-text={lastClip?.type === 'text' ? lastClip.text : ''}
+            data-last-type={lastClip?.type ?? ''}
             data-playing={String(isPlaying)}
             data-selected-clip-id={selectedClipId ?? ''}
             data-testid='timeline-state'
@@ -214,6 +225,48 @@ describe('VideoTimelineEditor', () => {
     expect(
       screen.queryByRole('dialog', { name: '导入在线素材' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('adds a five-second text title from the always-available title dialog', async () => {
+    const user = userEvent.setup();
+    render(<VideoTimelineEditor sources={[videoSource]} />);
+
+    const addTitleButton = screen.getByRole('button', { name: '添加标题' });
+    expect(addTitleButton).toBeVisible();
+    expect(screen.queryByRole('button', { name: '导入素材' })).toBeNull();
+
+    await user.click(addTitleButton);
+    expect(
+      screen.getByRole('dialog', { name: '添加文字标题' }),
+    ).toBeVisible();
+    await waitFor(() => expect(screen.getByLabelText('标题内容')).toHaveFocus());
+
+    await user.type(screen.getByLabelText('标题内容'), '未提交标题');
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(addTitleButton).toHaveFocus());
+
+    await user.click(addTitleButton);
+    expect(screen.getByLabelText('标题内容')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: '确认添加' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('请输入标题内容');
+
+    await user.type(screen.getByLabelText('标题内容'), '我们的精彩旅程');
+    await user.click(screen.getByRole('button', { name: '确认添加' }));
+
+    expect(
+      screen.queryByRole('dialog', { name: '添加文字标题' }),
+    ).not.toBeInTheDocument();
+    const timelineState = screen.getByTestId('timeline-state');
+    expect(timelineState).toHaveAttribute('data-clip-count', '2');
+    expect(timelineState).toHaveAttribute('data-last-type', 'text');
+    expect(timelineState).toHaveAttribute(
+      'data-last-text',
+      '我们的精彩旅程',
+    );
+    expect(timelineState).toHaveAttribute(
+      'data-last-duration',
+      String(secondsToMicroseconds(5)),
+    );
   });
 
   it('detects the media type from the URL suffix and closes after import', async () => {

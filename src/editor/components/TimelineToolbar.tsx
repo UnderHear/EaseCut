@@ -9,6 +9,7 @@ import {
   Redo2,
   ScanLine,
   SquareSplitHorizontal,
+  Type as TypeIcon,
   TextCursorInput,
   Trash2,
   Undo2,
@@ -29,6 +30,7 @@ import { useTimelineStore } from '../store/timeline-store-context';
 import { formatTimelineTime } from '../util/format-timeline-time';
 
 type TimelineToolbarProps = {
+  onRequestAddTitle?: () => void;
   onRequestImport?: () => void;
   onRequestPreviewFullscreen: () => void;
 };
@@ -68,6 +70,7 @@ const timelineShortcutGroups = [
 ] as const;
 
 export function TimelineToolbar({
+  onRequestAddTitle,
   onRequestImport,
   onRequestPreviewFullscreen,
 }: TimelineToolbarProps) {
@@ -146,6 +149,12 @@ export function TimelineToolbar({
             <FilePlus2 aria-hidden='true' />
           </ToolbarButton>
         )}
+        <ToolbarButton
+          label='添加标题'
+          onClick={() => onRequestAddTitle?.()}
+        >
+          <TypeIcon aria-hidden='true' />
+        </ToolbarButton>
       </div>
 
       <div className='ec-timeline-toolbar__transport'>

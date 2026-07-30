@@ -47,7 +47,7 @@ describe('createCompositionExportPayload', () => {
           zIndex: 0,
         },
       ],
-      schemaVersion: 7,
+      schemaVersion: 8,
       tracks: [
         {
           id: 'audio-track',
@@ -124,7 +124,7 @@ describe('createCompositionExportPayload', () => {
         volume: id === 'z' ? 0.3 : 0.8,
         zIndex: 0,
       })),
-      schemaVersion: 7,
+      schemaVersion: 8,
       tracks: [
         {
           id: 'video',
@@ -138,7 +138,7 @@ describe('createCompositionExportPayload', () => {
 
     expect(
       createCompositionExportPayload(draft).Track[0]?.map(
-        ({ Source }) => Source,
+        (clip) => (clip.Type === 'text' ? null : clip.Source),
       ),
     ).toEqual(['a.mp4', 'z.mp4']);
     expect(
@@ -171,7 +171,7 @@ describe('createCompositionExportPayload', () => {
         volume: 1,
         zIndex: 0,
       }],
-      schemaVersion: 7,
+      schemaVersion: 8,
       tracks: [{
         id: 'video-track',
         name: '视频轨',
@@ -209,5 +209,57 @@ describe('createCompositionExportPayload', () => {
       { Speed: 2, Type: 'speed' },
     ]);
     expect(exportedClip?.TargetTime).toEqual([2_000, 3_500]);
+  });
+
+  it('exports a text clip without media-only fields', () => {
+    const payload = createCompositionExportPayload({
+      canvasSize: { height: 1_080, width: 1_920 },
+      clips: [
+        {
+          alignType: 1,
+          durationUs: 8_000_000,
+          fontColor: '#FFFFFFFF',
+          fontSize: 120,
+          fontType: 'SY_Black',
+          id: 'text-clip-1',
+          startUs: 1_000_000,
+          text: '我们的精彩旅程',
+          trackId: 'text-track-1',
+          transform: { height: 200, width: 1_800, x: 60, y: 440 },
+          type: 'text',
+          zIndex: 0,
+        },
+      ],
+      schemaVersion: 8,
+      tracks: [
+        {
+          id: 'text-track-1',
+          muted: false,
+          name: '文字轨 1',
+          type: 'text',
+          zIndex: 0,
+        },
+      ],
+    });
+
+    expect(payload.Track[0]?.[0]).toEqual({
+      AlignType: 1,
+      Extra: [
+        {
+          Height: 200,
+          PosX: 60,
+          PosY: 440,
+          Type: 'transform',
+          Width: 1_800,
+        },
+      ],
+      FontColor: '#FFFFFFFF',
+      FontSize: 120,
+      FontType: 'SY_Black',
+      TargetTime: [1_000, 9_000],
+      Text: '我们的精彩旅程',
+      Type: 'text',
+    });
+    expect(payload.Track[0]?.[0]).not.toHaveProperty('Source');
   });
 });

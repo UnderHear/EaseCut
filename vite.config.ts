@@ -14,6 +14,116 @@ const soundTouchProcessorPath = createRequire(import.meta.url).resolve(
   '@soundtouchjs/audio-worklet/processor',
 );
 
+const bundledFontAssets = [
+  {
+    fileName: 'alibaba-puhuiti-2-regular.woff2',
+    mimeType: 'font/woff2',
+  },
+  {
+    fileName: 'source-han-sans-cn-bold.otf',
+    mimeType: 'font/otf',
+  },
+  {
+    fileName: 'zcool-canger-yuyang-w03.ttf',
+    mimeType: 'font/ttf',
+  },
+  {
+    fileName: 'zcool-gaoduanhei.ttf',
+    mimeType: 'font/ttf',
+  },
+  {
+    fileName: 'zcool-kuaile.ttf',
+    mimeType: 'font/ttf',
+  },
+  {
+    fileName: 'zcool-kuhei.ttf',
+    mimeType: 'font/ttf',
+  },
+  {
+    fileName: 'zcool-wenyi.ttf',
+    mimeType: 'font/ttf',
+  },
+  {
+    fileName: 'zcool-xiaowei-logo.otf',
+    mimeType: 'font/otf',
+  },
+] as const;
+
+const bundledFontNotices = [
+  'source-han-sans-OFL-1.1.txt',
+  'zcool-gaoduanhei-usage-statement.txt',
+] as const;
+
+const createBundledFontAssetsPlugin = (): Plugin => {
+  const emittedReferences = new Map<string, string>();
+  const fontSources = new Map<string, Buffer>();
+
+  return {
+    name: 'easecut-bundled-font-assets',
+    buildStart() {
+      for (const asset of bundledFontAssets) {
+        const source = readFileSync(
+          new URL(
+            `./src/editor/assets/fonts/${asset.fileName}`,
+            import.meta.url,
+          ),
+        );
+        fontSources.set(asset.fileName, source);
+        emittedReferences.set(
+          asset.fileName,
+          this.emitFile({
+            fileName: `assets/fonts/${asset.fileName}`,
+            source,
+            type: 'asset',
+          }),
+        );
+      }
+      for (const fileName of bundledFontNotices) {
+        this.emitFile({
+          fileName: `assets/fonts/licenses/${fileName}`,
+          source: readFileSync(
+            new URL(
+              `./src/editor/assets/fonts/licenses/${fileName}`,
+              import.meta.url,
+            ),
+          ),
+          type: 'asset',
+        });
+      }
+    },
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle)) {
+        if (
+          output.type !== 'asset' ||
+          !output.fileName.endsWith('.css')
+        ) {
+          continue;
+        }
+
+        let cssSource =
+          typeof output.source === 'string'
+            ? output.source
+            : Buffer.from(output.source).toString('utf8');
+
+        // Vite library mode always inlines imported assets. Restore the font
+        // URLs to emitted files so consumers only fetch the selected face.
+        for (const asset of bundledFontAssets) {
+          const source = fontSources.get(asset.fileName);
+          const referenceId = emittedReferences.get(asset.fileName);
+          if (!source || !referenceId) {
+            throw new Error(`字体资源尚未初始化：${asset.fileName}`);
+          }
+          cssSource = cssSource.replaceAll(
+            `data:${asset.mimeType};base64,${source.toString('base64')}`,
+            `./${this.getFileName(referenceId)}`,
+          );
+        }
+        output.source = cssSource;
+      }
+    },
+  };
+};
+
 const createSoundTouchProcessorPlugin = (
   command: 'build' | 'serve',
 ): Plugin => {
@@ -61,7 +171,11 @@ const libraryExternals = [
 ];
 
 export default defineConfig(({ command, mode }) => ({
-  plugins: [react(), createSoundTouchProcessorPlugin(command)],
+  plugins: [
+    react(),
+    createSoundTouchProcessorPlugin(command),
+    ...(mode === 'library' ? [createBundledFontAssetsPlugin()] : []),
+  ],
   build:
     mode === 'library'
       ? {

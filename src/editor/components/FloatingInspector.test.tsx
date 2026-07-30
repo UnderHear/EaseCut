@@ -63,6 +63,37 @@ const audioClip: TimelineClip = {
   zIndex: 0,
 };
 
+const textTrack: TimelineTrack = {
+  id: 'text-track-1',
+  muted: false,
+  name: '文字轨 1',
+  type: 'text',
+  zIndex: 2,
+};
+
+const textClip: TimelineClip = {
+  alignType: 1,
+  durationUs: secondsToMicroseconds(5),
+  fontColor: '#FFFFFFFF',
+  fontSize: 120,
+  fontType: 'SY_Black',
+  id: 'text-clip-1',
+  startUs: secondsToMicroseconds(1),
+  text: '我们的精彩旅程',
+  trackId: textTrack.id,
+  transform: { height: 200, width: 1_800, x: 60, y: 440 },
+  type: 'text',
+  zIndex: 0,
+};
+
+const getFirstMediaClip = () => {
+  const clip = testTimelineStore.getState().clips[0];
+  if (!clip || clip.type === 'text') {
+    throw new Error('Expected the first clip to be media');
+  }
+  return clip;
+};
+
 describe('FloatingInspector', () => {
   beforeEach(() => {
     resetTestTimelineStore();
@@ -182,7 +213,7 @@ describe('FloatingInspector', () => {
     await user.type(volumeInput, '45');
     await user.tab();
 
-    expect(testTimelineStore.getState().clips[0]?.volume).toBe(0.45);
+    expect(getFirstMediaClip().volume).toBe(0.45);
     expect(testTimelineStore.getState().past).toHaveLength(2);
   });
 
@@ -216,12 +247,12 @@ describe('FloatingInspector', () => {
     fireEvent.change(slider, { target: { value: '2' } });
 
     expect(screen.getByLabelText('播放速度')).toHaveValue(2);
-    expect(testTimelineStore.getState().clips[0]?.speed).toBe(1);
+    expect(getFirstMediaClip().speed).toBe(1);
     expect(testTimelineStore.getState().past).toEqual([]);
 
     fireEvent.pointerUp(slider, { pointerId: 1 });
 
-    expect(testTimelineStore.getState().clips[0]?.speed).toBe(2);
+    expect(getFirstMediaClip().speed).toBe(2);
     expect(testTimelineStore.getState().past).toHaveLength(1);
   });
 
@@ -237,7 +268,7 @@ describe('FloatingInspector', () => {
 
     expect(slider).toHaveValue('1');
     expect(screen.getByLabelText('播放速度')).toHaveValue(1);
-    expect(testTimelineStore.getState().clips[0]?.speed).toBe(1);
+    expect(getFirstMediaClip().speed).toBe(1);
     expect(testTimelineStore.getState().past).toEqual([]);
   });
 
@@ -308,5 +339,48 @@ describe('FloatingInspector', () => {
     expect(screen.getByRole('button', { name: '背景' })).toHaveClass(
       'ec-is-active',
     );
+  });
+
+  it('shows only basic text properties and commits one history entry per field', async () => {
+    const user = userEvent.setup();
+    testTimelineStore.setState({
+      clips: [textClip],
+      future: [],
+      past: [],
+      selectedClipId: textClip.id,
+      tracks: [textTrack],
+    });
+    renderWithEditorProviders(<FloatingInspector />);
+
+    const rail = screen.getByRole('navigation', { name: '属性分类' });
+    expect(within(rail).getAllByRole('button')).toHaveLength(1);
+    expect(within(rail).getByRole('button', { name: '基本' })).toBeVisible();
+    expect(screen.queryByText('音量')).not.toBeInTheDocument();
+    expect(screen.queryByText('变速')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('标题内容')).toHaveValue('我们的精彩旅程');
+    expect(screen.getByLabelText('开始时间')).toHaveValue(1);
+    expect(screen.getByLabelText('结束时间')).toHaveValue(6);
+    expect(screen.getByLabelText('字体')).toHaveValue('SY_Black');
+    expect(screen.getByLabelText('字号')).toHaveValue(120);
+    expect(
+      screen.getByRole('textbox', { name: '字体颜色' }),
+    ).toHaveValue('#FFFFFFFF');
+
+    const textInput = screen.getByLabelText('标题内容');
+    await user.clear(textInput);
+    await user.type(textInput, '新的标题');
+    await user.tab();
+
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      text: '新的标题',
+      type: 'text',
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+
+    await user.selectOptions(screen.getByLabelText('字体'), 'ALi_PuHui');
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      fontType: 'ALi_PuHui',
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(2);
   });
 });

@@ -3,6 +3,7 @@ import type { TimelineClip, TimelineClipTimingPreview } from '../types';
 import { TimelineViewport } from './TimelineViewport';
 
 type TimelinePanelProps = {
+  onRequestAddTitle: () => void;
   onClipTimingPreviewChange?: (
     preview: TimelineClipTimingPreview | null,
   ) => void;
@@ -12,6 +13,7 @@ type TimelinePanelProps = {
 };
 
 export function TimelinePanel({
+  onRequestAddTitle,
   onClipTimingPreviewChange,
   onDownloadClip,
   onRequestImport,
@@ -20,6 +22,7 @@ export function TimelinePanel({
   return (
     <section className='ec-timeline-panel' aria-label='时间线编辑区域'>
       <TimelineToolbar
+        onRequestAddTitle={onRequestAddTitle}
         onRequestImport={onRequestImport}
         onRequestPreviewFullscreen={onRequestPreviewFullscreen}
       />

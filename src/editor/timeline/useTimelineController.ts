@@ -20,7 +20,7 @@ import {
   normalizeTimelineTimeUs,
   xToTimeUs,
 } from '../core/timeline-math';
-import { scaleTimelineOffsetToSourceUs } from '../core/clip-speed';
+import { isTimelineMediaClip } from '../core/model';
 import {
   getTrimmedClip,
   getTrimmedTimelineClips,
@@ -92,8 +92,7 @@ export function useTimelineController({
       clips,
       trimPreview.clipId,
       trimPreview.edge,
-      trimPreview.trimStartUs,
-      trimPreview.trimEndUs,
+      trimPreview.timeUs,
     );
   }, [clips, dropPreview, trimPreview]);
 
@@ -148,23 +147,22 @@ export function useTimelineController({
         xToTimeUs(point.x, gesture.pixelsPerSecond) -
           gesture.initialPointerTimeUs,
       );
-      const sourceDeltaUs = scaleTimelineOffsetToSourceUs(
-        deltaUs,
-        gesture.clip.speed,
-      );
+      const initialBoundaryUs =
+        gesture.edge === 'start'
+          ? gesture.clip.startUs
+          : gesture.clip.startUs + gesture.clip.durationUs;
       const trimmed = getTrimmedClip(
         gesture.clip,
         gesture.edge,
-        gesture.clip.trimStartUs +
-          (gesture.edge === 'start' ? sourceDeltaUs : 0),
-        gesture.clip.trimEndUs +
-          (gesture.edge === 'end' ? sourceDeltaUs : 0),
+        initialBoundaryUs + deltaUs,
       );
       const next: TrimPreview = {
         clipId: gesture.clip.id,
         edge: gesture.edge,
-        trimEndUs: trimmed.trimEndUs,
-        trimStartUs: trimmed.trimStartUs,
+        timeUs:
+          gesture.edge === 'start'
+            ? trimmed.startUs
+            : trimmed.startUs + trimmed.durationUs,
       };
       trimPreviewRef.current = next;
       setTrimPreview(next);
@@ -172,8 +170,7 @@ export function useTimelineController({
         clips,
         next.clipId,
         next.edge,
-        next.trimStartUs,
-        next.trimEndUs,
+        next.timeUs,
       ).find((clip) => clip.id === next.clipId);
       if (previewClip) {
         onClipTimingPreviewChange?.({
@@ -223,12 +220,14 @@ export function useTimelineController({
       }
       if (gesture.kind === 'volume') {
         const state = store.getState();
+        const clip = state.clips.find(({ id }) => id === gesture.clipId);
         if (commit) {
           state.commitClipVolume(
             gesture.clipId,
             gesture.previousVolume,
-            state.clips.find(({ id }) => id === gesture.clipId)?.volume ??
-              gesture.previousVolume,
+            clip && isTimelineMediaClip(clip)
+              ? clip.volume
+              : gesture.previousVolume,
           );
         } else {
           state.setClipVolume(gesture.clipId, gesture.previousVolume);
@@ -419,7 +418,7 @@ export function useTimelineController({
     event: ReactPointerEvent<HTMLElement>,
     clip: TimelineClip,
   ) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || !isTimelineMediaClip(clip)) return;
     lastCompletedClipClickRef.current = null;
     const rect = event.currentTarget.parentElement?.getBoundingClientRect();
     if (!rect) return;

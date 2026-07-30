@@ -3,13 +3,13 @@ import type { ReactNode } from 'react';
 
 import { microsecondsToSeconds } from '../core/time';
 import { useTimelineStore } from '../store/timeline-store-context';
-import type { TimelineClip, TimelineClipTimingPreview } from '../types';
+import type { TimelineMediaClip, TimelineClipTimingPreview } from '../types';
 import { InputNumber } from './ui/InputNumber';
 
 type FloatingInspectorBasicPanelProps = {
   children?: ReactNode;
-  clip: TimelineClip;
-  timing: TimelineClipTimingPreview | TimelineClip;
+  clip: TimelineMediaClip;
+  timing: TimelineClipTimingPreview | TimelineMediaClip;
 };
 
 export function FloatingInspectorBasicPanel({

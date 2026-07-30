@@ -1,4 +1,4 @@
-import type { TimelineClip, TimelineClipSpeed } from './model';
+import type { TimelineMediaClip, TimelineClipSpeed } from './model';
 import { isValidTimeUs, normalizeTimeUs } from './time';
 
 export const DEFAULT_CLIP_SPEED: TimelineClipSpeed = 1;
@@ -65,7 +65,7 @@ export const scaleTimelineOffsetToSourceUs = (
 
 export const timelineTimeToClipSourceTimeUs = (
   clip: Pick<
-    TimelineClip,
+    TimelineMediaClip,
     | 'durationUs'
     | 'speed'
     | 'startUs'

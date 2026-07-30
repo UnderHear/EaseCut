@@ -21,7 +21,10 @@ const resetStoreWithSource = () => {
 };
 
 const getMainVideoClips = () =>
-  getTrackClips(timelineStore.getState().clips, MAIN_VIDEO_TRACK_ID);
+  getTrackClips(
+    timelineStore.getState().clips,
+    MAIN_VIDEO_TRACK_ID,
+  ).filter((clip) => clip.type === 'video');
 
 describe('timeline splitting', () => {
   beforeEach(() => {
