@@ -193,9 +193,9 @@ const resetToTwoVisualAudioTracks = () => {
     past: [],
     selectedClipId: null,
     tracks: [
-      createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 0),
-      createAudioTrack('audio-track-1', 1),
-      createAudioTrack('audio-track-2', 2),
+      createAudioTrack('audio-track-1', 0),
+      createAudioTrack('audio-track-2', 1),
+      createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 2),
     ],
   });
 };
@@ -460,7 +460,7 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().past).toHaveLength(0);
   });
 
-  it('can insert a dynamic video track above the main video track', () => {
+  it('keeps the main video below a newly inserted overlay track', () => {
     timelineStore.getState().commitClipDrop({
       clipId: 'clip-video-1',
       freeStartUs: secondsToMicroseconds(2),
@@ -469,7 +469,7 @@ describe('timelineStore video track layout', () => {
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      ['video-overlay-1', MAIN_VIDEO_TRACK_ID],
+      [MAIN_VIDEO_TRACK_ID, 'video-overlay-1'],
     );
   });
 
@@ -1278,9 +1278,9 @@ describe('timelineStore video track layout', () => {
     expect(
       state.tracks.map((track) => [track.id, track.type, track.name]),
     ).toEqual([
-      [MAIN_VIDEO_TRACK_ID, 'video', '视频轨'],
       [`${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-music`, 'audio', '音频轨道'],
       [`${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-voice`, 'audio', '音频轨道'],
+      [MAIN_VIDEO_TRACK_ID, 'video', '视频轨'],
     ]);
     expect(
       getMediaClips(state.clips).map((clip) => [
@@ -1316,9 +1316,9 @@ describe('timelineStore video track layout', () => {
         .getState()
         .tracks.map((track) => [track.id, track.zIndex]),
     ).toEqual([
-      [MAIN_VIDEO_TRACK_ID, 0],
-      ['audio-track-1', 1],
-      ['audio-track-3', 2],
+      ['audio-track-1', 0],
+      ['audio-track-3', 1],
+      [MAIN_VIDEO_TRACK_ID, 2],
     ]);
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-2'),
@@ -1331,9 +1331,9 @@ describe('timelineStore video track layout', () => {
 
     const draft = createVideoTimelineDraft(timelineStore.getState());
     draft.tracks.splice(
-      2,
+      1,
       0,
-      createAudioTrack('audio-track-2', 2),
+      createAudioTrack('audio-track-2', 1),
     );
     draft.tracks.forEach((track, index) => {
       track.zIndex = index;
@@ -1345,9 +1345,9 @@ describe('timelineStore video track layout', () => {
         .getState()
         .tracks.map((track) => [track.id, track.zIndex]),
     ).toEqual([
-      [MAIN_VIDEO_TRACK_ID, 0],
-      ['audio-track-1', 1],
-      ['audio-track-3', 2],
+      ['audio-track-1', 0],
+      ['audio-track-3', 1],
+      [MAIN_VIDEO_TRACK_ID, 2],
     ]);
     expect(
       timelineStore
@@ -1374,7 +1374,7 @@ describe('timelineStore video track layout', () => {
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-3'],
+      ['audio-track-3', MAIN_VIDEO_TRACK_ID],
     );
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-3').map(
@@ -1386,7 +1386,7 @@ describe('timelineStore video track layout', () => {
     timelineStore.getState().resetTimeline({ draft });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-3'],
+      ['audio-track-3', MAIN_VIDEO_TRACK_ID],
     );
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-3').map(
@@ -1403,17 +1403,17 @@ describe('timelineStore video track layout', () => {
     state.deleteSelectedClip();
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-2'],
+      ['audio-track-2', MAIN_VIDEO_TRACK_ID],
     );
 
     state.undo();
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-1', 'audio-track-2'],
+      ['audio-track-1', 'audio-track-2', MAIN_VIDEO_TRACK_ID],
     );
 
     state.redo();
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-2'],
+      ['audio-track-2', MAIN_VIDEO_TRACK_ID],
     );
   });
 
@@ -1435,7 +1435,7 @@ describe('timelineStore video track layout', () => {
     });
 
     expect(timelineStore.getState().tracks.map((track) => track.id)).toEqual(
-      [MAIN_VIDEO_TRACK_ID, 'audio-track-1'],
+      ['audio-track-1', MAIN_VIDEO_TRACK_ID],
     );
     expect(
       getTrackClips(timelineStore.getState().clips, 'audio-track-1').map(
@@ -1648,7 +1648,7 @@ describe('timelineStore video track layout', () => {
     ).toHaveLength(1);
   });
 
-  it('creates audio tracks only below video tracks and rejects cross-type drops', () => {
+  it('stores audio tracks before video tracks and rejects cross-type drops', () => {
     timelineStore.setState({
       clips: [
         ...createFixtureClips(),
@@ -1664,16 +1664,16 @@ describe('timelineStore video track layout', () => {
       ],
       tracks: [
         {
-          id: MAIN_VIDEO_TRACK_ID,
-          name: '视频轨',
-          type: 'video',
+          id: 'audio-source-track-audio-source',
+          name: '音频轨道',
+          type: 'audio',
           muted: false,
           zIndex: 0,
         },
         {
-          id: 'audio-source-track-audio-source',
-          name: '音频轨道',
-          type: 'audio',
+          id: MAIN_VIDEO_TRACK_ID,
+          name: '视频轨',
+          type: 'video',
           muted: false,
           zIndex: 1,
         },
@@ -1689,7 +1689,7 @@ describe('timelineStore video track layout', () => {
 
     expect(
       timelineStore.getState().tracks.map((track) => track.type),
-    ).toEqual(['video', 'audio']);
+    ).toEqual(['audio', 'video']);
     const audioTrackId = timelineStore
       .getState()
       .clips.find((clip) => clip.id === 'clip-audio')?.trackId;
@@ -1722,16 +1722,16 @@ describe('timelineStore video track layout', () => {
       ],
       tracks: [
         {
-          id: MAIN_VIDEO_TRACK_ID,
-          name: '视频轨',
-          type: 'video',
+          id: 'audio-track',
+          name: '音频轨道',
+          type: 'audio',
           muted: false,
           zIndex: 0,
         },
         {
-          id: 'audio-track',
-          name: '音频轨道',
-          type: 'audio',
+          id: MAIN_VIDEO_TRACK_ID,
+          name: '视频轨',
+          type: 'video',
           muted: false,
           zIndex: 1,
         },
@@ -1771,7 +1771,7 @@ describe('timelineStore video track layout', () => {
     ).toBe(0.37);
   });
 
-  it('exports audio tracks after video tracks without transform extras', () => {
+  it('exports audio, video and text tracks from bottom to top', () => {
     timelineStore.getState().resetTimeline({
       sources: [
         {
@@ -1798,10 +1798,10 @@ describe('timelineStore video track layout', () => {
       .getState()
       .clips.find((clip) => clip.trackId === audioTrack?.id);
     timelineStore.getState().setClipVolume(audioClip?.id ?? '', 0.45);
+    timelineStore.getState().addTextClip('最高层标题');
 
     const payload = timelineStore.getState().createExportPayload();
-    expect(payload.Track[0]?.[0]?.Type).toBe('video');
-    expect(payload.Track[1]).toEqual([
+    expect(payload.Track[0]).toEqual([
       {
         Extra: [
           { Type: 'a_volume', Volume: 0.45 },
@@ -1813,6 +1813,8 @@ describe('timelineStore video track layout', () => {
         Type: 'audio',
       },
     ]);
+    expect(payload.Track[1]?.[0]?.Type).toBe('video');
+    expect(payload.Track[2]?.[0]?.Type).toBe('text');
   });
 
   it('ripples following same-track clips after trimming the selected clip end', () => {
@@ -2447,8 +2449,8 @@ describe('timelineStore video track layout', () => {
       past: [],
       selectedClipId: leading.id,
       tracks: [
-        createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 0),
-        createAudioTrack(audioTrackId, 1),
+        createAudioTrack(audioTrackId, 0),
+        createVideoTrack(MAIN_VIDEO_TRACK_ID, '视频轨', 1),
       ],
     });
 
@@ -2471,7 +2473,7 @@ describe('timelineStore video track layout', () => {
       ],
     ]);
     expect(
-      timelineStore.getState().createExportPayload().Track[1]?.[0]?.Extra,
+      timelineStore.getState().createExportPayload().Track[0]?.[0]?.Extra,
     ).toEqual([
       defaultExportVolume,
       { EndTime: 4000, StartTime: 0, Type: 'trim' },

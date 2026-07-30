@@ -79,6 +79,12 @@ export function Editor() {
 
 `initialDraft` 只在组件实例创建时读取。切换工程时请为组件设置新的 React `key`。`onDraftChange` 只响应可持久化的轨道、片段和画布变化，不会因播放时间、缩放或选中状态触发。
 
+`VideoTimelineDraft.tracks` 使用从合成底层到顶层的数组顺序，且每条轨道的
+`zIndex` 等于数组下标。轨道固定规范化为 `[音频…, 视频…, 文字…]`：
+`tracks[0]` 是最低层，最后一条轨道是最高层；主视频是视频组的最低层。
+时间线会反向展示该数组，因此最高层显示在顶部、音频显示在底部，符合
+“上方轨道覆盖下方轨道”的剪辑软件习惯。
+
 ## 媒体源
 
 视频源建议提供时长、宽度和高度；音频源建议提供时长。如果缺失，编辑器会通过浏览器媒体元素异步读取。
@@ -156,6 +162,8 @@ Mediabunny 负责媒体解封装、缩略图和波形解码，不承担实时音
 - 传入 `onExport` 后显示“导出视频”，回调会收到最新 `draft` 和 `payload`。
 - EaseCut React 不包含 MP4 编码器或渲染后端。
 - 可使用 `createCompositionExportPayload(draft)` 在组件外创建同样的导出数据。
+- `CompositionExportPayload.Track` 与草稿采用相同的从下到上顺序：
+  `Track[0]` 是最低层，最后一个 Track 是最高层。
 - 每个音视频导出元素都会包含 `{ Type: 'speed', Speed }`。视频过滤器顺序为
   `trim → speed → transform → a_volume`，音频过滤器顺序为
   `a_volume → trim → speed`。

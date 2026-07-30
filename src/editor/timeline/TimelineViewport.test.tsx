@@ -42,7 +42,7 @@ const videoTrack: TimelineTrack = {
   name: '视频轨',
   type: 'video',
   muted: false,
-  zIndex: 0,
+  zIndex: 1,
 };
 
 const audioTrack: TimelineTrack = {
@@ -50,7 +50,7 @@ const audioTrack: TimelineTrack = {
   name: '音频轨道',
   type: 'audio',
   muted: false,
-  zIndex: 1,
+  zIndex: 0,
 };
 
 const overlayVideoTrack: TimelineTrack = {
@@ -58,7 +58,7 @@ const overlayVideoTrack: TimelineTrack = {
   name: '视频轨',
   type: 'video',
   muted: false,
-  zIndex: 1,
+  zIndex: 2,
 };
 
 const createClip = (
@@ -204,7 +204,7 @@ describe('TimelineViewport DOM interactions', () => {
       pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND,
       selectedClipId: videoClip.id,
       snappingEnabled: false,
-      tracks: [videoTrack, audioTrack],
+      tracks: [audioTrack, videoTrack],
     });
     vi.stubGlobal('ResizeObserver', undefined);
   });
@@ -439,6 +439,20 @@ describe('TimelineViewport DOM interactions', () => {
     ).toHaveAttribute('data-type', 'text');
     expect(screen.getAllByText('我们的精彩旅程')).toHaveLength(2);
     expect(screen.getByText('00:05:00')).toBeVisible();
+    expect(
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '.ec-timeline-track__control[data-control-track-id]',
+        ),
+      ].map((control) => control.dataset.controlTrackId),
+    ).toEqual([textTrack.id, MAIN_VIDEO_TRACK_ID, audioTrack.id]);
+    expect(
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          '.ec-timeline-track__lane[data-track-id]',
+        ),
+      ].map((lane) => lane.dataset.trackId),
+    ).toEqual([textTrack.id, MAIN_VIDEO_TRACK_ID, audioTrack.id]);
   });
 
   it('requests and lays out video frames at speed-adjusted source density', () => {
@@ -516,7 +530,7 @@ describe('TimelineViewport DOM interactions', () => {
 
   it('uses the standard video label for non-main video tracks', () => {
     testTimelineStore.setState({
-      tracks: [videoTrack, overlayVideoTrack, audioTrack],
+      tracks: [audioTrack, videoTrack, overlayVideoTrack],
     });
     renderTimeline();
 
@@ -551,7 +565,7 @@ describe('TimelineViewport DOM interactions', () => {
 
   it('does not show the empty-state hint for an empty non-main video track', () => {
     testTimelineStore.setState({
-      tracks: [videoTrack, overlayVideoTrack, audioTrack],
+      tracks: [audioTrack, videoTrack, overlayVideoTrack],
     });
     renderTimeline();
 
@@ -741,12 +755,12 @@ describe('TimelineViewport DOM interactions', () => {
     fireEvent.pointerDown(clip, {
       button: 0,
       clientX: 448,
-      clientY: 110,
+      clientY: 50,
       pointerId: 28,
     });
     fireEvent.pointerMove(window, {
       clientX: 528,
-      clientY: 110,
+      clientY: 50,
       pointerId: 28,
     });
 
@@ -1506,8 +1520,8 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
-      MAIN_VIDEO_TRACK_ID,
       'audio-track-2',
+      MAIN_VIDEO_TRACK_ID,
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
@@ -1555,9 +1569,9 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
-      'video-overlay-1',
-      MAIN_VIDEO_TRACK_ID,
       audioTrack.id,
+      MAIN_VIDEO_TRACK_ID,
+      'video-overlay-1',
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
@@ -1603,9 +1617,9 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
-      MAIN_VIDEO_TRACK_ID,
-      'audio-track-2',
       audioTrack.id,
+      'audio-track-2',
+      MAIN_VIDEO_TRACK_ID,
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
@@ -1627,7 +1641,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
     testTimelineStore.setState({
       clips: [videoClip, overlayClip, { ...audioClip, zIndex: 0 }],
-      tracks: [videoTrack, overlayTrack, { ...audioTrack, zIndex: 2 }],
+      tracks: [audioTrack, videoTrack, overlayTrack],
     });
     renderTimeline();
 
@@ -1658,10 +1672,10 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      audioTrack.id,
       MAIN_VIDEO_TRACK_ID,
       'video-overlay-2',
       'video-overlay-1',
-      audioTrack.id,
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
@@ -1695,7 +1709,11 @@ describe('TimelineViewport DOM interactions', () => {
         remainingAudioClip,
         secondTrackClip,
       ],
-      tracks: [videoTrack, audioTrack, secondAudioTrack],
+      tracks: [
+        audioTrack,
+        { ...secondAudioTrack, zIndex: 1 },
+        { ...videoTrack, zIndex: 2 },
+      ],
     });
     renderTimeline();
 
@@ -1726,10 +1744,10 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
-      MAIN_VIDEO_TRACK_ID,
       audioTrack.id,
       'audio-track-3',
       secondAudioTrack.id,
+      MAIN_VIDEO_TRACK_ID,
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),
@@ -1767,10 +1785,10 @@ describe('TimelineViewport DOM interactions', () => {
         audioClip,
       ],
       tracks: [
-        videoTrack,
-        firstOverlayTrack,
-        secondOverlayTrack,
-        { ...audioTrack, zIndex: 3 },
+        audioTrack,
+        { ...videoTrack, zIndex: 1 },
+        { ...firstOverlayTrack, zIndex: 2 },
+        { ...secondOverlayTrack, zIndex: 3 },
       ],
     });
     renderTimeline();
@@ -1796,7 +1814,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
     fireEvent.pointerMove(window, {
       clientX: 340,
-      clientY: 159,
+      clientY: 50,
       pointerId: 20,
     });
 
@@ -1807,15 +1825,15 @@ describe('TimelineViewport DOM interactions', () => {
 
     fireEvent.pointerUp(window, {
       clientX: 340,
-      clientY: 159,
+      clientY: 50,
       pointerId: 20,
     });
 
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      audioTrack.id,
       MAIN_VIDEO_TRACK_ID,
       firstOverlayTrack.id,
       secondOverlayTrack.id,
-      audioTrack.id,
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === videoClip.id),
@@ -1840,7 +1858,7 @@ describe('TimelineViewport DOM interactions', () => {
         }),
         audioClip,
       ],
-      tracks: [videoTrack, overlayTrack, { ...audioTrack, zIndex: 2 }],
+      tracks: [audioTrack, videoTrack, overlayTrack],
     });
     renderTimeline();
 
@@ -1867,9 +1885,9 @@ describe('TimelineViewport DOM interactions', () => {
     });
 
     expect(testTimelineStore.getState().tracks.map(({ id }) => id)).toEqual([
+      audioTrack.id,
       MAIN_VIDEO_TRACK_ID,
       overlayTrack.id,
-      audioTrack.id,
     ]);
     expect(
       testTimelineStore.getState().clips.find(({ id }) => id === audioClip.id),

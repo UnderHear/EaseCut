@@ -82,6 +82,7 @@ export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
   schemaVersion: 8;
+  /** Bottom-to-top layer order. Track zIndex equals its array index. */
   tracks: TimelineTrack[];
 };
 
@@ -155,6 +156,7 @@ export type CompositionExportClip =
 
 export type CompositionExportPayload = {
   Canvas: CompositionExportCanvas;
+  /** Bottom-to-top layer order. Track[0] is the lowest layer. */
   Track: CompositionExportClip[][];
 };
 

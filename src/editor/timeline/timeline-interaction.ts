@@ -24,7 +24,10 @@ import type {
   TrackDropTarget,
   TrackInsertTarget,
 } from '../core/timeline-tracks';
-import { MAIN_VIDEO_TRACK_ID } from '../core/timeline-tracks';
+import {
+  getTimelineTrackTypeRange,
+  MAIN_VIDEO_TRACK_ID,
+} from '../core/timeline-tracks';
 import type {
   TimelineClip,
   TimelineClipTrimEdge,
@@ -103,6 +106,11 @@ export type TrimPreview = {
 export const DRAG_ACTIVATION_DISTANCE = 4;
 export const TRACK_INSERT_ACQUIRE_DISTANCE = 4;
 export const TRACK_INSERT_RELEASE_DISTANCE = 6;
+const trackTypeRank: Record<TimelineTrack['type'], number> = {
+  audio: 0,
+  video: 1,
+  text: 2,
+};
 
 export const getContentPoint = (
   viewport: HTMLDivElement | null,
@@ -139,29 +147,15 @@ const getTrackInsertTargets = (
   tracks: TimelineTrack[],
   type: TimelineClip['type'],
 ) => {
-  const videoTrackCount = tracks.filter(
-    (track) => track.type === 'video',
-  ).length;
-  const audioTrackCount = tracks.filter(
-    (track) => track.type === 'audio',
-  ).length;
-  const firstIndex =
-    type === 'video'
-      ? 0
-      : type === 'audio'
-        ? videoTrackCount
-        : videoTrackCount + audioTrackCount;
-  const lastIndex =
-    type === 'video'
-      ? videoTrackCount
-      : type === 'audio'
-        ? videoTrackCount + audioTrackCount
-        : tracks.length;
+  const { endIndex, startIndex } = getTimelineTrackTypeRange(
+    tracks,
+    type,
+  );
 
   return Array.from(
-    { length: lastIndex - firstIndex + 1 },
+    { length: endIndex - startIndex + 1 },
     (_, offset): TrackInsertTarget => ({
-      index: firstIndex + offset,
+      index: startIndex + offset,
       type,
     }),
   );
@@ -229,9 +223,6 @@ const getDropTarget = (
   }
 
   const hoveredTrack = getTrackAtY(tracks, pointerY);
-  const videoTrackCount = tracks.filter(({ type }) => type === 'video').length;
-  const audioTrackCount = tracks.filter(({ type }) => type === 'audio').length;
-  const textStartIndex = videoTrackCount + audioTrackCount;
 
   if (hoveredTrack?.type === clip.type) {
     return {
@@ -243,55 +234,29 @@ const getDropTarget = (
 
   const tracksBottom =
     TIMELINE_RULER_HEIGHT + getTimelineTracksHeight(tracks);
-  if (clip.type === 'video' && pointerY < TIMELINE_RULER_HEIGHT) {
-    return createInsertDropTarget(tracks, { index: 0, type: 'video' });
-  }
-  if (
-    clip.type === 'video' &&
-    (hoveredTrack?.type === 'audio' ||
-      hoveredTrack?.type === 'text' ||
-      pointerY >= tracksBottom)
-  ) {
+  const { endIndex, startIndex } = getTimelineTrackTypeRange(
+    tracks,
+    clip.type,
+  );
+  const isAboveTargetGroup =
+    pointerY < TIMELINE_RULER_HEIGHT ||
+    (hoveredTrack &&
+      trackTypeRank[hoveredTrack.type] > trackTypeRank[clip.type]);
+  const isBelowTargetGroup =
+    pointerY >= tracksBottom ||
+    (hoveredTrack &&
+      trackTypeRank[hoveredTrack.type] < trackTypeRank[clip.type]);
+
+  if (isAboveTargetGroup) {
     return createInsertDropTarget(tracks, {
-      index: videoTrackCount,
-      type: 'video',
+      index: endIndex,
+      type: clip.type,
     });
   }
-  if (
-    clip.type === 'audio' &&
-    (hoveredTrack?.type === 'video' || pointerY < TIMELINE_RULER_HEIGHT)
-  ) {
+  if (isBelowTargetGroup) {
     return createInsertDropTarget(tracks, {
-      index: videoTrackCount,
-      type: 'audio',
-    });
-  }
-  if (
-    clip.type === 'audio' &&
-    (hoveredTrack?.type === 'text' || pointerY >= tracksBottom)
-  ) {
-    return createInsertDropTarget(tracks, {
-      index: textStartIndex,
-      type: 'audio',
-    });
-  }
-  if (
-    clip.type === 'text' &&
-    (
-      hoveredTrack?.type === 'video' ||
-      hoveredTrack?.type === 'audio' ||
-      pointerY < TIMELINE_RULER_HEIGHT
-    )
-  ) {
-    return createInsertDropTarget(tracks, {
-      index: textStartIndex,
-      type: 'text',
-    });
-  }
-  if (clip.type === 'text' && pointerY >= tracksBottom) {
-    return createInsertDropTarget(tracks, {
-      index: tracks.length,
-      type: 'text',
+      index: startIndex,
+      type: clip.type,
     });
   }
 

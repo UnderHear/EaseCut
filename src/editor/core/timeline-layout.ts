@@ -33,20 +33,23 @@ export const getTimelineTrackLayouts = <
 ): TimelineTrackLayout<T>[] => {
   let top = TIMELINE_RULER_HEIGHT;
 
-  return tracks.map((track, index) => {
-    const height = getTimelineTrackHeight(track);
-    const bottom = top + height;
-    const layout = {
-      bottom,
-      height,
-      index,
-      top,
-      track,
-    };
+  return tracks
+    .map((track, index) => ({ index, track }))
+    .reverse()
+    .map(({ index, track }) => {
+      const height = getTimelineTrackHeight(track);
+      const bottom = top + height;
+      const layout = {
+        bottom,
+        height,
+        index,
+        top,
+        track,
+      };
 
-    top = bottom + TIMELINE_TRACK_GAP;
-    return layout;
-  });
+      top = bottom + TIMELINE_TRACK_GAP;
+      return layout;
+    });
 };
 
 export const getTimelineTracksHeight = (
@@ -61,7 +64,7 @@ export const getTimelineTrackY = (
   trackIndex: number,
 ) => {
   const layouts = getTimelineTrackLayouts(tracks);
-  const layout = layouts[trackIndex];
+  const layout = layouts.find(({ index }) => index === trackIndex);
   if (layout) return layout.top;
 
   const lastLayout = layouts.at(-1);
@@ -75,12 +78,22 @@ export const getTimelineTrackInsertY = (
   target: TrackInsertTarget,
 ) => {
   const layouts = getTimelineTrackLayouts(tracks);
-  if (target.index <= 0) return TIMELINE_RULER_HEIGHT;
+  if (layouts.length === 0) return TIMELINE_RULER_HEIGHT;
+  if (target.index >= tracks.length) return TIMELINE_RULER_HEIGHT;
+  if (target.index <= 0) {
+    const bottomTrack = layouts.at(-1);
+    return bottomTrack
+      ? bottomTrack.bottom + TIMELINE_TRACK_GAP / 2
+      : TIMELINE_RULER_HEIGHT;
+  }
 
-  const before = layouts[target.index - 1];
-  const after = layouts[target.index];
-  if (before && after) return (before.bottom + after.top) / 2;
-  if (before) return before.bottom + TIMELINE_TRACK_GAP / 2;
+  const upperTrack = layouts.find(({ index }) => index === target.index);
+  const lowerTrack = layouts.find(
+    ({ index }) => index === target.index - 1,
+  );
+  if (upperTrack && lowerTrack) {
+    return (upperTrack.bottom + lowerTrack.top) / 2;
+  }
 
   return TIMELINE_RULER_HEIGHT;
 };

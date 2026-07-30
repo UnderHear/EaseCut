@@ -54,14 +54,14 @@ describe('createCompositionExportPayload', () => {
           name: '音频轨道',
           type: 'audio',
           muted: false,
-          zIndex: 10,
+          zIndex: 0,
         },
         {
           id: 'video-track',
           name: '视频轨',
           type: 'video',
           muted: false,
-          zIndex: 0,
+          zIndex: 1,
         },
       ],
     };
@@ -69,6 +69,18 @@ describe('createCompositionExportPayload', () => {
     expect(createCompositionExportPayload(draft)).toEqual({
       Canvas: { Height: 1_080, Width: 1_921 },
       Track: [
+        [
+          {
+            Extra: [
+              { Type: 'a_volume', Volume: 0.25 },
+              { EndTime: 1_000, StartTime: 0, Type: 'trim' },
+              { Speed: 1, Type: 'speed' },
+            ],
+            Source: 'audio.mp3',
+            TargetTime: [0, 1_000],
+            Type: 'audio',
+          },
+        ],
         [
           {
             Extra: [
@@ -86,18 +98,6 @@ describe('createCompositionExportPayload', () => {
             Source: 'video.mp4',
             TargetTime: [1_235, 3_235],
             Type: 'video',
-          },
-        ],
-        [
-          {
-            Extra: [
-              { Type: 'a_volume', Volume: 0.25 },
-              { EndTime: 1_000, StartTime: 0, Type: 'trim' },
-              { Speed: 1, Type: 'speed' },
-            ],
-            Source: 'audio.mp3',
-            TargetTime: [0, 1_000],
-            Type: 'audio',
           },
         ],
       ],

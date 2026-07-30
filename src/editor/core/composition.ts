@@ -16,6 +16,7 @@ import {
   isValidClipSpeed,
   timelineTimeToClipSourceTimeUs,
 } from './clip-speed';
+import { normalizeTimelineTracks } from './timeline-tracks';
 import { isValidTimeUs } from './time';
 import { isTimelineTextFontType } from './text-fonts';
 
@@ -166,17 +167,16 @@ export const createCompositionSnapshot = (
     throw new TypeError('项目画布或轨道无效');
   }
 
-  const tracks = [...input.tracks].sort(
-    (left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id),
-  );
-  const tracksById = new Map<string, TimelineTrack>();
-  for (const track of tracks) {
+  const trackIds = new Set<string>();
+  for (const track of input.tracks) {
     validateTrack(track);
-    if (tracksById.has(track.id)) {
+    if (trackIds.has(track.id)) {
       throw new TypeError(`轨道 ID 重复：${track.id}`);
     }
-    tracksById.set(track.id, track);
+    trackIds.add(track.id);
   }
+  const tracks = normalizeTimelineTracks(input.tracks);
+  const tracksById = new Map(tracks.map((track) => [track.id, track]));
 
   const clipIds = new Set<string>();
   const clips = [...input.clips];

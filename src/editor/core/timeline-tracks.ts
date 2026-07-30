@@ -15,10 +15,17 @@ export type TrackDropTarget =
   | { kind: 'existing'; trackId: string }
   | { insert: TrackInsertTarget; kind: 'insert' };
 
-export const normalizeTimelineTracks = (tracks: TimelineTrack[]) =>
+export const normalizeTimelineTracks = (tracks: readonly TimelineTrack[]) =>
   [
-    ...tracks.filter((track) => track.type === 'video'),
     ...tracks.filter((track) => track.type === 'audio'),
+    ...tracks.filter(
+      (track) =>
+        track.type === 'video' && track.id === MAIN_VIDEO_TRACK_ID,
+    ),
+    ...tracks.filter(
+      (track) =>
+        track.type === 'video' && track.id !== MAIN_VIDEO_TRACK_ID,
+    ),
     ...tracks.filter((track) => track.type === 'text'),
   ].map((track, zIndex) => ({
     ...track,
@@ -67,6 +74,33 @@ const getNextTrackZIndex = (tracks: TimelineTrack[]) =>
 const getNextTextTrackName = (tracks: TimelineTrack[]) =>
   `文字轨 ${tracks.filter((track) => track.type === 'text').length + 1}`;
 
+export const getTimelineTrackTypeRange = (
+  tracks: readonly TimelineTrack[],
+  type: TimelineTrack['type'],
+) => {
+  const audioTrackCount = tracks.filter(
+    (track) => track.type === 'audio',
+  ).length;
+  const videoTrackCount = tracks.filter(
+    (track) => track.type === 'video',
+  ).length;
+
+  switch (type) {
+    case 'audio':
+      return { endIndex: audioTrackCount, startIndex: 0 };
+    case 'video':
+      return {
+        endIndex: audioTrackCount + videoTrackCount,
+        startIndex: audioTrackCount,
+      };
+    case 'text':
+      return {
+        endIndex: tracks.length,
+        startIndex: audioTrackCount + videoTrackCount,
+      };
+  }
+};
+
 const createTimelineTrack = (
   tracks: TimelineTrack[],
   type: TimelineTrack['type'],
@@ -102,24 +136,8 @@ export const getSafeTrackInsertIndex = (
   tracks: TimelineTrack[],
   target: TrackInsertTarget,
 ) => {
-  const videoTrackCount = tracks.filter(
-    (track) => track.type === 'video',
-  ).length;
-  const audioTrackCount = tracks.filter(
-    (track) => track.type === 'audio',
-  ).length;
-  const minimum =
-    target.type === 'video'
-      ? 0
-      : target.type === 'audio'
-        ? videoTrackCount
-        : videoTrackCount + audioTrackCount;
-  const maximum =
-    target.type === 'video'
-      ? videoTrackCount
-      : target.type === 'audio'
-        ? videoTrackCount + audioTrackCount
-        : tracks.length;
+  const { endIndex: maximum, startIndex: minimum } =
+    getTimelineTrackTypeRange(tracks, target.type);
 
   return Math.min(Math.max(minimum, target.index), maximum);
 };

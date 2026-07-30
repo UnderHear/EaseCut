@@ -25,9 +25,9 @@ const createTrack = (
 });
 
 const tracks = [
-  createTrack('video-main', 'video', 0),
-  createTrack('video-overlay-1', 'video', 1),
-  createTrack('audio-track-1', 'audio', 2),
+  createTrack('audio-track-1', 'audio', 0),
+  createTrack('video-main', 'video', 1),
+  createTrack('video-overlay-1', 'video', 2),
 ];
 
 describe('timeline content coordinates', () => {
@@ -72,7 +72,7 @@ describe('timeline track insertion targeting', () => {
         'video',
         90 + TRACK_INSERT_ACQUIRE_DISTANCE,
       ),
-    ).toEqual({ index: 1, type: 'video' });
+    ).toEqual({ index: 2, type: 'video' });
     expect(
       getTrackInsertTargetAtY(
         tracks,
@@ -83,7 +83,7 @@ describe('timeline track insertion targeting', () => {
   });
 
   it('retains an acquired target through the wider release distance', () => {
-    const target = { index: 1, type: 'video' } as const;
+    const target = { index: 2, type: 'video' } as const;
 
     expect(
       getTrackInsertTargetAtY(
@@ -106,7 +106,7 @@ describe('timeline track insertion targeting', () => {
   it('only exposes insertion positions inside the clip type group', () => {
     expect(getTrackInsertTargetAtY(tracks, 'audio', 90)).toBeNull();
     expect(getTrackInsertTargetAtY(tracks, 'audio', 150)).toEqual({
-      index: 2,
+      index: 1,
       type: 'audio',
     });
   });
