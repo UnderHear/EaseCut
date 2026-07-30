@@ -57,6 +57,23 @@ type CanvasDrawCall = {
     | 'strokeRect';
 };
 
+const createDeferred = <Value,>() => {
+  let resolvePromise: ((value: Value) => void) | null = null;
+  const promise = new Promise<Value>((resolve) => {
+    resolvePromise = resolve;
+  });
+
+  return {
+    promise,
+    resolve(value: Value) {
+      if (!resolvePromise) {
+        throw new Error('Deferred promise resolver is unavailable');
+      }
+      resolvePromise(value);
+    },
+  };
+};
+
 const mainTrack: TimelineTrack = {
   id: MAIN_VIDEO_TRACK_ID,
   name: '视频轨',
@@ -118,6 +135,7 @@ describe('PreviewPanel', () => {
     globalThis,
     'ResizeObserver',
   );
+  const fontsDescriptor = Object.getOwnPropertyDescriptor(document, 'fonts');
   const readyStateDescriptor = Object.getOwnPropertyDescriptor(
     HTMLMediaElement.prototype,
     'readyState',
@@ -136,8 +154,10 @@ describe('PreviewPanel', () => {
   );
   let drawImageMock: ReturnType<typeof vi.fn>;
   let drawCalls: CanvasDrawCall[];
+  let drawnTextFonts: string[];
   let fillRectMock: ReturnType<typeof vi.fn>;
   let fillTextMock: ReturnType<typeof vi.fn>;
+  let currentCanvasFont: string;
   let mediaReadyState: number;
   let preservesPitchByMedia: WeakMap<HTMLMediaElement, boolean>;
   let preservesPitchWrites: Array<{
@@ -150,13 +170,18 @@ describe('PreviewPanel', () => {
   beforeEach(() => {
     resetTestTimelineStore();
     drawCalls = [];
+    drawnTextFonts = [];
+    currentCanvasFont = '';
     const createCanvasCallMock = (kind: CanvasDrawCall['kind']) =>
       vi.fn((...args: unknown[]) => {
         drawCalls.push({ args, kind });
       });
     drawImageMock = createCanvasCallMock('drawImage');
     fillRectMock = createCanvasCallMock('fillRect');
-    fillTextMock = createCanvasCallMock('fillText');
+    fillTextMock = vi.fn((...args: unknown[]) => {
+      drawCalls.push({ args, kind: 'fillText' });
+      drawnTextFonts.push(currentCanvasFont);
+    });
     mediaReadyState = 4;
     preservesPitchByMedia = new WeakMap();
     preservesPitchWrites = [];
@@ -217,7 +242,12 @@ describe('PreviewPanel', () => {
             fillRect: fillRectMock,
             fillStyle: '',
             fillText: fillTextMock,
-            font: '',
+            get font() {
+              return currentCanvasFont;
+            },
+            set font(value: string) {
+              currentCanvasFont = value;
+            },
             lineWidth: 0,
             lineTo: createCanvasCallMock('lineTo'),
             moveTo: createCanvasCallMock('moveTo'),
@@ -277,6 +307,11 @@ describe('PreviewPanel', () => {
       );
     } else {
       delete (globalThis as { ResizeObserver?: unknown }).ResizeObserver;
+    }
+    if (fontsDescriptor) {
+      Object.defineProperty(document, 'fonts', fontsDescriptor);
+    } else {
+      Reflect.deleteProperty(document, 'fonts');
     }
 
     if (readyStateDescriptor) {
@@ -515,6 +550,116 @@ describe('PreviewPanel', () => {
       400,
       1_000,
     );
+  });
+
+  it('keeps the last rendered font until a newly selected font is ready', async () => {
+    const alibabaFontLoad = createDeferred<object[]>();
+    const zcoolFontLoad = createDeferred<object[]>();
+    const fontLoadMock = vi.fn((descriptor: string) => {
+      if (descriptor.includes('Source Han Sans SC')) {
+        return Promise.resolve([{}]);
+      }
+      if (descriptor.includes('Alibaba PuHuiTi')) {
+        return alibabaFontLoad.promise;
+      }
+      if (descriptor.includes('ZCOOL GaoDuanHei')) {
+        return zcoolFontLoad.promise;
+      }
+      return Promise.resolve([]);
+    });
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { load: fontLoadMock },
+    });
+    const textTrack: TimelineTrack = {
+      id: 'text-track-font-loading',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 3,
+    };
+    const textClip: TimelineTextClip = {
+      alignType: 1,
+      durationUs: secondsToMicroseconds(5),
+      fontColor: '#FFFFFFFF',
+      fontSize: 120,
+      fontType: 'SY_Black',
+      id: 'text-clip-font-loading',
+      startUs: 0,
+      text: '字体切换预览',
+      trackId: textTrack.id,
+      transform: { height: 200, width: 1_000, x: 100, y: 300 },
+      type: 'text',
+      zIndex: 0,
+    };
+    testTimelineStore.setState((state) => ({
+      clips: [...state.clips, textClip],
+      selectedClipId: textClip.id,
+      tracks: [...state.tracks, textTrack],
+    }));
+    const setTextFont = (fontType: TimelineTextClip['fontType']) => {
+      act(() => {
+        testTimelineStore.setState((state) => ({
+          clips: state.clips.map((clip) =>
+            clip.id === textClip.id && clip.type === 'text'
+              ? { ...clip, fontType }
+              : clip,
+          ),
+        }));
+      });
+    };
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      expect(drawnTextFonts).toContain(
+        '120px "Source Han Sans SC", sans-serif',
+      );
+    });
+    fillTextMock.mockClear();
+    drawnTextFonts = [];
+
+    setTextFont('ALi_PuHui');
+    await waitFor(() => {
+      expect(fontLoadMock).toHaveBeenCalledWith(
+        '16px "Alibaba PuHuiTi"',
+      );
+    });
+    expect(drawnTextFonts).not.toContain(
+      '120px "Alibaba PuHuiTi", sans-serif',
+    );
+    expect(drawnTextFonts).toContain(
+      '120px "Source Han Sans SC", sans-serif',
+    );
+
+    setTextFont('1187221');
+    await waitFor(() => {
+      expect(fontLoadMock).toHaveBeenCalledWith(
+        '16px "ZCOOL GaoDuanHei"',
+      );
+    });
+    expect(drawnTextFonts).not.toContain(
+      '120px "ZCOOL GaoDuanHei", sans-serif',
+    );
+
+    alibabaFontLoad.resolve([{}]);
+    await alibabaFontLoad.promise;
+    await Promise.resolve();
+    expect(drawnTextFonts).not.toContain(
+      '120px "Alibaba PuHuiTi", sans-serif',
+    );
+    expect(drawnTextFonts).not.toContain(
+      '120px "ZCOOL GaoDuanHei", sans-serif',
+    );
+
+    zcoolFontLoad.resolve([{}]);
+    await waitFor(() => {
+      expect(drawnTextFonts).toContain(
+        '120px "ZCOOL GaoDuanHei", sans-serif',
+      );
+    });
   });
 
   it('maps timeline time and playback rate for speed-adjusted video and audio', async () => {

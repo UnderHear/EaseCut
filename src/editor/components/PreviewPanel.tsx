@@ -50,6 +50,9 @@ const HAVE_METADATA_READY_STATE = 1;
 const HAVE_CURRENT_DATA_READY_STATE = 2;
 const PREVIEW_PRELOAD_LOOKAHEAD_US = secondsToMicroseconds(5);
 const MAX_PRELOADED_MEDIA_CLIPS = 4;
+const PREVIEW_FONT_LOAD_SIZE_PX = 16;
+
+type PreviewFontLoadStatus = 'failed' | 'ready' | 'unsupported';
 
 type PreviewPoint = {
   x: number;
@@ -82,6 +85,12 @@ const previewResizeHandles: PreviewResizeHandle[] = ['nw', 'ne', 'sw', 'se'];
 const canUseMediaElement = () =>
   typeof navigator === 'undefined' ||
   !navigator.userAgent.toLowerCase().includes('jsdom');
+
+const getDocumentFontFaceSet = () =>
+  typeof document === 'undefined' || !document.fonts ? null : document.fonts;
+
+const getPreviewFontDescriptor = (family: string) =>
+  `${PREVIEW_FONT_LOAD_SIZE_PX}px "${family}"`;
 
 type PreviewClipIndex = ReadonlyMap<string, readonly TimelineMediaClip[]>;
 
@@ -358,11 +367,11 @@ const toCanvasColor = (fontColor: string) => {
 const drawTextClip = (
   context: CanvasRenderingContext2D,
   clip: Extract<TimelineClip, { type: 'text' }>,
+  fontFamily: string,
   transform: TimelineClipTransform,
   previewFrame: PreviewFrame,
 ) => {
   const previewTransform = toPreviewTransform(transform, previewFrame);
-  const preset = getTimelineTextFontPreset(clip.fontType);
   const textAlign = clip.alignType === 0 ? 'left' : clip.alignType === 2 ? 'right' : 'center';
   const textX =
     textAlign === 'left'
@@ -381,7 +390,7 @@ const drawTextClip = (
   );
   context.clip();
   context.fillStyle = toCanvasColor(clip.fontColor);
-  context.font = `${clip.fontSize * previewFrame.scale}px "${preset?.family ?? 'Microsoft YaHei'}", sans-serif`;
+  context.font = `${clip.fontSize * previewFrame.scale}px "${fontFamily}", sans-serif`;
   context.textAlign = textAlign;
   context.textBaseline = 'middle';
   context.fillText(
@@ -574,6 +583,14 @@ export function PreviewPanel({
     key: string;
     warning: string | null;
   } | null>(null);
+  const fontFaceSet = getDocumentFontFaceSet();
+  const fontLoadStatusByTypeRef = useRef(
+    new Map<string, PreviewFontLoadStatus>(),
+  );
+  const pendingFontLoadsByTypeRef = useRef(
+    new Map<string, Promise<PreviewFontLoadStatus>>(),
+  );
+  const renderedFontTypeByClipIdRef = useRef(new Map<string, string>());
   const [playbackWarning, setPlaybackWarning] = useState<string | null>(
     null,
   );
@@ -627,10 +644,22 @@ export function PreviewPanel({
     [clips, selectedClipId],
   );
   const selectedFontKey = selectedTextClip
-    ? `${selectedTextClip.fontType}:${selectedTextClip.fontSize}`
+    ? selectedTextClip.fontType
     : null;
+  const previewFontTypesKey = Array.from(
+    new Set([
+      ...activeVisualClips.flatMap((clip) =>
+        clip.type === 'text' ? [clip.fontType] : [],
+      ),
+      ...(selectedTextClip ? [selectedTextClip.fontType] : []),
+    ]),
+  )
+    .sort()
+    .join('\n');
   const fontWarning =
-    fontLoadState?.key === selectedFontKey
+    !fontFaceSet && selectedFontKey
+      ? '当前浏览器不支持字体加载检测，预览可能使用系统字体回退'
+      : fontLoadState?.key === selectedFontKey
       ? fontLoadState.warning
       : null;
   const previewSourcesKey = useMemo(
@@ -736,6 +765,32 @@ export function PreviewPanel({
   const drawCurrentPreview = useCallback(() => {
     drawPreviewRef.current(interactionRef.current);
   }, []);
+  const ensurePreviewFontLoaded = useCallback(
+    (fontType: string, family: string): Promise<PreviewFontLoadStatus> => {
+      if (!fontFaceSet) return Promise.resolve('unsupported');
+
+      const loadedStatus = fontLoadStatusByTypeRef.current.get(fontType);
+      if (loadedStatus) return Promise.resolve(loadedStatus);
+
+      const pendingLoad = pendingFontLoadsByTypeRef.current.get(fontType);
+      if (pendingLoad) return pendingLoad;
+
+      const load = Promise.resolve()
+        .then(() => fontFaceSet.load(getPreviewFontDescriptor(family)))
+        .then<PreviewFontLoadStatus>((faces) =>
+          faces.length > 0 ? 'ready' : 'failed',
+        )
+        .catch<PreviewFontLoadStatus>(() => 'failed')
+        .then((status) => {
+          fontLoadStatusByTypeRef.current.set(fontType, status);
+          pendingFontLoadsByTypeRef.current.delete(fontType);
+          return status;
+        });
+      pendingFontLoadsByTypeRef.current.set(fontType, load);
+      return load;
+    },
+    [fontFaceSet],
+  );
   const handleLoadedMediaMetadata = useCallback(
     (
       clip: TimelineMediaClip,
@@ -805,7 +860,32 @@ export function PreviewPanel({
             ? interaction.transform
             : clip.transform;
         if (clip.type === 'text') {
-          drawTextClip(context, clip, transform, previewFrame);
+          const preset = getTimelineTextFontPreset(clip.fontType);
+          const fontLoadStatus = fontLoadStatusByTypeRef.current.get(
+            clip.fontType,
+          );
+          const renderedFontType =
+            renderedFontTypeByClipIdRef.current.get(clip.id);
+          const renderedFontPreset = renderedFontType
+            ? getTimelineTextFontPreset(renderedFontType)
+            : null;
+          const fontFamily =
+            fontFaceSet && preset && !fontLoadStatus
+              ? renderedFontPreset?.family
+              : (preset?.family ?? 'Microsoft YaHei');
+
+          if (fontFamily) {
+            drawTextClip(
+              context,
+              clip,
+              fontFamily,
+              transform,
+              previewFrame,
+            );
+            if (fontLoadStatus === 'ready') {
+              renderedFontTypeByClipIdRef.current.set(clip.id, clip.fontType);
+            }
+          }
         } else {
           const video = mediaElementsRef.current.get(clip.id);
           const objectUrl = previewObjectUrls[clip.src];
@@ -849,6 +929,7 @@ export function PreviewPanel({
     [
       activeVideoClips,
       activeVisualClips,
+      fontFaceSet,
       previewFrame,
       previewObjectUrls,
       selectedClipId,
@@ -859,38 +940,53 @@ export function PreviewPanel({
   }, [drawPreview]);
 
   useEffect(() => {
-    if (!selectedTextClip || !selectedFontKey || !document.fonts) {
+    const clipIds = new Set(clips.map((clip) => clip.id));
+    for (const clipId of renderedFontTypeByClipIdRef.current.keys()) {
+      if (!clipIds.has(clipId)) {
+        renderedFontTypeByClipIdRef.current.delete(clipId);
+      }
+    }
+  }, [clips]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!fontFaceSet) {
       return undefined;
     }
-    const preset = getTimelineTextFontPreset(selectedTextClip.fontType);
-    if (!preset) return undefined;
 
-    let cancelled = false;
-    document.fonts
-      .load(`${selectedTextClip.fontSize}px "${preset.family}"`)
-      .then((faces) => {
+    const fontTypes = previewFontTypesKey
+      ? previewFontTypesKey.split('\n')
+      : [];
+    for (const fontType of fontTypes) {
+      const preset = getTimelineTextFontPreset(fontType);
+      if (!preset) continue;
+
+      void ensurePreviewFontLoaded(fontType, preset.family).then((status) => {
         if (cancelled) return;
-        setFontLoadState({
-          key: selectedFontKey,
-          warning:
-            faces.length === 0
-              ? `${preset.label}加载失败，预览已使用系统字体回退`
-              : null,
-        });
-        drawPreviewRef.current(interactionRef.current);
-      })
-      .catch(() => {
-        if (!cancelled) {
+        if (fontType === selectedFontKey) {
           setFontLoadState({
             key: selectedFontKey,
-            warning: `${preset.label}加载失败，预览已使用系统字体回退`,
+            warning:
+              status === 'failed'
+                ? `${preset.label}加载失败，预览已使用系统字体回退`
+                : null,
           });
         }
+        lastPreviewDrawKeyRef.current = null;
+        drawPreviewRef.current(interactionRef.current);
       });
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [selectedFontKey, selectedTextClip]);
+  }, [
+    ensurePreviewFontLoaded,
+    fontFaceSet,
+    previewFontTypesKey,
+    selectedFontKey,
+  ]);
 
   useEffect(() => {
     const engine = new PreviewAudioEngine();
