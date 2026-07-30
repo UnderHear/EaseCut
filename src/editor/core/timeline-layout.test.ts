@@ -4,8 +4,10 @@ import type { TimelineTrack } from './model';
 import {
   TIMELINE_RULER_HEIGHT,
   TIMELINE_TRACK_GAP,
+  getTimelineClipHeight,
   getTimelineTrackInsertY,
   getTimelineTrackLayouts,
+  getTimelineTrackHeight,
   getTimelineTrackY,
   getTimelineTracksHeight,
 } from './timeline-layout';
@@ -30,28 +32,37 @@ describe('timeline track layout', () => {
 
     expect(layouts).toEqual([
       {
-        bottom: 88,
-        height: 56,
+        bottom: 72,
+        height: 40,
         index: 2,
         top: TIMELINE_RULER_HEIGHT,
         track: textTrack,
       },
       {
-        bottom: 148,
+        bottom: 132,
         height: 56,
         index: 1,
-        top: 88 + TIMELINE_TRACK_GAP,
+        top: 72 + TIMELINE_TRACK_GAP,
         track: videoTrack,
       },
       {
-        bottom: 192,
+        bottom: 176,
         height: 40,
         index: 0,
-        top: 148 + TIMELINE_TRACK_GAP,
+        top: 132 + TIMELINE_TRACK_GAP,
         track: audioTrack,
       },
     ]);
-    expect(getTimelineTracksHeight(tracks)).toBe(160);
+    expect(getTimelineTracksHeight(tracks)).toBe(144);
+  });
+
+  it('uses the compact audio height for text tracks and clips', () => {
+    expect(getTimelineTrackHeight(textTrack)).toBe(
+      getTimelineTrackHeight(audioTrack),
+    );
+    expect(getTimelineClipHeight('text')).toBe(
+      getTimelineClipHeight('audio'),
+    );
   });
 
   it('maps storage insertion indexes to reversed visual boundaries', () => {
@@ -61,15 +72,15 @@ describe('timeline track layout', () => {
       TIMELINE_RULER_HEIGHT,
     );
     expect(getTimelineTrackInsertY(tracks, { index: 2, type: 'text' })).toBe(
-      88 + TIMELINE_TRACK_GAP / 2,
+      72 + TIMELINE_TRACK_GAP / 2,
     );
     expect(getTimelineTrackInsertY(tracks, { index: 1, type: 'video' })).toBe(
-      148 + TIMELINE_TRACK_GAP / 2,
+      132 + TIMELINE_TRACK_GAP / 2,
     );
     expect(getTimelineTrackInsertY(tracks, { index: 0, type: 'audio' })).toBe(
-      192 + TIMELINE_TRACK_GAP / 2,
+      176 + TIMELINE_TRACK_GAP / 2,
     );
     expect(getTimelineTrackY(tracks, 2)).toBe(TIMELINE_RULER_HEIGHT);
-    expect(getTimelineTrackY(tracks, 0)).toBe(152);
+    expect(getTimelineTrackY(tracks, 0)).toBe(136);
   });
 });

@@ -429,6 +429,9 @@ describe('TimelineViewport DOM interactions', () => {
     expect(screen.getByTitle('文字轨道')).toHaveClass(
       'ec-timeline-track__icon',
     );
+    expect(screen.getByTitle('文字轨道').parentElement).toHaveStyle({
+      height: '40px',
+    });
     expect(
       screen.queryByRole('button', { name: /文字轨道.*静音/ }),
     ).not.toBeInTheDocument();
@@ -437,6 +440,11 @@ describe('TimelineViewport DOM interactions', () => {
         name: 'text clip: 我们的精彩旅程',
       }),
     ).toHaveAttribute('data-type', 'text');
+    expect(
+      screen.getByRole('article', {
+        name: 'text clip: 我们的精彩旅程',
+      }).parentElement?.parentElement,
+    ).toHaveStyle({ height: '40px' });
     expect(screen.getAllByText('我们的精彩旅程')).toHaveLength(2);
     expect(screen.getByText('00:05:00')).toBeVisible();
     expect(

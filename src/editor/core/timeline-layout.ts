@@ -11,10 +11,10 @@ export const TIMELINE_CONTENT_PADDING_X = 12;
 export const TIMELINE_TRACK_GAP = 4;
 
 export const getTimelineTrackHeight = (track: Pick<TimelineTrack, 'type'>) =>
-  track.type === 'audio' ? TIMELINE_AUDIO_TRACK_HEIGHT : TIMELINE_TRACK_HEIGHT;
+  track.type === 'video' ? TIMELINE_TRACK_HEIGHT : TIMELINE_AUDIO_TRACK_HEIGHT;
 
 export const getTimelineClipHeight = (type: TimelineClipType) =>
-  type === 'audio' ? TIMELINE_AUDIO_CLIP_HEIGHT : TIMELINE_CLIP_HEIGHT;
+  type === 'video' ? TIMELINE_CLIP_HEIGHT : TIMELINE_AUDIO_CLIP_HEIGHT;
 
 export type TimelineTrackLayout<
   T extends Pick<TimelineTrack, 'type'> = Pick<TimelineTrack, 'type'>,
