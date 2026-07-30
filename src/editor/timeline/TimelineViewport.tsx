@@ -103,6 +103,8 @@ export function TimelineViewport({
   });
   const { displayClips } = controller;
   const dropPreview = controller.dropPreview;
+  const snapTimeUs =
+    dropPreview?.snapTimeUs ?? controller.trimPreview?.snapTimeUs ?? null;
   const draggedClip = dropPreview
     ? clips.find(({ id }) => id === dropPreview.clipId)
     : undefined;
@@ -595,18 +597,17 @@ export function TimelineViewport({
             />
           )}
 
-          {dropPreview?.snapTimeUs !== null &&
-            dropPreview?.snapTimeUs !== undefined && (
-              <div
-                aria-hidden='true'
-                className='ec-timeline-snap-line'
-                style={{
-                  left:
-                    TIMELINE_CONTENT_PADDING_X +
-                    timeUsToX(dropPreview.snapTimeUs, pixelsPerSecond),
-                }}
-              />
-            )}
+          {snapTimeUs !== null && (
+            <div
+              aria-hidden='true'
+              className='ec-timeline-snap-line'
+              style={{
+                left:
+                  TIMELINE_CONTENT_PADDING_X +
+                  timeUsToX(snapTimeUs, pixelsPerSecond),
+              }}
+            />
+          )}
         </div>
       </div>
       <div

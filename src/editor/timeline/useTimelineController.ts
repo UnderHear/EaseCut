@@ -22,7 +22,6 @@ import {
 } from '../core/timeline-math';
 import { isTimelineMediaClip } from '../core/model';
 import {
-  getTrimmedClip,
   getTrimmedTimelineClips,
 } from '../core/timeline-commands';
 import {
@@ -39,6 +38,7 @@ import {
   getContentPoint,
   getVolumeAtPointer,
   planClipDrop,
+  planClipTrim,
   type ClipDropPreview,
   type TimelineGesture,
   type TrimPreview,
@@ -143,42 +143,17 @@ export function useTimelineController({
       if (gesture.kind !== 'trim') return;
       const point = getContentPoint(viewportRef.current, clientX, clientY);
       if (!point) return;
-      const deltaUs = normalizeTimelineTimeUs(
-        xToTimeUs(point.x, gesture.pixelsPerSecond) -
-          gesture.initialPointerTimeUs,
+      const next = planClipTrim(
+        gesture,
+        xToTimeUs(point.x, gesture.pixelsPerSecond),
       );
-      const initialBoundaryUs =
-        gesture.edge === 'start'
-          ? gesture.clip.startUs
-          : gesture.clip.startUs + gesture.clip.durationUs;
-      const trimmed = getTrimmedClip(
-        gesture.clip,
-        gesture.edge,
-        initialBoundaryUs + deltaUs,
-      );
-      const next: TrimPreview = {
-        clipId: gesture.clip.id,
-        edge: gesture.edge,
-        timeUs:
-          gesture.edge === 'start'
-            ? trimmed.startUs
-            : trimmed.startUs + trimmed.durationUs,
-      };
       trimPreviewRef.current = next;
       setTrimPreview(next);
-      const previewClip = getTrimmedTimelineClips(
-        clips,
-        next.clipId,
-        next.edge,
-        next.timeUs,
-      ).find((clip) => clip.id === next.clipId);
-      if (previewClip) {
-        onClipTimingPreviewChange?.({
-          clipId: previewClip.id,
-          durationUs: previewClip.durationUs,
-          startUs: previewClip.startUs,
-        });
-      }
+      onClipTimingPreviewChange?.({
+        clipId: next.clipId,
+        durationUs: next.durationUs,
+        startUs: next.startUs,
+      });
     };
     const handlePointerMove = (event: PointerEvent) => {
       if (event.pointerId !== gesture.pointerId) return;
@@ -365,11 +340,17 @@ export function useTimelineController({
     gridRef.current?.setPointerCapture?.(event.pointerId);
     setGesture({
       clip,
+      clips,
       edge,
       initialPointerTimeUs: xToTimeUs(point.x, pixelsPerSecond),
       kind: 'trim',
       pixelsPerSecond,
       pointerId: event.pointerId,
+      snapCandidates: [
+        ...getClipSnapCandidates(clips, clip.id),
+        currentTimeUs,
+      ],
+      snappingEnabled,
     });
   };
 
@@ -451,5 +432,6 @@ export function useTimelineController({
     dropPreview,
     isInteracting: gesture !== null,
     isScrubbing: gesture?.kind === 'scrub',
+    trimPreview,
   };
 }

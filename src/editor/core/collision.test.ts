@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getCompactInsertionLayout,
+  getClipSnapCandidates,
   getInsertionIndex,
   getPreservedGapInsertionLayout,
   snapClipMoveToCandidates,
@@ -222,5 +223,23 @@ describe('snapClipMoveToCandidates', () => {
       snappedStartUs: 0,
       snappedToUs: null,
     });
+  });
+});
+
+describe('getClipSnapCandidates', () => {
+  it('excludes both edges of the actively edited clip', () => {
+    expect(
+      getClipSnapCandidates(
+        [
+          createClip('active', 1, 2),
+          createClip('target', 5, 3),
+        ],
+        'active',
+      ),
+    ).toEqual([
+      0,
+      secondsToMicroseconds(5),
+      secondsToMicroseconds(8),
+    ]);
   });
 });

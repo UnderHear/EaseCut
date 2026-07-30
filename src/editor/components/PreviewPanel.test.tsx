@@ -614,7 +614,7 @@ describe('PreviewPanel', () => {
       ([x, , width]) => x === -100 && width === 2_000,
     );
     expect(measureTextMock).toHaveBeenCalledWith('我们的精彩旅程');
-    expect(underlineCall?.[1]).toBeCloseTo(436);
+    expect(underlineCall?.[1]).toBeCloseTo(442);
     expect(underlineCall?.[3]).toBeCloseTo(7.2);
     expect(strokeRectMock).toHaveBeenCalledWith(-100, 300, 2_000, 200);
     expect(

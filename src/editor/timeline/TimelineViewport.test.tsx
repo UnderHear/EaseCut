@@ -2090,6 +2090,178 @@ describe('TimelineViewport DOM interactions', () => {
     expect(testTimelineStore.getState().past).toHaveLength(1);
   });
 
+  it('snaps a video end trim to the playhead and commits one history entry', () => {
+    testTimelineStore.setState({
+      currentTimeUs: secondsToMicroseconds(3),
+      snappingEnabled: true,
+    });
+    renderTimeline();
+    const trimHandle = screen.getByRole('button', {
+      name: 'Trim end of opening.mp4',
+    });
+
+    fireEvent.pointerDown(trimHandle, {
+      button: 0,
+      clientX: 428,
+      clientY: 50,
+      pointerId: 41,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 352,
+      clientY: 50,
+      pointerId: 41,
+    });
+
+    expect(document.querySelector('.ec-timeline-snap-line')).toHaveStyle({
+      left: '252px',
+    });
+    expect(
+      screen
+        .getByRole('article', { name: 'video clip: opening.mp4' })
+        .querySelector('.ec-timeline-clip__duration'),
+    ).toHaveAttribute('dateTime', 'PT3S');
+
+    fireEvent.pointerUp(window, {
+      clientX: 352,
+      clientY: 50,
+      pointerId: 41,
+    });
+
+    expect(getStoreMediaClip(videoClip.id)).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(3),
+        trimEndUs: secondsToMicroseconds(3),
+      }),
+    );
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+    expect(document.querySelector('.ec-timeline-snap-line')).toBeNull();
+  });
+
+  it('snaps an audio start trim to another clip edge and clears on cancel', () => {
+    const longAudioClip = createClip({
+      durationUs: secondsToMicroseconds(4),
+      id: 'long-audio-clip',
+      name: 'long-audio.mp3',
+      sourceDurationUs: secondsToMicroseconds(5),
+      sourceId: 'long-audio-source',
+      startUs: secondsToMicroseconds(1),
+      trackId: audioTrack.id,
+      trimEndUs: secondsToMicroseconds(4),
+      type: 'audio',
+    });
+    testTimelineStore.setState({
+      clips: [videoClip, longAudioClip],
+      selectedClipId: longAudioClip.id,
+      snappingEnabled: true,
+    });
+    renderTimeline();
+    const trimHandle = screen.getByRole('button', {
+      name: 'Trim start of long-audio.mp3',
+    });
+
+    fireEvent.pointerDown(trimHandle, {
+      button: 0,
+      clientX: 188,
+      clientY: 100,
+      pointerId: 42,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 424,
+      clientY: 100,
+      pointerId: 42,
+    });
+
+    expect(document.querySelector('.ec-timeline-snap-line')).toHaveStyle({
+      left: '332px',
+    });
+    expect(
+      screen
+        .getByRole('article', { name: 'audio clip: long-audio.mp3' })
+        .querySelector('.ec-timeline-clip__duration'),
+    ).toHaveAttribute('dateTime', 'PT1S');
+
+    fireEvent.pointerCancel(window, { pointerId: 42 });
+
+    expect(getStoreMediaClip(longAudioClip.id)).toEqual(longAudioClip);
+    expect(testTimelineStore.getState().past).toHaveLength(0);
+    expect(document.querySelector('.ec-timeline-snap-line')).toBeNull();
+  });
+
+  it('snaps and commits a text clip end trim to another clip edge', () => {
+    const textTrack: TimelineTrack = {
+      id: 'text-track-1',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 2,
+    };
+    testTimelineStore.setState((state) => ({
+      clips: [
+        ...state.clips,
+        {
+          bold: false,
+          durationUs: secondsToMicroseconds(5),
+          fontColor: '#FFFFFFFF',
+          fontSize: 120,
+          fontType: 'SY_Black',
+          id: 'text-clip-1',
+          italic: false,
+          layoutSize: { height: 200, width: 1_800 },
+          position: { x: 60, y: 440 },
+          startUs: 0,
+          text: '我们的精彩旅程',
+          trackId: textTrack.id,
+          type: 'text',
+          underline: false,
+          zIndex: 0,
+        },
+      ],
+      currentTimeUs: secondsToMicroseconds(2),
+      selectedClipId: 'text-clip-1',
+      snappingEnabled: true,
+      tracks: [...state.tracks, textTrack],
+    }));
+    renderTimeline();
+    const trimHandle = screen.getByRole('button', {
+      name: 'Trim end of 我们的精彩旅程',
+    });
+
+    fireEvent.pointerDown(trimHandle, {
+      button: 0,
+      clientX: 508,
+      clientY: 50,
+      pointerId: 43,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 432,
+      clientY: 50,
+      pointerId: 43,
+    });
+
+    expect(document.querySelector('.ec-timeline-snap-line')).toHaveStyle({
+      left: '332px',
+    });
+
+    fireEvent.pointerUp(window, {
+      clientX: 432,
+      clientY: 50,
+      pointerId: 43,
+    });
+
+    expect(
+      testTimelineStore
+        .getState()
+        .clips.find(({ id }) => id === 'text-clip-1'),
+    ).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(4),
+        startUs: 0,
+      }),
+    );
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+    expect(document.querySelector('.ec-timeline-snap-line')).toBeNull();
+  });
+
   it('restores video and audio clip trims on double click', () => {
     testTimelineStore.setState((state) => ({
       clips: state.clips.map((clip) => {

@@ -5,6 +5,7 @@ import {
   getTrackClips,
   planClipInsertion,
   snapClipMoveToCandidates,
+  snapTimeUsToCandidates,
 } from '../core/collision';
 import {
   TIMELINE_CONTENT_PADDING_X,
@@ -16,9 +17,14 @@ import {
 import {
   SNAP_THRESHOLD_PX,
   durationUsToWidth,
+  normalizeTimelineTimeUs,
   timeUsToX,
   xToTimeUs,
 } from '../core/timeline-math';
+import {
+  getTrimmedClip,
+  getTrimmedTimelineClips,
+} from '../core/timeline-commands';
 import { secondsToMicroseconds } from '../core/time';
 import type {
   TrackDropTarget,
@@ -53,11 +59,14 @@ export type MoveGesture = {
 
 export type TrimGesture = {
   clip: TimelineClip;
+  clips: TimelineClip[];
   edge: TimelineClipTrimEdge;
   initialPointerTimeUs: number;
   kind: 'trim';
   pixelsPerSecond: number;
   pointerId: number;
+  snapCandidates: number[];
+  snappingEnabled: boolean;
 };
 
 export type ScrubGesture = {
@@ -99,7 +108,10 @@ export type ClipDropPreview = {
 
 export type TrimPreview = {
   clipId: string;
+  durationUs: number;
   edge: TimelineClipTrimEdge;
+  snapTimeUs: number | null;
+  startUs: number;
   timeUs: number;
 };
 
@@ -342,6 +354,85 @@ export const planClipDrop = (
     startUs: layout.insertedStartUs,
     target,
   };
+};
+
+const getClipTrimBoundaryUs = (
+  clip: TimelineClip,
+  edge: TimelineClipTrimEdge,
+) => clip.startUs + (edge === 'end' ? clip.durationUs : 0);
+
+const planTrimBoundary = (
+  gesture: TrimGesture,
+  boundaryUs: number,
+) => {
+  const trimmed = getTrimmedClip(
+    gesture.clip,
+    gesture.edge,
+    boundaryUs,
+  );
+  const timeUs = getClipTrimBoundaryUs(trimmed, gesture.edge);
+  const previewClip = getTrimmedTimelineClips(
+    gesture.clips,
+    gesture.clip.id,
+    gesture.edge,
+    timeUs,
+  ).find((clip) => clip.id === gesture.clip.id);
+
+  return {
+    effectiveTimeUs: previewClip
+      ? getClipTrimBoundaryUs(previewClip, gesture.edge)
+      : timeUs,
+    previewClip: previewClip ?? trimmed,
+    timeUs,
+  };
+};
+
+export const planClipTrim = (
+  gesture: TrimGesture,
+  pointerTimeUs: number,
+): TrimPreview => {
+  const initialBoundaryUs = getClipTrimBoundaryUs(
+    gesture.clip,
+    gesture.edge,
+  );
+  const pointerDeltaUs = normalizeTimelineTimeUs(
+    pointerTimeUs - gesture.initialPointerTimeUs,
+  );
+  const freeBoundaryUs = normalizeTimelineTimeUs(
+    initialBoundaryUs + pointerDeltaUs,
+  );
+  const preview = (
+    plan: ReturnType<typeof planTrimBoundary>,
+    snapTimeUs: number | null,
+  ): TrimPreview => ({
+    clipId: gesture.clip.id,
+    durationUs: plan.previewClip.durationUs,
+    edge: gesture.edge,
+    snapTimeUs,
+    startUs: plan.previewClip.startUs,
+    timeUs: plan.timeUs,
+  });
+
+  if (!gesture.snappingEnabled) {
+    return preview(planTrimBoundary(gesture, freeBoundaryUs), null);
+  }
+
+  const snapped = snapTimeUsToCandidates(
+    freeBoundaryUs,
+    gesture.snapCandidates,
+    gesture.pixelsPerSecond,
+    SNAP_THRESHOLD_PX,
+  );
+  if (snapped.snappedToUs === null) {
+    return preview(planTrimBoundary(gesture, freeBoundaryUs), null);
+  }
+
+  const snappedPlan = planTrimBoundary(gesture, snapped.snappedTimeUs);
+  if (snappedPlan.effectiveTimeUs !== snapped.snappedTimeUs) {
+    return preview(planTrimBoundary(gesture, freeBoundaryUs), null);
+  }
+
+  return preview(snappedPlan, snapped.snappedTimeUs);
 };
 
 export const getVolumeAtPointer = (
