@@ -40,7 +40,7 @@
 
 @font-face {
   font-family: 'ZCOOL XiaoWei';
-  src: url('./assets/fonts/zcool-xiaowei-logo.otf') format('opentype');
+  src: url('./assets/fonts/zcool-xiaowei-regular.ttf') format('truetype');
   font-display: swap;
   font-style: normal;
   font-weight: 400;
@@ -48,7 +48,7 @@
 
 @font-face {
   font-family: 'Source Han Sans SC';
-  src: url('./assets/fonts/source-han-sans-cn-bold.otf') format('opentype');
+  src: url('./assets/fonts/source-han-sans-cn-regular.otf') format('opentype');
   font-display: swap;
   font-style: normal;
   font-weight: 400;
@@ -568,13 +568,13 @@
   padding: 3px;
 }
 
-.ec-floating-inspector__alignment {
+.ec-floating-inspector__text-style {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
-.ec-floating-inspector__alignment button {
+.ec-floating-inspector__text-style button {
   display: grid;
   place-items: center;
   gap: 3px;
@@ -586,7 +586,7 @@
   font-size: 10px;
 }
 
-.ec-floating-inspector__alignment button[aria-pressed='true'] {
+.ec-floating-inspector__text-style button[aria-pressed='true'] {
   border-color: var(--ec-accent);
   color: var(--ec-accent);
 }

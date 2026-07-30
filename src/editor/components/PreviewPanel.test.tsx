@@ -560,7 +560,7 @@ describe('PreviewPanel', () => {
     });
   });
 
-  it('draws active text at its natural layout without a maximum width', () => {
+  it('draws styled active text at its natural layout without a maximum width', async () => {
     const textTrack: TimelineTrack = {
       id: 'text-track-1',
       muted: false,
@@ -569,17 +569,20 @@ describe('PreviewPanel', () => {
       zIndex: 3,
     };
     const textClip: TimelineTextClip = {
+      bold: true,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#12345680',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-1',
+      italic: true,
       layoutSize: { height: 200, width: 2_000 },
       position: { x: -100, y: 300 },
       startUs: 0,
       text: '我们的精彩旅程',
       trackId: textTrack.id,
       type: 'text',
+      underline: true,
       zIndex: 0,
     };
     testTimelineStore.setState((state) => ({
@@ -597,6 +600,16 @@ describe('PreviewPanel', () => {
       -100,
       400,
     );
+    await waitFor(() => {
+      expect(drawnTextFonts).toContain(
+        'italic 700 120px "Source Han Sans SC", sans-serif',
+      );
+    });
+    const underlineCall = fillRectMock.mock.calls.find(
+      ([x, , width]) => x === -100 && width === 2_000,
+    );
+    expect(underlineCall?.[1]).toBeCloseTo(442);
+    expect(underlineCall?.[3]).toBeCloseTo(7.2);
     expect(strokeRectMock).toHaveBeenCalledWith(-100, 300, 2_000, 200);
     expect(
       drawCalls.some(
@@ -623,17 +636,20 @@ describe('PreviewPanel', () => {
       zIndex: 3,
     };
     const textClip: TimelineTextClip = {
+      bold: false,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'ALi_PuHui',
       id: 'text-clip-upcoming-font',
+      italic: false,
       layoutSize: { height: 200, width: 1_000 },
       position: { x: 100, y: 300 },
       startUs: secondsToMicroseconds(4),
       text: '交界首帧文字',
       trackId: textTrack.id,
       type: 'text',
+      underline: false,
       zIndex: 0,
     };
     testTimelineStore.setState((state) => ({
@@ -648,8 +664,10 @@ describe('PreviewPanel', () => {
 
     await waitFor(() => {
       expect(measureTextLayoutMock).toHaveBeenCalledWith({
+        bold: false,
         fontSize: 120,
         fontType: 'ALi_PuHui',
+        italic: false,
         text: '交界首帧文字',
       });
     });
@@ -707,17 +725,20 @@ describe('PreviewPanel', () => {
       zIndex: 3,
     };
     const textClip: TimelineTextClip = {
+      bold: false,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-font-loading',
+      italic: false,
       layoutSize: { height: 200, width: 1_000 },
       position: { x: 100, y: 300 },
       startUs: 0,
       text: '字体切换预览',
       trackId: textTrack.id,
       type: 'text',
+      underline: false,
       zIndex: 0,
     };
     testTimelineStore.setState((state) => ({
@@ -752,8 +773,10 @@ describe('PreviewPanel', () => {
     setTextFont('ALi_PuHui');
     await waitFor(() => {
       expect(measureTextLayoutMock).toHaveBeenCalledWith({
+        bold: false,
         fontSize: 120,
         fontType: 'ALi_PuHui',
+        italic: false,
         text: '字体切换预览',
       });
     });
@@ -767,8 +790,10 @@ describe('PreviewPanel', () => {
     setTextFont('1187221');
     await waitFor(() => {
       expect(measureTextLayoutMock).toHaveBeenCalledWith({
+        bold: false,
         fontSize: 120,
         fontType: '1187221',
+        italic: false,
         text: '字体切换预览',
       });
     });
@@ -940,17 +965,20 @@ describe('PreviewPanel', () => {
       zIndex: 2,
     };
     const textClip: TimelineTextClip = {
+      bold: false,
       durationUs: secondsToMicroseconds(1),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-media-continuity',
+      italic: false,
       layoutSize: { height: 200, width: 1_000 },
       position: { x: 100, y: 300 },
       startUs: secondsToMicroseconds(4),
       text: '不打断视频',
       trackId: textTrack.id,
       type: 'text',
+      underline: false,
       zIndex: 0,
     };
     testTimelineStore.setState({
@@ -1539,17 +1567,20 @@ describe('PreviewPanel', () => {
       zIndex: 3,
     };
     const textClip: TimelineTextClip = {
+      bold: false,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-move-only',
+      italic: false,
       layoutSize: { height: 180, width: 320 },
       position: { x: 100, y: 80 },
       startUs: 0,
       text: '只能移动',
       trackId: textTrack.id,
       type: 'text',
+      underline: false,
       zIndex: 0,
     };
     testTimelineStore.setState((state) => ({

@@ -24,8 +24,10 @@ export class TextLayoutError extends Error {
 }
 
 export type TextLayoutRequest = Readonly<{
+  bold: boolean;
   fontSize: number;
   fontType: TimelineTextFontType;
+  italic: boolean;
   text: string;
 }>;
 
@@ -66,12 +68,18 @@ const createDefaultContext = (): TextMeasurementContext | null => {
 const getFiniteNonNegativeMetric = (value: number) =>
   Number.isFinite(value) && value >= 0 ? value : 0;
 
+export const createTextCanvasFont = (
+  request: Pick<TextLayoutRequest, 'bold' | 'fontSize' | 'italic'>,
+  fontFamily: string,
+) =>
+  `${request.italic ? 'italic ' : ''}${request.bold ? '700 ' : ''}${request.fontSize}px "${fontFamily}", sans-serif`;
+
 const measureLayoutSize = (
   context: TextMeasurementContext,
   request: TextLayoutRequest,
   fontFamily: string,
 ): TimelineTextLayoutSize => {
-  context.font = `${request.fontSize}px "${fontFamily}", sans-serif`;
+  context.font = createTextCanvasFont(request, fontFamily);
   context.textAlign = 'left';
   context.textBaseline = 'alphabetic';
   const metrics = context.measureText(request.text);
@@ -197,8 +205,10 @@ export const createTextLayoutRuntime = (
       if (
         request.text.trim() === '' ||
         /[\r\n]/.test(request.text) ||
+        typeof request.bold !== 'boolean' ||
         !Number.isInteger(request.fontSize) ||
-        request.fontSize <= 0
+        request.fontSize <= 0 ||
+        typeof request.italic !== 'boolean'
       ) {
         throw new TextLayoutError(
           'measurement-failed',
@@ -212,7 +222,7 @@ export const createTextLayoutRuntime = (
           '文字字体无效，无法计算尺寸',
         );
       }
-      const key = `${request.fontType}\n${request.fontSize}\n${request.text}`;
+      const key = `${request.fontType}\n${request.fontSize}\n${request.bold ? 1 : 0}\n${request.italic ? 1 : 0}\n${request.text}`;
       const cached = getCached(key);
       if (cached) return cached;
 

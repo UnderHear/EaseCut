@@ -36,13 +36,16 @@ const createPayload = (
         };
         if (clip.type === 'text') {
           return {
+            Bold: clip.bold,
             Extra: [transform] as [typeof transform],
             FontColor: clip.fontColor.toUpperCase(),
             FontSize: clip.fontSize,
             FontType: clip.fontType,
+            Italic: clip.italic,
             TargetTime: targetTime,
             Text: clip.text,
             Type: 'text' as const,
+            Underline: clip.underline,
           };
         }
         const trim = {

@@ -27,7 +27,7 @@ export const TIMELINE_TEXT_FONT_PRESETS = [
   {
     family: 'ZCOOL XiaoWei',
     fontType: '1187211',
-    label: '站酷小薇 LOGO 体',
+    label: '站酷小薇体',
   },
   {
     family: 'Source Han Sans SC',

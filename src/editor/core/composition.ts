@@ -31,7 +31,7 @@ export type CompositionSnapshotInput = Readonly<{
 export type CompositionSnapshot = Readonly<{
   canvasSize: TimelineCanvasSize;
   clips: readonly TimelineClip[];
-  schemaVersion: 9;
+  schemaVersion: 10;
   tracks: readonly TimelineTrack[];
 }>;
 
@@ -120,6 +120,9 @@ const validateClip = (
       clip.text.trim() === '' ||
       /[\r\n]/.test(clip.text) ||
       !isTimelineTextFontType(clip.fontType) ||
+      typeof clip.bold !== 'boolean' ||
+      typeof clip.italic !== 'boolean' ||
+      typeof clip.underline !== 'boolean' ||
       'sourceId' in clip ||
       'src' in clip ||
       'trimStartUs' in clip ||
@@ -170,7 +173,7 @@ const validateClip = (
 export const createCompositionSnapshot = (
   input: CompositionSnapshotInput,
 ): CompositionSnapshot => {
-  if (input.schemaVersion !== undefined && input.schemaVersion !== 9) {
+  if (input.schemaVersion !== undefined && input.schemaVersion !== 10) {
     throw new RangeError(`不支持的草稿版本：${input.schemaVersion}`);
   }
   if (
@@ -214,7 +217,7 @@ export const createCompositionSnapshot = (
   return {
     canvasSize: { ...input.canvasSize },
     clips,
-    schemaVersion: 9,
+    schemaVersion: 10,
     tracks,
   };
 };

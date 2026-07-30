@@ -20,7 +20,7 @@ const bundledFontAssets = [
     mimeType: 'font/woff2',
   },
   {
-    fileName: 'source-han-sans-cn-bold.otf',
+    fileName: 'source-han-sans-cn-regular.otf',
     mimeType: 'font/otf',
   },
   {
@@ -44,8 +44,8 @@ const bundledFontAssets = [
     mimeType: 'font/ttf',
   },
   {
-    fileName: 'zcool-xiaowei-logo.otf',
-    mimeType: 'font/otf',
+    fileName: 'zcool-xiaowei-regular.ttf',
+    mimeType: 'font/ttf',
   },
 ] as const;
 

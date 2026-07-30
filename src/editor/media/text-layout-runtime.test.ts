@@ -6,8 +6,10 @@ import {
 } from './text-layout-runtime';
 
 const defaultRequest: TextLayoutRequest = {
+  bold: false,
   fontSize: 40,
   fontType: 'SY_Black',
+  italic: false,
   text: '自然尺寸',
 };
 
@@ -71,6 +73,34 @@ describe('text layout runtime', () => {
     expect(context.font).toBe('40px "Source Han Sans SC", sans-serif');
     expect(context.textAlign).toBe('left');
     expect(context.textBaseline).toBe('alphabetic');
+  });
+
+  it('measures bold and italic with distinct canvas descriptors and cache keys', async () => {
+    const context = createContext(() =>
+      createMetrics({
+        fontBoundingBoxAscent: 30,
+        fontBoundingBoxDescent: 10,
+        width: 80,
+      }),
+    );
+    const runtime = createTextLayoutRuntime({
+      createContext: () => context,
+      fontFaceSet: createFontFaceSet(),
+    });
+
+    await runtime.measure({ ...defaultRequest, bold: true });
+    expect(context.font).toBe('700 40px "Source Han Sans SC", sans-serif');
+
+    await runtime.measure({ ...defaultRequest, bold: true, italic: true });
+    expect(context.font).toBe(
+      'italic 700 40px "Source Han Sans SC", sans-serif',
+    );
+
+    await runtime.measure({ ...defaultRequest, italic: true });
+    expect(context.font).toBe(
+      'italic 40px "Source Han Sans SC", sans-serif',
+    );
+    expect(context.measureText).toHaveBeenCalledTimes(3);
   });
 
   it('falls back from font bounds to glyph bounds and then a line-height ratio', async () => {

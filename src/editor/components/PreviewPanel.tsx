@@ -33,7 +33,7 @@ import type {
   TimelineMediaClip,
   TimelineTextClip,
 } from '../types';
-import { useMediaRuntime } from '../media';
+import { createTextCanvasFont, useMediaRuntime } from '../media';
 import { PreviewAudioEngine } from '../media/preview-audio-engine';
 import {
   getPreviewAudioConfiguration,
@@ -50,6 +50,8 @@ const HAVE_METADATA_READY_STATE = 1;
 const HAVE_CURRENT_DATA_READY_STATE = 2;
 const PREVIEW_PRELOAD_LOOKAHEAD_US = secondsToMicroseconds(5);
 const MAX_PRELOADED_MEDIA_CLIPS = 4;
+const TEXT_UNDERLINE_OFFSET_RATIO = 0.35;
+const TEXT_UNDERLINE_THICKNESS_RATIO = 0.06;
 
 type PreviewFontLoadStatus = 'failed' | 'ready';
 
@@ -397,17 +399,43 @@ const drawTextClip = (
   previewFrame: PreviewFrame,
 ) => {
   const previewTransform = toPreviewTransform(transform, previewFrame);
+  const scaledFontSize = clip.fontSize * previewFrame.scale;
+  const textBaselineY =
+    previewTransform.y + previewTransform.height / 2;
 
   context.save();
   context.fillStyle = toCanvasColor(clip.fontColor);
-  context.font = `${clip.fontSize * previewFrame.scale}px "${fontFamily}", sans-serif`;
+  context.font = createTextCanvasFont(
+    {
+      bold: clip.bold,
+      fontSize: scaledFontSize,
+      italic: clip.italic,
+    },
+    fontFamily,
+  );
   context.textAlign = 'left';
   context.textBaseline = 'middle';
   context.fillText(
     clip.text,
     previewTransform.x,
-    previewTransform.y + previewTransform.height / 2,
+    textBaselineY,
   );
+  if (clip.underline) {
+    const thickness = Math.min(
+      previewTransform.height,
+      Math.max(1, scaledFontSize * TEXT_UNDERLINE_THICKNESS_RATIO),
+    );
+    const underlineY = Math.min(
+      previewTransform.y + previewTransform.height - thickness,
+      textBaselineY + scaledFontSize * TEXT_UNDERLINE_OFFSET_RATIO,
+    );
+    context.fillRect(
+      previewTransform.x,
+      underlineY,
+      previewTransform.width,
+      thickness,
+    );
+  }
   context.restore();
 };
 
@@ -809,8 +837,10 @@ export function PreviewPanel({
       if (loadedStatus) return Promise.resolve(loadedStatus);
       try {
         await mediaRuntime.measureTextLayout({
+          bold: clip.bold,
           fontSize: clip.fontSize,
           fontType: clip.fontType,
+          italic: clip.italic,
           text: clip.text,
         });
         fontLoadStatusByTypeRef.current.set(clip.fontType, 'ready');

@@ -61,13 +61,16 @@ export type TimelineAudioClip = TimelineMediaClipFields & {
 export type TimelineMediaClip = TimelineVideoClip | TimelineAudioClip;
 
 export type TimelineTextClip = TimelineClipBase & {
+  bold: boolean;
   fontColor: string;
   fontSize: number;
   fontType: TimelineTextFontType;
+  italic: boolean;
   layoutSize: TimelineTextLayoutSize;
   position: TimelineClipPosition;
   text: string;
   type: 'text';
+  underline: boolean;
 };
 
 export type TimelineClip = TimelineMediaClip | TimelineTextClip;
@@ -103,7 +106,7 @@ export type TimelineCanvasSize = {
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
-  schemaVersion: 9;
+  schemaVersion: 10;
   /** Bottom-to-top layer order. Track zIndex equals its array index. */
   tracks: TimelineTrack[];
 };
@@ -162,13 +165,16 @@ export type CompositionExportMediaClip = {
 };
 
 export type CompositionExportTextClip = {
+  Bold?: boolean;
   Extra: [CompositionExportTransform];
   FontColor: string;
   FontSize: number;
   FontType: TimelineTextFontType;
+  Italic?: boolean;
   TargetTime: [number, number];
   Text: string;
   Type: 'text';
+  Underline?: boolean;
 };
 
 export type CompositionExportClip =

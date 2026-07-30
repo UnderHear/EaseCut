@@ -47,7 +47,7 @@ describe('createCompositionExportPayload', () => {
           zIndex: 0,
         },
       ],
-      schemaVersion: 9,
+      schemaVersion: 10,
       tracks: [
         {
           id: 'audio-track',
@@ -124,7 +124,7 @@ describe('createCompositionExportPayload', () => {
         volume: id === 'z' ? 0.3 : 0.8,
         zIndex: 0,
       })),
-      schemaVersion: 9,
+      schemaVersion: 10,
       tracks: [
         {
           id: 'video',
@@ -171,7 +171,7 @@ describe('createCompositionExportPayload', () => {
         volume: 1,
         zIndex: 0,
       }],
-      schemaVersion: 9,
+      schemaVersion: 10,
       tracks: [{
         id: 'video-track',
         name: '视频轨',
@@ -216,21 +216,41 @@ describe('createCompositionExportPayload', () => {
       canvasSize: { height: 1_080, width: 1_920 },
       clips: [
         {
+          bold: false,
           durationUs: 8_000_000,
           fontColor: '#FFFFFFFF',
           fontSize: 120,
           fontType: 'SY_Black',
           id: 'text-clip-1',
+          italic: false,
           layoutSize: { height: 200, width: 1_800 },
           position: { x: 60, y: 440 },
           startUs: 1_000_000,
           text: '我们的精彩旅程',
           trackId: 'text-track-1',
           type: 'text',
+          underline: false,
           zIndex: 0,
         },
+        {
+          bold: true,
+          durationUs: 1_000_000,
+          fontColor: '#123456FF',
+          fontSize: 80,
+          fontType: 'ALi_PuHui',
+          id: 'text-clip-2',
+          italic: false,
+          layoutSize: { height: 100, width: 600 },
+          position: { x: 100, y: 300 },
+          startUs: 10_000_000,
+          text: '样式标题',
+          trackId: 'text-track-1',
+          type: 'text',
+          underline: true,
+          zIndex: 1,
+        },
       ],
-      schemaVersion: 9,
+      schemaVersion: 10,
       tracks: [
         {
           id: 'text-track-1',
@@ -243,6 +263,7 @@ describe('createCompositionExportPayload', () => {
     });
 
     expect(payload.Track[0]?.[0]).toEqual({
+      Bold: false,
       Extra: [
         {
           Height: 200,
@@ -255,9 +276,21 @@ describe('createCompositionExportPayload', () => {
       FontColor: '#FFFFFFFF',
       FontSize: 120,
       FontType: 'SY_Black',
+      Italic: false,
       TargetTime: [1_000, 9_000],
       Text: '我们的精彩旅程',
       Type: 'text',
+      Underline: false,
+    });
+    expect(payload.Track[0]?.[1]).toMatchObject({
+      Bold: true,
+      FontColor: '#123456FF',
+      FontSize: 80,
+      FontType: 'ALi_PuHui',
+      Italic: false,
+      Text: '样式标题',
+      Type: 'text',
+      Underline: true,
     });
     expect(payload.Track[0]?.[0]).not.toHaveProperty('Source');
   });

@@ -25,7 +25,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
       zIndex: 0,
     },
   ],
-  schemaVersion: 9,
+  schemaVersion: 10,
   tracks: [
     {
       id: MAIN_VIDEO_TRACK_ID,
@@ -45,20 +45,55 @@ const getOnlyMediaClip = (draft: VideoTimelineDraft) => {
   return clip;
 };
 
+const createValidTextDraft = (): VideoTimelineDraft => {
+  const draft = createValidDraft();
+  draft.tracks.push({
+    id: 'text-track-1',
+    muted: false,
+    name: '文字轨 1',
+    type: 'text',
+    zIndex: 1,
+  });
+  draft.clips.push({
+    bold: false,
+    durationUs: secondsToMicroseconds(5),
+    fontColor: '#FFFFFFFF',
+    fontSize: 120,
+    fontType: 'SY_Black',
+    id: 'text-clip-1',
+    italic: false,
+    layoutSize: { height: 120, width: 800 },
+    position: { x: 240, y: 300 },
+    startUs: 0,
+    text: '标题',
+    trackId: 'text-track-1',
+    type: 'text',
+    underline: false,
+    zIndex: 0,
+  });
+  return draft;
+};
+
+const getOnlyTextClip = (draft: VideoTimelineDraft) => {
+  const clip = draft.clips.find((candidate) => candidate.type === 'text');
+  if (!clip) throw new Error('Expected a text clip');
+  return clip;
+};
+
 describe('timeline draft validation', () => {
-  it('明确拒绝 v8 草稿且不尝试迁移', () => {
+  it('明确拒绝 v9 草稿且不尝试迁移', () => {
     const legacyDraft: Omit<VideoTimelineDraft, 'schemaVersion'> & {
       schemaVersion: number;
     } = {
       ...createValidDraft(),
-      schemaVersion: 8,
+      schemaVersion: 9,
     };
 
     expect(() =>
       createTimelineStore({
         draft: legacyDraft as VideoTimelineDraft,
       }),
-    ).toThrow('不支持的草稿版本：8');
+    ).toThrow('不支持的草稿版本：9');
   });
 
   it.each([
@@ -106,6 +141,34 @@ describe('timeline draft validation', () => {
     },
   ])('明确拒绝$label', ({ mutate }) => {
     const draft = createValidDraft();
+    mutate(draft);
+
+    expect(() => createTimelineStore({ draft })).toThrow(
+      '草稿结构无效，无法打开项目',
+    );
+  });
+
+  it.each([
+    {
+      label: '缺失粗体字段',
+      mutate: (draft: VideoTimelineDraft) => {
+        Reflect.deleteProperty(getOnlyTextClip(draft), 'bold');
+      },
+    },
+    {
+      label: '斜体字段不是布尔值',
+      mutate: (draft: VideoTimelineDraft) => {
+        Object.assign(getOnlyTextClip(draft), { italic: 'true' });
+      },
+    },
+    {
+      label: '下划线字段不是布尔值',
+      mutate: (draft: VideoTimelineDraft) => {
+        Object.assign(getOnlyTextClip(draft), { underline: 1 });
+      },
+    },
+  ])('明确拒绝文字 Clip $label', ({ mutate }) => {
+    const draft = createValidTextDraft();
     mutate(draft);
 
     expect(() => createTimelineStore({ draft })).toThrow(

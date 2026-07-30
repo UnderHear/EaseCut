@@ -1,5 +1,10 @@
 import * as Separator from '@radix-ui/react-separator';
-import { Type as TypeIcon } from 'lucide-react';
+import {
+  Bold as BoldIcon,
+  Italic as ItalicIcon,
+  Type as TypeIcon,
+  Underline as UnderlineIcon,
+} from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 
 import {
@@ -41,9 +46,11 @@ export function TextFloatingInspector({
 }: TextFloatingInspectorProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [textDraft, setTextDraft] = useState(clip.text);
+  const [boldDraft, setBoldDraft] = useState(clip.bold);
   const [colorDraft, setColorDraft] = useState(clip.fontColor);
   const [fontTypeDraft, setFontTypeDraft] = useState(clip.fontType);
   const [fontSizeDraft, setFontSizeDraft] = useState(clip.fontSize);
+  const [italicDraft, setItalicDraft] = useState(clip.italic);
   const [layoutStatus, setLayoutStatus] = useState<
     | { message: string; state: 'error' }
     | { message: string; state: 'loading' }
@@ -86,21 +93,30 @@ export function TextFloatingInspector({
 
   const commitMeasuredProperties = async (
     patch: Partial<
-      Pick<TimelineTextClip, 'fontSize' | 'fontType' | 'text'>
+      Pick<
+        TimelineTextClip,
+        'bold' | 'fontSize' | 'fontType' | 'italic' | 'text'
+      >
     >,
   ) => {
+    const bold = patch.bold ?? boldDraft;
     const text = (patch.text ?? textDraft).trim();
     const fontType = patch.fontType ?? fontTypeDraft;
     const fontSize = patch.fontSize ?? fontSizeDraft;
+    const italic = patch.italic ?? italicDraft;
     if (text === '') {
       setTextDraft(clip.text);
       return;
     }
     if (
+      bold === clip.bold &&
       text === clip.text &&
       fontType === clip.fontType &&
-      fontSize === clip.fontSize
+      fontSize === clip.fontSize &&
+      italic === clip.italic
     ) {
+      layoutRequestRef.current?.controller.abort();
+      layoutRequestRef.current = null;
       setLayoutStatus(null);
       return;
     }
@@ -113,7 +129,7 @@ export function TextFloatingInspector({
 
     try {
       const layoutSize = await mediaRuntime.measureTextLayout(
-        { fontSize, fontType, text },
+        { bold, fontSize, fontType, italic, text },
         controller.signal,
       );
       if (
@@ -123,9 +139,11 @@ export function TextFloatingInspector({
         return;
       }
       commitTextClipProperties({
+        bold,
         clipId: clip.id,
         fontSize,
         fontType,
+        italic,
         layoutSize,
         text,
       });
@@ -137,9 +155,11 @@ export function TextFloatingInspector({
       ) {
         return;
       }
+      setBoldDraft(clip.bold);
       setTextDraft(clip.text);
       setFontTypeDraft(clip.fontType);
       setFontSizeDraft(clip.fontSize);
+      setItalicDraft(clip.italic);
       setLayoutStatus({
         message:
           error instanceof TextLayoutError
@@ -287,6 +307,52 @@ export function TextFloatingInspector({
               ))}
             </select>
           </label>
+          <div
+            aria-label='文字样式'
+            className='ec-floating-inspector__text-style'
+            role='group'
+          >
+            <button
+              aria-label='粗体'
+              aria-pressed={boldDraft}
+              onClick={() => {
+                const bold = !boldDraft;
+                setBoldDraft(bold);
+                void commitMeasuredProperties({ bold });
+              }}
+              type='button'
+            >
+              <BoldIcon aria-hidden='true' size={16} />
+              <span>粗体</span>
+            </button>
+            <button
+              aria-label='斜体'
+              aria-pressed={italicDraft}
+              onClick={() => {
+                const italic = !italicDraft;
+                setItalicDraft(italic);
+                void commitMeasuredProperties({ italic });
+              }}
+              type='button'
+            >
+              <ItalicIcon aria-hidden='true' size={16} />
+              <span>斜体</span>
+            </button>
+            <button
+              aria-label='下划线'
+              aria-pressed={clip.underline}
+              onClick={() =>
+                commitTextClipProperties({
+                  clipId: clip.id,
+                  underline: !clip.underline,
+                })
+              }
+              type='button'
+            >
+              <UnderlineIcon aria-hidden='true' size={16} />
+              <span>下划线</span>
+            </button>
+          </div>
           <div className='ec-floating-inspector__number-field'>
             <span>字号</span>
             <InputNumber

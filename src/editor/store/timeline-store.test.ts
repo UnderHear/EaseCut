@@ -302,7 +302,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().tracks).toEqual(draft.tracks);
     expect(timelineStore.getState().clips).toEqual(draft.clips);
-    expect(draft.schemaVersion).toBe(9);
+    expect(draft.schemaVersion).toBe(10);
   });
 
   it('compacts main-track gaps when restoring a saved composition draft', () => {
@@ -321,7 +321,7 @@ describe('timelineStore video track layout', () => {
             zIndex: 0,
           },
         ],
-        schemaVersion: 9,
+        schemaVersion: 10,
         tracks: [
           createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
           createVideoTrack('video-overlay-1', '视频轨 2', 1),
@@ -340,7 +340,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual([['clip-video-3', secondsToMicroseconds(7)]]);
   });
 
-  it.each([1, 2, 3, 4, 5, 6, 7])('rejects a schema v%s draft', (schemaVersion) => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('rejects a schema v%s draft', (schemaVersion) => {
     const validDraft = createVideoTimelineDraft(timelineStore.getState());
     const previousState = timelineStore.getState();
 

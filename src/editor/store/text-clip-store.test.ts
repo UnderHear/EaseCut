@@ -17,12 +17,15 @@ describe('timeline store text clips', () => {
     expect(store.getState().selectedClipId).toBe('text-clip-1');
     expect(store.getState().past).toHaveLength(1);
     expect(store.getState().clips[0]).toMatchObject({
+      bold: false,
       durationUs: secondsToMicroseconds(5),
+      italic: false,
       startUs: secondsToMicroseconds(2),
       text: '我们的精彩旅程',
       type: 'text',
+      underline: false,
     });
-    expect(createVideoTimelineDraft(store.getState()).schemaVersion).toBe(9);
+    expect(createVideoTimelineDraft(store.getState()).schemaVersion).toBe(10);
 
     store.getState().undo();
     expect(store.getState().clips).toEqual([]);
@@ -48,20 +51,26 @@ describe('timeline store text clips', () => {
     }
 
     store.getState().commitTextClipProperties({
+      bold: true,
       clipId: before.id,
       fontSize: 88,
       fontType: 'ALi_PuHui',
+      italic: true,
       layoutSize: { height: 88, width: 420 },
       text: '新标题',
+      underline: true,
     });
 
     expect(store.getState().past).toHaveLength(2);
     expect(store.getState().clips[0]).toMatchObject({
+      bold: true,
       fontSize: 88,
       fontType: 'ALi_PuHui',
+      italic: true,
       layoutSize: { height: 88, width: 420 },
       position: { x: 430, y: 316 },
       text: '新标题',
+      underline: true,
     });
 
     store.getState().undo();
@@ -69,9 +78,12 @@ describe('timeline store text clips', () => {
 
     store.getState().redo();
     expect(store.getState().clips[0]).toMatchObject({
+      bold: true,
+      italic: true,
       layoutSize: { height: 88, width: 420 },
       position: { x: 430, y: 316 },
       text: '新标题',
+      underline: true,
     });
   });
 });

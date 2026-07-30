@@ -69,17 +69,20 @@ describe('text clip commands', () => {
       ['text-track-1', 'text'],
     ]);
     expect(result.clips[0]).toEqual({
+      bold: false,
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
       id: 'text-clip-1',
+      italic: false,
       layoutSize: defaultTextLayoutSize,
       position: { x: 560, y: 480 },
       startUs: secondsToMicroseconds(1),
       text: '我们的精彩旅程',
       trackId: 'text-track-1',
       type: 'text',
+      underline: false,
       zIndex: 0,
     });
   });
@@ -159,6 +162,12 @@ describe('text clip commands', () => {
 
     expect(
       changeTextClipProperties(created, {
+        bold: true,
+        clipId: 'text-clip-1',
+      }).changed,
+    ).toBe(false);
+    expect(
+      changeTextClipProperties(created, {
         clipId: 'text-clip-1',
         fontColor: '#FFFFFF',
         text: '',
@@ -207,21 +216,49 @@ describe('text clip commands', () => {
 
     const changed = expectChanged(
       changeTextClipProperties(created, {
+        bold: true,
         clipId: 'text-clip-1',
         fontColor: '#12345678',
         fontSize: 88,
         fontType: 'ALi_PuHui',
+        italic: true,
         layoutSize: { height: 88, width: 420 },
         text: '新标题',
+        underline: true,
       }),
     );
     expect(changed.clips[0]).toMatchObject({
+      bold: true,
       fontColor: '#12345678',
       fontSize: 88,
       fontType: 'ALi_PuHui',
+      italic: true,
       layoutSize: { height: 88, width: 420 },
       position: { x: 750, y: 496 },
       text: '新标题',
+      underline: true,
+    });
+  });
+
+  it('toggles underline without changing natural layout', () => {
+    const created = expectChanged(
+      addTextClip(createEdit(), {
+        canvasSize: { height: 1_080, width: 1_920 },
+        startUs: 0,
+        text: '标题',
+      }),
+    );
+    const changed = expectChanged(
+      changeTextClipProperties(created, {
+        clipId: 'text-clip-1',
+        underline: true,
+      }),
+    );
+
+    expect(changed.clips[0]).toMatchObject({
+      layoutSize: defaultTextLayoutSize,
+      position: { x: 560, y: 480 },
+      underline: true,
     });
   });
 
@@ -290,8 +327,17 @@ describe('text clip commands', () => {
         text: '标题',
       }),
     );
+    const styled = expectChanged(
+      changeTextClipProperties(created, {
+        bold: true,
+        clipId: 'text-clip-1',
+        italic: true,
+        layoutSize: defaultTextLayoutSize,
+        underline: true,
+      }),
+    );
     const moved = expectChanged(
-      moveClip(created, {
+      moveClip(styled, {
         clipId: 'text-clip-1',
         freeStartUs: secondsToMicroseconds(2),
         insertionIndex: 0,
@@ -344,6 +390,13 @@ describe('text clip commands', () => {
     expect(pasted.clips.some(({ id }) => id === 'text-clip-1-copy')).toBe(
       true,
     );
+    expect(
+      pasted.clips.find(({ id }) => id === 'text-clip-1-copy'),
+    ).toMatchObject({
+      bold: true,
+      italic: true,
+      underline: true,
+    });
     const deleted = expectChanged(deleteClip(pasted, 'text-clip-1-copy'));
     expect(deleted.clips.some(({ id }) => id === 'text-clip-1-copy')).toBe(
       false,

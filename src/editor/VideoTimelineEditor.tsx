@@ -396,8 +396,10 @@ function VideoTimelineEditorView({
     try {
       const layoutSize = await runtime.measureTextLayout(
         {
+          bold: false,
           fontSize: DEFAULT_TIMELINE_TEXT_FONT_SIZE,
           fontType: DEFAULT_TIMELINE_TEXT_FONT_TYPE,
+          italic: false,
           text,
         },
         controller.signal,

@@ -84,17 +84,20 @@ const textTrack: TimelineTrack = {
 };
 
 const textClip: TimelineClip = {
+  bold: false,
   durationUs: secondsToMicroseconds(5),
   fontColor: '#FFFFFFFF',
   fontSize: 120,
   fontType: 'SY_Black',
   id: 'text-clip-1',
+  italic: false,
   layoutSize: { height: 120, width: 800 },
   position: { x: 560, y: 480 },
   startUs: secondsToMicroseconds(1),
   text: '我们的精彩旅程',
   trackId: textTrack.id,
   type: 'text',
+  underline: false,
   zIndex: 0,
 };
 
@@ -376,6 +379,16 @@ describe('FloatingInspector', () => {
     expect(screen.getByLabelText('结束时间')).toHaveValue(6);
     expect(screen.getByLabelText('字体')).toHaveValue('SY_Black');
     expect(screen.getByLabelText('字号')).toHaveValue(120);
+    const textStyle = screen.getByRole('group', { name: '文字样式' });
+    expect(
+      within(textStyle).getByRole('button', { name: '粗体' }),
+    ).toHaveAttribute('aria-pressed', 'false');
+    expect(
+      within(textStyle).getByRole('button', { name: '斜体' }),
+    ).toHaveAttribute('aria-pressed', 'false');
+    expect(
+      within(textStyle).getByRole('button', { name: '下划线' }),
+    ).toHaveAttribute('aria-pressed', 'false');
     expect(screen.queryByLabelText('宽度')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('高度')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: '文字对齐' })).not.toBeInTheDocument();
@@ -426,6 +439,65 @@ describe('FloatingInspector', () => {
     expect(testTimelineStore.getState().past).toHaveLength(3);
   });
 
+  it('toggles text styles with one history item per successful action', async () => {
+    const user = userEvent.setup();
+    testTimelineStore.setState({
+      clips: [textClip],
+      future: [],
+      past: [],
+      selectedClipId: textClip.id,
+      tracks: [textTrack],
+    });
+    renderWithEditorProviders(<FloatingInspector />);
+
+    await user.click(screen.getByRole('button', { name: '下划线' }));
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      layoutSize: textClip.layoutSize,
+      position: textClip.position,
+      underline: true,
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+
+    measureTextLayoutMock.mockResolvedValueOnce({
+      height: 130,
+      width: 900,
+    });
+    await user.click(screen.getByRole('button', { name: '粗体' }));
+    await waitFor(() => {
+      expect(testTimelineStore.getState().clips[0]).toMatchObject({
+        bold: true,
+        layoutSize: { height: 130, width: 900 },
+        underline: true,
+      });
+    });
+    expect(measureTextLayoutMock).toHaveBeenLastCalledWith(
+      {
+        bold: true,
+        fontSize: 120,
+        fontType: 'SY_Black',
+        italic: false,
+        text: '我们的精彩旅程',
+      },
+      expect.any(AbortSignal),
+    );
+    expect(testTimelineStore.getState().past).toHaveLength(2);
+
+    measureTextLayoutMock.mockResolvedValueOnce({
+      height: 140,
+      width: 960,
+    });
+    await user.click(screen.getByRole('button', { name: '斜体' }));
+    await waitFor(() => {
+      expect(testTimelineStore.getState().clips[0]).toMatchObject({
+        bold: true,
+        italic: true,
+        layoutSize: { height: 140, width: 960 },
+        underline: true,
+      });
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(3);
+  });
+
   it('keeps the original text layout and exposes a measurement failure', async () => {
     const user = userEvent.setup();
     testTimelineStore.setState({
@@ -443,12 +515,15 @@ describe('FloatingInspector', () => {
     );
     renderWithEditorProviders(<FloatingInspector />);
 
-    await user.selectOptions(screen.getByLabelText('字体'), 'ALi_PuHui');
+    await user.click(screen.getByRole('button', { name: '粗体' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '字体加载失败，请重新选择字体。',
     );
-    expect(screen.getByLabelText('字体')).toHaveValue('SY_Black');
+    expect(screen.getByRole('button', { name: '粗体' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     expect(testTimelineStore.getState().clips[0]).toEqual(textClip);
     expect(testTimelineStore.getState().past).toEqual([]);
   });

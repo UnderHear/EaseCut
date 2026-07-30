@@ -82,7 +82,7 @@ import type {
 } from '../types';
 import { isTimelineMediaClip, isTimelineTextClip } from '../core/model';
 
-export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 9;
+export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 10;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
   width: 1280,

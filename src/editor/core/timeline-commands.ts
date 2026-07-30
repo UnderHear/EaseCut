@@ -110,12 +110,15 @@ export type AddTextClipParams = {
 };
 
 export type ChangeTextClipPropertiesParams = {
+  bold?: boolean;
   clipId: string;
   fontColor?: string;
   fontSize?: number;
   fontType?: string;
+  italic?: boolean;
   layoutSize?: TimelineTextLayoutSize;
   text?: string;
+  underline?: boolean;
 };
 
 export type MoveClipPositionParams = {
@@ -239,11 +242,13 @@ export const addTextClip = (
     (clip) => clip.trackId === track.id,
   ).length;
   const clip: TimelineTextClip = {
+    bold: false,
     durationUs: DEFAULT_TEXT_CLIP_DURATION_US,
     fontColor: '#FFFFFFFF',
     fontSize: DEFAULT_TIMELINE_TEXT_FONT_SIZE,
     fontType: DEFAULT_TIMELINE_TEXT_FONT_TYPE,
     id: nextNumberedClipId(edit.clips, 'text-clip-'),
+    italic: false,
     layoutSize: { ...params.layoutSize },
     position: createCenteredTextClipPosition(
       params.canvasSize,
@@ -253,6 +258,7 @@ export const addTextClip = (
     text,
     trackId: track.id,
     type: 'text',
+    underline: false,
     zIndex: trackClipCount,
   };
   return changedEdit(
@@ -273,11 +279,16 @@ export const changeTextClipProperties = (
   );
   if (!clip) return unchanged;
 
+  const bold = params.bold ?? clip.bold;
   const text = params.text === undefined ? clip.text : params.text.trim();
   const fontType = params.fontType ?? clip.fontType;
   const fontSize = params.fontSize ?? clip.fontSize;
   const fontColor = (params.fontColor ?? clip.fontColor).toUpperCase();
+  const italic = params.italic ?? clip.italic;
+  const underline = params.underline ?? clip.underline;
   const affectsLayout =
+    bold !== clip.bold ||
+    italic !== clip.italic ||
     text !== clip.text ||
     fontType !== clip.fontType ||
     fontSize !== clip.fontSize;
@@ -286,22 +297,28 @@ export const changeTextClipProperties = (
   if (
     text === '' ||
     /[\r\n]/.test(text) ||
+    typeof bold !== 'boolean' ||
     !isTimelineTextFontType(fontType) ||
     !Number.isInteger(fontSize) ||
     fontSize <= 0 ||
     !/^#[\dA-F]{8}$/.test(fontColor) ||
+    typeof italic !== 'boolean' ||
+    typeof underline !== 'boolean' ||
     affectsLayout !== hasMeasuredLayout ||
     !isValidTextLayoutSize(layoutSize)
   ) {
     return unchanged;
   }
   if (
+    bold === clip.bold &&
     text === clip.text &&
     fontType === clip.fontType &&
     fontSize === clip.fontSize &&
     fontColor === clip.fontColor &&
+    italic === clip.italic &&
     layoutSize.height === clip.layoutSize.height &&
-    layoutSize.width === clip.layoutSize.width
+    layoutSize.width === clip.layoutSize.width &&
+    underline === clip.underline
   ) {
     return unchanged;
   }
@@ -313,15 +330,18 @@ export const changeTextClipProperties = (
       candidate.id === clip.id
         ? {
             ...clip,
+            bold,
             fontColor,
             fontSize,
             fontType,
+            italic,
             layoutSize: { ...layoutSize },
             position: {
               x: centerX - layoutSize.width / 2,
               y: centerY - layoutSize.height / 2,
             },
             text,
+            underline,
           }
         : candidate,
     ),
