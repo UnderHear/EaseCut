@@ -140,6 +140,10 @@ describe('PreviewPanel', () => {
     HTMLMediaElement.prototype,
     'readyState',
   );
+  const seekingDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLMediaElement.prototype,
+    'seeking',
+  );
   const preservesPitchDescriptor = Object.getOwnPropertyDescriptor(
     HTMLMediaElement.prototype,
     'preservesPitch',
@@ -165,6 +169,7 @@ describe('PreviewPanel', () => {
     value: boolean;
   }>;
   let resizeObserverCallback: ResizeObserverCallbackMock | null;
+  let seekingMediaElements: WeakSet<HTMLMediaElement>;
   let strokeRectMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -186,6 +191,7 @@ describe('PreviewPanel', () => {
     preservesPitchByMedia = new WeakMap();
     preservesPitchWrites = [];
     resizeObserverCallback = null;
+    seekingMediaElements = new WeakSet();
     strokeRectMock = createCanvasCallMock('strokeRect');
     getObjectUrlMock.mockClear();
     Object.defineProperty(window.navigator, 'userAgent', {
@@ -195,6 +201,12 @@ describe('PreviewPanel', () => {
     Object.defineProperty(HTMLMediaElement.prototype, 'readyState', {
       configurable: true,
       get: () => mediaReadyState,
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, 'seeking', {
+      configurable: true,
+      get(this: HTMLMediaElement) {
+        return seekingMediaElements.has(this);
+      },
     });
     Object.defineProperty(HTMLMediaElement.prototype, 'preservesPitch', {
       configurable: true,
@@ -323,6 +335,16 @@ describe('PreviewPanel', () => {
     } else {
       delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>)
         .readyState;
+    }
+    if (seekingDescriptor) {
+      Object.defineProperty(
+        HTMLMediaElement.prototype,
+        'seeking',
+        seekingDescriptor,
+      );
+    } else {
+      delete (HTMLMediaElement.prototype as unknown as Record<string, unknown>)
+        .seeking;
     }
     if (preservesPitchDescriptor) {
       Object.defineProperty(
@@ -496,10 +518,13 @@ describe('PreviewPanel', () => {
       expect(document.querySelectorAll('video')).toHaveLength(2);
       expect(document.querySelectorAll('audio')).toHaveLength(1);
       expect(drawImageMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(document.querySelector('audio')).toHaveProperty(
+        'volume',
+        0.35,
+      );
     });
 
     const audio = document.querySelector('audio') as HTMLAudioElement;
-    expect(audio.volume).toBe(0.35);
     expect(drawImageMock.mock.calls.some((call) => call[0] === audio)).toBe(
       false,
     );
@@ -550,6 +575,86 @@ describe('PreviewPanel', () => {
       400,
       1_000,
     );
+  });
+
+  it('preloads an upcoming text font and draws a fallback on its first active frame', async () => {
+    const upcomingFontLoad = createDeferred<object[]>();
+    const fontLoadMock = vi.fn((descriptor: string) =>
+      descriptor.includes('Alibaba PuHuiTi')
+        ? upcomingFontLoad.promise
+        : Promise.resolve([{}]),
+    );
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: { load: fontLoadMock },
+    });
+    const textTrack: TimelineTrack = {
+      id: 'text-track-upcoming-font',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 3,
+    };
+    const textClip: TimelineTextClip = {
+      alignType: 1,
+      durationUs: secondsToMicroseconds(5),
+      fontColor: '#FFFFFFFF',
+      fontSize: 120,
+      fontType: 'ALi_PuHui',
+      id: 'text-clip-upcoming-font',
+      startUs: secondsToMicroseconds(4),
+      text: '交界首帧文字',
+      trackId: textTrack.id,
+      transform: { height: 200, width: 1_000, x: 100, y: 300 },
+      type: 'text',
+      zIndex: 0,
+    };
+    testTimelineStore.setState((state) => ({
+      clips: [...state.clips, textClip],
+      currentTimeUs: secondsToMicroseconds(1),
+      tracks: [...state.tracks, textTrack],
+    }));
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      expect(fontLoadMock).toHaveBeenCalledWith(
+        '16px "Alibaba PuHuiTi"',
+      );
+    });
+    expect(fillTextMock).not.toHaveBeenCalledWith(
+      '交界首帧文字',
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+    );
+    fillTextMock.mockClear();
+    drawnTextFonts = [];
+
+    act(() => {
+      testTimelineStore
+        .getState()
+        .setCurrentTimeUs(secondsToMicroseconds(4));
+    });
+
+    expect(fillTextMock).toHaveBeenCalledWith(
+      '交界首帧文字',
+      600,
+      400,
+      1_000,
+    );
+    expect(drawnTextFonts).toContain(
+      '120px "Microsoft YaHei", sans-serif',
+    );
+
+    upcomingFontLoad.resolve([{}]);
+    await waitFor(() => {
+      expect(drawnTextFonts).toContain(
+        '120px "Alibaba PuHuiTi", sans-serif',
+      );
+    });
   });
 
   it('keeps the last rendered font until a newly selected font is ready', async () => {
@@ -799,6 +904,265 @@ describe('PreviewPanel', () => {
     expect(releaseAudioSpy).not.toHaveBeenCalled();
   });
 
+  it('does not touch continuous video when a text clip starts or ends', async () => {
+    const textTrack: TimelineTrack = {
+      id: 'text-track-media-continuity',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 2,
+    };
+    const textClip: TimelineTextClip = {
+      alignType: 1,
+      durationUs: secondsToMicroseconds(1),
+      fontColor: '#FFFFFFFF',
+      fontSize: 120,
+      fontType: 'SY_Black',
+      id: 'text-clip-media-continuity',
+      startUs: secondsToMicroseconds(4),
+      text: '不打断视频',
+      trackId: textTrack.id,
+      transform: { height: 200, width: 1_000, x: 100, y: 300 },
+      type: 'text',
+      zIndex: 0,
+    };
+    testTimelineStore.setState({
+      clips: [
+        createClip({
+          durationUs: secondsToMicroseconds(10),
+          id: 'clip-continuous-under-text',
+          sourceDurationUs: secondsToMicroseconds(10),
+          sourceId: 'source-continuous-under-text',
+          src: '/continuous-under-text.mp4',
+          trimEndUs: secondsToMicroseconds(10),
+        }),
+        textClip,
+      ],
+      currentTimeUs: secondsToMicroseconds(3.9),
+      selectedClipId: 'clip-continuous-under-text',
+      tracks: [mainTrack, textTrack],
+    });
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    const video = await waitFor(() => {
+      const element = document.querySelector('video');
+      if (!(element instanceof HTMLVideoElement)) {
+        throw new Error('连续视频尚未完成预加载');
+      }
+      return element;
+    });
+    const pausedMedia: HTMLMediaElement[] = [];
+    const playedMedia: HTMLMediaElement[] = [];
+    vi.mocked(HTMLMediaElement.prototype.pause).mockImplementation(
+      function pause(this: HTMLMediaElement) {
+        pausedMedia.push(this);
+      },
+    );
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(
+      function play(this: HTMLMediaElement) {
+        playedMedia.push(this);
+        return Promise.resolve();
+      },
+    );
+
+    act(() => {
+      testTimelineStore.getState().setIsPlaying(true);
+    });
+    await waitFor(() => {
+      expect(playedMedia).toContain(video);
+    });
+
+    const crossTextBoundary = (
+      mediaTime: number,
+      timelineTime: number,
+    ) => {
+      video.currentTime = mediaTime;
+      pausedMedia.length = 0;
+      playedMedia.length = 0;
+
+      act(() => {
+        testTimelineStore
+          .getState()
+          .setCurrentTimeUs(secondsToMicroseconds(timelineTime));
+      });
+
+      expect(video.currentTime).toBe(mediaTime);
+      expect(pausedMedia).not.toContain(video);
+      expect(playedMedia).not.toContain(video);
+    };
+
+    crossTextBoundary(3.7, 4);
+    crossTextBoundary(4.6, 5);
+  });
+
+  it('only switches changed media when an overlay video starts or ends', async () => {
+    testTimelineStore.setState({
+      clips: [
+        createClip({
+          durationUs: secondsToMicroseconds(10),
+          id: 'clip-continuous-under-overlay',
+          sourceDurationUs: secondsToMicroseconds(10),
+          sourceId: 'source-continuous-under-overlay',
+          src: '/continuous-under-overlay.mp4',
+          trimEndUs: secondsToMicroseconds(10),
+        }),
+        createClip({
+          durationUs: secondsToMicroseconds(1),
+          id: 'clip-short-overlay',
+          sourceDurationUs: secondsToMicroseconds(1),
+          sourceId: 'source-short-overlay',
+          src: '/short-overlay.mp4',
+          startUs: secondsToMicroseconds(4),
+          trackId: overlayTrack.id,
+          trimEndUs: secondsToMicroseconds(1),
+          transform: { height: 180, width: 320, x: 100, y: 80 },
+        }),
+      ],
+      currentTimeUs: secondsToMicroseconds(3.9),
+      selectedClipId: 'clip-continuous-under-overlay',
+      tracks: [mainTrack, overlayTrack],
+    });
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    const [continuousVideo, overlayVideo] = await waitFor(() => {
+      const videos = Array.from(document.querySelectorAll('video'));
+      expect(videos).toHaveLength(2);
+      return videos;
+    });
+    const pausedMedia: HTMLMediaElement[] = [];
+    const playedMedia: HTMLMediaElement[] = [];
+    vi.mocked(HTMLMediaElement.prototype.pause).mockImplementation(
+      function pause(this: HTMLMediaElement) {
+        pausedMedia.push(this);
+      },
+    );
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(
+      function play(this: HTMLMediaElement) {
+        playedMedia.push(this);
+        return Promise.resolve();
+      },
+    );
+
+    act(() => {
+      testTimelineStore.getState().setIsPlaying(true);
+    });
+    await waitFor(() => {
+      expect(playedMedia).toContain(continuousVideo);
+    });
+    expect(playedMedia).not.toContain(overlayVideo);
+
+    continuousVideo.currentTime = 3.7;
+    pausedMedia.length = 0;
+    playedMedia.length = 0;
+    act(() => {
+      testTimelineStore
+        .getState()
+        .setCurrentTimeUs(secondsToMicroseconds(4));
+    });
+
+    expect(continuousVideo.currentTime).toBe(3.7);
+    expect(pausedMedia).not.toContain(continuousVideo);
+    expect(playedMedia).not.toContain(continuousVideo);
+    expect(playedMedia).toContain(overlayVideo);
+
+    continuousVideo.currentTime = 4.6;
+    pausedMedia.length = 0;
+    playedMedia.length = 0;
+    act(() => {
+      testTimelineStore
+        .getState()
+        .setCurrentTimeUs(secondsToMicroseconds(5));
+    });
+
+    expect(continuousVideo.currentTime).toBe(4.6);
+    expect(pausedMedia).not.toContain(continuousVideo);
+    expect(playedMedia).not.toContain(continuousVideo);
+    expect(pausedMedia).toContain(overlayVideo);
+  });
+
+  it('keeps a continuing overlay media node stable when a later main clip starts', async () => {
+    const sharedSource = '/shared-source.mp4';
+    testTimelineStore.setState({
+      clips: [
+        createClip({
+          durationUs: secondsToMicroseconds(10),
+          id: 'clip-continuing-overlay',
+          sourceDurationUs: secondsToMicroseconds(10),
+          sourceId: 'shared-source',
+          src: sharedSource,
+          trackId: overlayTrack.id,
+          trimEndUs: secondsToMicroseconds(10),
+          transform: { height: 180, width: 320, x: 100, y: 80 },
+        }),
+        createClip({
+          id: 'clip-later-main',
+          sourceId: 'shared-source',
+          src: sharedSource,
+          startUs: secondsToMicroseconds(4),
+        }),
+      ],
+      currentTimeUs: secondsToMicroseconds(3.9),
+      selectedClipId: 'clip-continuing-overlay',
+      tracks: [mainTrack, overlayTrack],
+    });
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    const [continuingOverlay, laterMain] = await waitFor(() => {
+      const videos = Array.from(document.querySelectorAll('video'));
+      expect(videos).toHaveLength(2);
+      return videos;
+    });
+    const pausedMedia: HTMLMediaElement[] = [];
+    const playedMedia: HTMLMediaElement[] = [];
+    vi.mocked(HTMLMediaElement.prototype.pause).mockImplementation(
+      function pause(this: HTMLMediaElement) {
+        pausedMedia.push(this);
+      },
+    );
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(
+      function play(this: HTMLMediaElement) {
+        playedMedia.push(this);
+        return Promise.resolve();
+      },
+    );
+
+    act(() => {
+      testTimelineStore.getState().setIsPlaying(true);
+    });
+    await waitFor(() => {
+      expect(playedMedia).toContain(continuingOverlay);
+    });
+    expect(playedMedia).not.toContain(laterMain);
+
+    continuingOverlay.currentTime = 3.7;
+    pausedMedia.length = 0;
+    playedMedia.length = 0;
+    act(() => {
+      testTimelineStore
+        .getState()
+        .setCurrentTimeUs(secondsToMicroseconds(4));
+    });
+
+    const videosAfterBoundary = Array.from(
+      document.querySelectorAll('video'),
+    );
+    expect(videosAfterBoundary[0]).toBe(continuingOverlay);
+    expect(videosAfterBoundary[1]).toBe(laterMain);
+    expect(continuingOverlay.currentTime).toBe(3.7);
+    expect(pausedMedia).not.toContain(continuingOverlay);
+    expect(playedMedia).not.toContain(continuingOverlay);
+    expect(playedMedia).toContain(laterMain);
+  });
+
   it('preloads at most the next nearby clip on each track', async () => {
     testTimelineStore.setState((state) => ({
       clips: [
@@ -829,6 +1193,72 @@ describe('PreviewPanel', () => {
       expect(getObjectUrlMock).toHaveBeenCalledWith('/main-next.mp4');
     });
     expect(getObjectUrlMock).not.toHaveBeenCalledWith('/main-later.mp4');
+  });
+
+  it('keeps the previous frame until the preloaded clip is ready at an adjacent boundary', async () => {
+    testTimelineStore.setState({
+      clips: [
+        createClip({
+          id: 'clip-before-boundary',
+          sourceId: 'source-before-boundary',
+          src: '/before-boundary.mp4',
+        }),
+        createClip({
+          id: 'clip-after-boundary',
+          sourceDurationUs: secondsToMicroseconds(7),
+          sourceId: 'source-after-boundary',
+          src: '/after-boundary.mp4',
+          startUs: secondsToMicroseconds(5),
+          trimEndUs: secondsToMicroseconds(7),
+          trimStartUs: secondsToMicroseconds(2),
+        }),
+      ],
+      currentTimeUs: secondsToMicroseconds(4.9),
+      selectedClipId: 'clip-before-boundary',
+      tracks: [mainTrack],
+    });
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    const nextVideo = await waitFor(() => {
+      const element = Array.from(document.querySelectorAll('video')).find(
+        (video) =>
+          video.getAttribute('src') === 'blob:/after-boundary.mp4',
+      );
+      if (!element) throw new Error('相邻片段尚未完成预加载');
+      expect(element.currentTime).toBe(2);
+      return element;
+    });
+    await waitFor(() => {
+      expect(drawImageMock).toHaveBeenCalled();
+    });
+
+    seekingMediaElements.add(nextVideo);
+    drawImageMock.mockClear();
+    fillRectMock.mockClear();
+
+    act(() => {
+      testTimelineStore
+        .getState()
+        .setCurrentTimeUs(secondsToMicroseconds(5));
+    });
+
+    expect(fillRectMock).not.toHaveBeenCalled();
+    expect(drawImageMock).not.toHaveBeenCalled();
+
+    seekingMediaElements.delete(nextVideo);
+    fireEvent.seeked(nextVideo);
+
+    expect(drawImageMock).toHaveBeenCalledWith(
+      nextVideo,
+      0,
+      0,
+      1280,
+      720,
+    );
+    expect(nextVideo.currentTime).toBe(2);
   });
 
   it('prepares retimed audio for an upcoming clip while keeping it muted', async () => {

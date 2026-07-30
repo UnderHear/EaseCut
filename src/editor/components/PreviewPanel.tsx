@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -14,11 +15,7 @@ import {
   getCompositionActiveClips,
 } from '../core/composition';
 import { getTimelineTextFontPreset } from '../core/text-fonts';
-import { timelineTimeToClipSourceTimeUs } from '../core/clip-speed';
-import {
-  microsecondsToSeconds,
-  secondsToMicroseconds,
-} from '../core/time';
+import { secondsToMicroseconds } from '../core/time';
 import {
   getPreviewInteractionUpdate,
   type PreviewInteractionMode,
@@ -34,13 +31,15 @@ import type {
   TimelineClipTransform,
   TimelineMediaClip,
   TimelineTextClip,
-  TimelineTrack,
 } from '../types';
 import { useMediaRuntime } from '../media';
+import { PreviewAudioEngine } from '../media/preview-audio-engine';
 import {
-  PreviewAudioEngine,
-  type PreviewAudioConfiguration,
-} from '../media/preview-audio-engine';
+  getPreviewAudioConfiguration,
+  getPreviewMediaTimingKey,
+  PreviewPlaybackController,
+  seekPreviewMediaToTimelineTime,
+} from '../media/preview-playback-controller';
 import { FloatingInspector } from './FloatingInspector';
 
 const PREVIEW_HANDLE_SIZE = 12;
@@ -95,8 +94,8 @@ const getPreviewFontDescriptor = (family: string) =>
 type PreviewClipIndex = ReadonlyMap<string, readonly TimelineMediaClip[]>;
 
 const comparePreviewClipOrder = (
-  left: TimelineMediaClip,
-  right: TimelineMediaClip,
+  left: Pick<TimelineClip, 'id' | 'startUs'>,
+  right: Pick<TimelineClip, 'id' | 'startUs'>,
 ) => left.startUs - right.startUs || left.id.localeCompare(right.id);
 
 const createPreviewClipIndex = (
@@ -120,8 +119,8 @@ const createPreviewClipIndex = (
   return clipsByTrack;
 };
 
-const findNextClip = (
-  clips: readonly TimelineMediaClip[],
+const findNextClipIndex = <Clip extends Pick<TimelineClip, 'startUs'>>(
+  clips: readonly Clip[],
   currentTimeUs: number,
 ) => {
   let lower = 0;
@@ -135,7 +134,40 @@ const findNextClip = (
       upper = middle;
     }
   }
-  return clips[lower];
+  return lower;
+};
+
+const findNextClip = <Clip extends Pick<TimelineClip, 'startUs'>>(
+  clips: readonly Clip[],
+  currentTimeUs: number,
+) => clips[findNextClipIndex(clips, currentTimeUs)];
+
+const createPreviewTextClipIndex = (
+  clips: TimelineClip[],
+): readonly TimelineTextClip[] =>
+  clips
+    .filter(
+      (clip): clip is TimelineTextClip => clip.type === 'text',
+    )
+    .sort(comparePreviewClipOrder);
+
+const getPreviewTextClips = (
+  textClips: readonly TimelineTextClip[],
+  activeTextClips: TimelineTextClip[],
+  currentTimeUs: number,
+) => {
+  const preloadEndUs = currentTimeUs + PREVIEW_PRELOAD_LOOKAHEAD_US;
+  const previewClips = [...activeTextClips];
+  let nextIndex = findNextClipIndex(textClips, currentTimeUs);
+  let nextClip = textClips[nextIndex];
+
+  while (nextClip && nextClip.startUs <= preloadEndUs) {
+    previewClips.push(nextClip);
+    nextIndex += 1;
+    nextClip = textClips[nextIndex];
+  }
+
+  return previewClips;
 };
 
 const getPreviewMediaClips = (
@@ -154,19 +186,13 @@ const getPreviewMediaClips = (
   }
   preloadCandidates.sort(comparePreviewClipOrder);
 
+  // 活动状态变化不能改变已挂载媒体的相对顺序，否则浏览器可能中断
+  // 被 React 移动的媒体节点及其音频输出。
   return [
     ...activeClips,
     ...preloadCandidates.slice(0, MAX_PRELOADED_MEDIA_CLIPS),
-  ];
+  ].sort(comparePreviewClipOrder);
 };
-
-const getClipMediaTimeSeconds = (
-  clip: TimelineMediaClip,
-  timelineTimeUs: number,
-) =>
-  microsecondsToSeconds(
-    timelineTimeToClipSourceTimeUs(clip, timelineTimeUs),
-  );
 
 type PreviewMediaElementProps = {
   clip: TimelineMediaClip;
@@ -218,19 +244,6 @@ function PreviewMediaElement({
   );
 }
 
-const getPreviewAudioConfiguration = (
-  clip: TimelineMediaClip,
-  tracksById: ReadonlyMap<string, TimelineTrack>,
-  forceMuted = false,
-): PreviewAudioConfiguration => ({
-  muted:
-    forceMuted ||
-    Boolean(tracksById.get(clip.trackId)?.muted) ||
-    clip.volume === 0,
-  speed: clip.speed,
-  volume: clip.volume,
-});
-
 const getPreviewDrawKey = (
   canvas: HTMLCanvasElement,
   clips: TimelineClip[],
@@ -265,8 +278,24 @@ const hasPendingPreviewMedia = (
     if (!previewObjectUrls[clip.src]) return true;
 
     const media = mediaElements.get(clip.id);
-    return !media || media.readyState < HAVE_CURRENT_DATA_READY_STATE;
+    return (
+      !media ||
+      media.seeking ||
+      media.readyState < HAVE_CURRENT_DATA_READY_STATE
+    );
   });
+
+const areObjectUrlRecordsEqual = (
+  left: Record<string, string>,
+  right: Record<string, string>,
+) => {
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+  return (
+    leftEntries.length === rightEntries.length &&
+    leftEntries.every(([src, objectUrl]) => right[src] === objectUrl)
+  );
+};
 
 const getCanvasPoint = (
   canvas: HTMLCanvasElement,
@@ -565,9 +594,13 @@ export function PreviewPanel({
   const mediaRuntime = useMediaRuntime();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const interactionRef = useRef<PreviewInteractionState | null>(null);
+  const lastPreviewCanvasSizeRef = useRef<TimelineCanvasSize | null>(null);
   const lastPreviewDrawKeyRef = useRef<string | null>(null);
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const previewAudioEngineRef = useRef<PreviewAudioEngine | null>(null);
+  const previewPlaybackControllerRef = useRef(
+    new PreviewPlaybackController(),
+  );
   const mediaElementsRef = useRef(new Map<string, HTMLMediaElement>());
   const [previewObjectUrls, setPreviewObjectUrls] = useState<
     Record<string, string>
@@ -610,6 +643,13 @@ export function PreviewPanel({
     () => activeClips.filter((clip) => clip.type !== 'text'),
     [activeClips],
   );
+  const activeTextClips = useMemo(
+    () =>
+      activeClips.filter(
+        (clip): clip is TimelineTextClip => clip.type === 'text',
+      ),
+    [activeClips],
+  );
   const activeVisualClips = useMemo(
     () => activeClips.filter((clip) => clip.type !== 'audio'),
     [activeClips],
@@ -631,6 +671,19 @@ export function PreviewPanel({
       ),
     [activeMediaClips, currentTimeUs, previewClipIndex],
   );
+  const previewTextClipIndex = useMemo(
+    () => createPreviewTextClipIndex(clips),
+    [clips],
+  );
+  const previewTextClips = useMemo(
+    () =>
+      getPreviewTextClips(
+        previewTextClipIndex,
+        activeTextClips,
+        currentTimeUs,
+      ),
+    [activeTextClips, currentTimeUs, previewTextClipIndex],
+  );
   const trackById = useMemo(
     () => new Map(tracks.map((track) => [track.id, track])),
     [tracks],
@@ -648,9 +701,7 @@ export function PreviewPanel({
     : null;
   const previewFontTypesKey = Array.from(
     new Set([
-      ...activeVisualClips.flatMap((clip) =>
-        clip.type === 'text' ? [clip.fontType] : [],
-      ),
+      ...previewTextClips.map((clip) => clip.fontType),
       ...(selectedTextClip ? [selectedTextClip.fontType] : []),
     ]),
   )
@@ -669,7 +720,9 @@ export function PreviewPanel({
       ),
     [previewMediaClips],
   );
-  const activeClipIdsKey = activeClips.map((clip) => clip.id).join('\n');
+  const activeMediaClipIdsKey = activeMediaClips
+    .map((clip) => clip.id)
+    .join('\n');
   const activeVideoClipIdsKey = activeVideoClips
     .map((clip) => clip.id)
     .join('\n');
@@ -686,9 +739,13 @@ export function PreviewPanel({
     })
     .join('\n');
   const activeSeekConfigurationKey = activeMediaClips
+    .map((clip) => `${clip.id}:${getPreviewMediaTimingKey(clip)}`)
+    .join('\n');
+  const previewSeekConfigurationKey = previewMediaClips
     .map((clip) =>
       [
         clip.id,
+        activeClipIds.has(clip.id) ? 1 : 0,
         clip.durationUs,
         clip.speed,
         clip.startUs,
@@ -725,7 +782,7 @@ export function PreviewPanel({
   const isPlayingRef = useRef(isPlaying);
   const previewMediaClipsRef = useRef(previewMediaClips);
   const trackByIdRef = useRef(trackById);
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeMediaClipsRef.current = activeMediaClips;
     currentTimeUsRef.current = currentTimeUs;
     isPlayingRef.current = isPlaying;
@@ -749,15 +806,21 @@ export function PreviewPanel({
   const setClipMediaElement = useCallback(
     (clipId: string, element: HTMLMediaElement | null) => {
       const current = mediaElementsRef.current.get(clipId);
+      const releaseCurrent = () => {
+        if (!current) return;
+        previewPlaybackControllerRef.current.release(clipId, current);
+        current.pause();
+        previewAudioEngineRef.current?.release(current);
+      };
       if (element) {
         if (current && current !== element) {
-          previewAudioEngineRef.current?.release(current);
+          releaseCurrent();
         }
         mediaElementsRef.current.set(clipId, element);
         return;
       }
 
-      if (current) previewAudioEngineRef.current?.release(current);
+      releaseCurrent();
       mediaElementsRef.current.delete(clipId);
     },
     [],
@@ -797,12 +860,14 @@ export function PreviewPanel({
       isActive: boolean,
       element: HTMLMediaElement,
     ) => {
-      if (!isActive) return;
-      element.currentTime = getClipMediaTimeSeconds(
+      seekPreviewMediaToTimelineTime(
+        element,
         clip,
-        currentTimeUsRef.current,
+        isActive ? currentTimeUsRef.current : clip.startUs,
       );
-      drawPreviewRef.current(interactionRef.current);
+      if (isActive) {
+        drawPreviewRef.current(interactionRef.current);
+      }
     },
     [],
   );
@@ -820,9 +885,12 @@ export function PreviewPanel({
         previewFrame,
         selectedDrawClipId,
       );
+      const lastCanvasSize = lastPreviewCanvasSizeRef.current;
       if (
         !interaction &&
-        lastPreviewDrawKeyRef.current === previewDrawKey &&
+        lastPreviewDrawKeyRef.current !== null &&
+        lastCanvasSize?.height === canvas.height &&
+        lastCanvasSize.width === canvas.width &&
         hasPendingPreviewMedia(
           activeVideoClips,
           previewObjectUrls,
@@ -869,22 +937,22 @@ export function PreviewPanel({
           const renderedFontPreset = renderedFontType
             ? getTimelineTextFontPreset(renderedFontType)
             : null;
+          const fallbackFontFamily =
+            renderedFontPreset?.family ?? 'Microsoft YaHei';
           const fontFamily =
-            fontFaceSet && preset && !fontLoadStatus
-              ? renderedFontPreset?.family
-              : (preset?.family ?? 'Microsoft YaHei');
+            !fontFaceSet || fontLoadStatus === 'ready'
+              ? (preset?.family ?? fallbackFontFamily)
+              : fallbackFontFamily;
 
-          if (fontFamily) {
-            drawTextClip(
-              context,
-              clip,
-              fontFamily,
-              transform,
-              previewFrame,
-            );
-            if (fontLoadStatus === 'ready') {
-              renderedFontTypeByClipIdRef.current.set(clip.id, clip.fontType);
-            }
+          drawTextClip(
+            context,
+            clip,
+            fontFamily,
+            transform,
+            previewFrame,
+          );
+          if (fontLoadStatus === 'ready') {
+            renderedFontTypeByClipIdRef.current.set(clip.id, clip.fontType);
           }
         } else {
           const video = mediaElementsRef.current.get(clip.id);
@@ -924,6 +992,10 @@ export function PreviewPanel({
       if (selectedTransform) {
         drawSelectedClipFrame(context, selectedTransform, previewFrame);
       }
+      lastPreviewCanvasSizeRef.current = {
+        height: canvas.height,
+        width: canvas.width,
+      };
       lastPreviewDrawKeyRef.current = previewDrawKey;
     },
     [
@@ -935,7 +1007,7 @@ export function PreviewPanel({
       selectedClipId,
     ],
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     drawPreviewRef.current = drawPreview;
   }, [drawPreview]);
 
@@ -1014,7 +1086,7 @@ export function PreviewPanel({
     drawPreview(interactionRef.current);
   }, [canvasSnappingEnabled, drawPreview]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     drawPreviewRef.current(interactionRef.current);
   }, [
     activeVisualConfigurationKey,
@@ -1058,7 +1130,9 @@ export function PreviewPanel({
     if (previewSources.length === 0) {
       void Promise.resolve().then(() => {
         if (!cancelled) {
-          setPreviewObjectUrls({});
+          setPreviewObjectUrls((current) =>
+            Object.keys(current).length === 0 ? current : {},
+          );
           setMediaError(null);
         }
       });
@@ -1077,7 +1151,12 @@ export function PreviewPanel({
       .then((entries) => {
         if (cancelled) return;
 
-        setPreviewObjectUrls(Object.fromEntries(entries));
+        const nextObjectUrls = Object.fromEntries(entries);
+        setPreviewObjectUrls((current) =>
+          areObjectUrlRecordsEqual(current, nextObjectUrls)
+            ? current
+            : nextObjectUrls,
+        );
         setMediaError(null);
       })
       .catch((error: unknown) => {
@@ -1092,26 +1171,53 @@ export function PreviewPanel({
     };
   }, [mediaRuntime, previewSourcesKey]);
 
-  const syncActiveMediaToTime = useCallback((timelineTimeUs: number) => {
-    for (const clip of activeMediaClipsRef.current) {
+  const primePreloadedMedia = useCallback(() => {
+    const activeIds = new Set(
+      activeMediaClipsRef.current.map((clip) => clip.id),
+    );
+    for (const clip of previewMediaClipsRef.current) {
+      if (activeIds.has(clip.id) || !previewObjectUrls[clip.src]) continue;
+
       const media = mediaElementsRef.current.get(clip.id);
       if (!media || media.readyState < HAVE_METADATA_READY_STATE) continue;
 
-      const targetTime = getClipMediaTimeSeconds(clip, timelineTimeUs);
-      if (Math.abs(media.currentTime - targetTime) > 0.001) {
-        media.currentTime = targetTime;
-      }
+      seekPreviewMediaToTimelineTime(media, clip, clip.startUs);
     }
-    drawPreviewRef.current(interactionRef.current);
-  }, []);
+  }, [previewObjectUrls]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!canUseMediaElement()) return undefined;
+
+    primePreloadedMedia();
+    return undefined;
+  }, [previewSeekConfigurationKey, primePreloadedMedia]);
+
+  const syncActiveMediaToTime = useCallback(
+    (timelineTimeUs: number) => {
+      for (const clip of activeMediaClipsRef.current) {
+        const media = mediaElementsRef.current.get(clip.id);
+        if (!media || media.readyState < HAVE_METADATA_READY_STATE) {
+          continue;
+        }
+
+        seekPreviewMediaToTimelineTime(
+          media,
+          clip,
+          timelineTimeUs,
+        );
+      }
+      drawPreviewRef.current(interactionRef.current);
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
     if (!canUseMediaElement()) return undefined;
 
     if (!isPlaying) syncActiveMediaToTime(currentTimeUs);
     return undefined;
   }, [
-    activeClipIdsKey,
+    activeMediaClipIdsKey,
     activeSeekConfigurationKey,
     currentTimeUs,
     isPlaying,
@@ -1175,74 +1281,47 @@ export function PreviewPanel({
     previewObjectUrls,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!canUseMediaElement()) return undefined;
 
     let cancelled = false;
-    const activeIds = new Set(
-      activeMediaClipsRef.current.map((clip) => clip.id),
-    );
-    for (const [clipId, media] of mediaElementsRef.current) {
-      if (!isPlaying || !activeIds.has(clipId)) {
-        media.pause();
-      }
-    }
-
-    if (!isPlaying) return undefined;
-
-    const startActiveMedia = async () => {
-      const engine = previewAudioEngineRef.current;
-      const clipsToStart = activeMediaClipsRef.current;
-      if (engine) {
-        await Promise.all(
-          clipsToStart.map(async (clip) => {
-            const media = mediaElementsRef.current.get(clip.id);
-            if (!media || !previewObjectUrls[clip.src]) return;
-            const configuration = getPreviewAudioConfiguration(
-              clip,
-              trackByIdRef.current,
-            );
-            if (clip.speed === 1) {
-              engine.configure(media, configuration);
-              return;
-            }
-            await engine.prepare(
-              media,
-              configuration,
-            );
-          }),
-        );
-        await engine.resume();
-      }
-
-      if (cancelled || !isPlayingRef.current) return;
-      syncActiveMediaToTime(currentTimeUsRef.current);
-
-      await Promise.all(
-        clipsToStart.map(async (clip) => {
-          const media = mediaElementsRef.current.get(clip.id);
-          if (!media || !previewObjectUrls[clip.src]) return;
-          await media.play();
-        }),
-      );
-    };
-    void startActiveMedia().catch((error: unknown) => {
+    const reportPlaybackFailure = (error: unknown) => {
       if (!cancelled) {
         setPlaybackWarning(
           error instanceof Error ? error.message : '媒体播放启动失败',
         );
       }
-    });
+    };
+
+    try {
+      const result = previewPlaybackControllerRef.current.update({
+        activeClips: activeMediaClipsRef.current,
+        audioEngine: previewAudioEngineRef.current,
+        currentTimeUs: currentTimeUsRef.current,
+        isPlaying,
+        mediaElements: mediaElementsRef.current,
+        objectUrls: previewObjectUrls,
+        tracksById: trackByIdRef.current,
+      });
+      if (result.didSynchronize) {
+        drawPreviewRef.current(interactionRef.current);
+      }
+      if (result.startPromise) {
+        void result.startPromise.catch(reportPlaybackFailure);
+      }
+    } catch (error: unknown) {
+      reportPlaybackFailure(error);
+    }
 
     return () => {
       cancelled = true;
     };
   }, [
-    activeClipIdsKey,
+    activeMediaClipIdsKey,
+    activeSeekConfigurationKey,
     previewMediaConfigurationKey,
     isPlaying,
     previewObjectUrls,
-    syncActiveMediaToTime,
   ]);
 
   useEffect(() => {

@@ -23,6 +23,19 @@ type PendingPreviewAudioConnection = {
   promise: Promise<PreviewAudioConnection | null>;
 };
 
+type AppliedPreviewAudioConfiguration = {
+  configuration: PreviewAudioConfiguration;
+  mode: 'enhanced' | 'native';
+};
+
+const arePreviewAudioConfigurationsEqual = (
+  left: PreviewAudioConfiguration,
+  right: PreviewAudioConfiguration,
+) =>
+  left.muted === right.muted &&
+  left.speed === right.speed &&
+  left.volume === right.volume;
+
 const setAudioParam = (
   parameter: AudioParam,
   value: number,
@@ -95,6 +108,10 @@ const canCreateAudioWorkletGraph = () =>
   typeof AudioWorkletNode !== 'undefined';
 
 export class PreviewAudioEngine {
+  private appliedConfigurations = new WeakMap<
+    HTMLMediaElement,
+    AppliedPreviewAudioConfiguration
+  >();
   private audioContext: AudioContext | null = null;
   private connections = new Map<
     HTMLMediaElement,
@@ -111,19 +128,42 @@ export class PreviewAudioEngine {
     configuration: PreviewAudioConfiguration,
   ) {
     const entry = this.connections.get(element);
-    if (!entry?.connection || !this.audioContext) {
-      applyNativeConfiguration(element, configuration);
-      if (entry) entry.configuration = configuration;
+    if (entry) entry.configuration = configuration;
+
+    const connection = entry?.connection;
+    const context = this.audioContext;
+    const mode =
+      connection && context ? 'enhanced' : 'native';
+    const applied = this.appliedConfigurations.get(element);
+    if (
+      applied?.mode === mode &&
+      arePreviewAudioConfigurationsEqual(
+        applied.configuration,
+        configuration,
+      )
+    ) {
       return;
     }
 
-    entry.configuration = configuration;
+    if (!connection || !context) {
+      applyNativeConfiguration(element, configuration);
+      this.appliedConfigurations.set(element, {
+        configuration,
+        mode,
+      });
+      return;
+    }
+
     applyEnhancedConfiguration(
-      this.audioContext,
+      context,
       element,
-      entry.connection,
+      connection,
       configuration,
     );
+    this.appliedConfigurations.set(element, {
+      configuration,
+      mode,
+    });
   }
 
   async prepare(
@@ -137,11 +177,11 @@ export class PreviewAudioEngine {
       existing.configuration = configuration;
       const connection = await existing.promise;
       if (!connection || this.disposed) return false;
-      this.configure(element, configuration);
+      this.configure(element, existing.configuration);
       return true;
     }
 
-    applyNativeConfiguration(element, configuration);
+    this.configure(element, configuration);
     if (!canCreateAudioWorkletGraph()) return false;
 
     const entry: PendingPreviewAudioConnection = {
@@ -168,6 +208,7 @@ export class PreviewAudioEngine {
 
   release(element: HTMLMediaElement) {
     const entry = this.connections.get(element);
+    this.appliedConfigurations.delete(element);
     if (!entry) return;
 
     this.connections.delete(element);
