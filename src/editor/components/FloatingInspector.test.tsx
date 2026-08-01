@@ -375,12 +375,24 @@ describe('FloatingInspector', () => {
     expect(screen.queryByText('音量')).not.toBeInTheDocument();
     expect(screen.queryByText('变速')).not.toBeInTheDocument();
     expect(screen.getByLabelText('标题内容')).toHaveValue('我们的精彩旅程');
+    expect(screen.getByLabelText('标题内容')).toHaveClass(
+      'ec-text-inspector__content-input',
+    );
+    expect(
+      screen.getByRole('group', { name: '文字样式' }),
+    ).toHaveClass('ec-text-inspector__toolbar');
+    expect(
+      screen.getByRole('heading', { name: '时间与位置' }),
+    ).toBeVisible();
+    expect(screen.getByLabelText('开始时间')).toBeVisible();
     expect(screen.getByLabelText('开始时间')).toHaveValue(1);
+    expect(screen.getByLabelText('结束时间')).toBeVisible();
     expect(screen.getByLabelText('结束时间')).toHaveValue(6);
     expect(screen.getByRole('button', { name: '字体' })).toHaveTextContent(
       '思源黑体',
     );
     expect(screen.getByLabelText('字号')).toHaveValue(120);
+    expect(screen.getByText('px')).toBeVisible();
     const textStyle = screen.getByRole('group', { name: '文字样式' });
     expect(
       within(textStyle).getByRole('button', { name: '粗体' }),
@@ -394,9 +406,7 @@ describe('FloatingInspector', () => {
     expect(screen.queryByLabelText('宽度')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('高度')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: '文字对齐' })).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('textbox', { name: '字体颜色' }),
-    ).toHaveValue('#FFFFFFFF');
+    expect(screen.getByLabelText('字体颜色')).toHaveValue('#ffffff');
 
     const textInput = screen.getByLabelText('标题内容');
     await user.clear(textInput);
@@ -440,6 +450,14 @@ describe('FloatingInspector', () => {
       });
     });
     expect(testTimelineStore.getState().past).toHaveLength(3);
+
+    fireEvent.change(screen.getByLabelText('字体颜色'), {
+      target: { value: '#123456' },
+    });
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      fontColor: '#123456FF',
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(4);
   });
 
   it('toggles text styles with one history item per successful action', async () => {

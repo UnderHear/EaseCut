@@ -1,6 +1,7 @@
 import * as Separator from '@radix-ui/react-separator';
 import {
   Bold as BoldIcon,
+  CaseSensitive,
   Italic as ItalicIcon,
   Type as TypeIcon,
   Underline as UnderlineIcon,
@@ -25,7 +26,6 @@ import type {
 import { FloatingInspectorShell } from './FloatingInspectorShell';
 import { InputNumber } from './ui/InputNumber';
 import { Select } from './ui/Select';
-import { TextInput } from './ui/TextInput';
 
 type TextFloatingInspectorProps = {
   clip: TimelineTextClip;
@@ -52,7 +52,6 @@ export function TextFloatingInspector({
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [textDraft, setTextDraft] = useState(clip.text);
   const [boldDraft, setBoldDraft] = useState(clip.bold);
-  const [colorDraft, setColorDraft] = useState(clip.fontColor);
   const [fontTypeDraft, setFontTypeDraft] = useState(clip.fontType);
   const [fontSizeDraft, setFontSizeDraft] = useState(clip.fontSize);
   const [italicDraft, setItalicDraft] = useState(clip.italic);
@@ -183,19 +182,13 @@ export function TextFloatingInspector({
     if (textDraft === clip.text) return;
     void commitMeasuredProperties({ text: textDraft });
   };
-  const commitColor = () => {
-    if (!/^#[\dA-Fa-f]{8}$/.test(colorDraft)) {
-      setColorDraft(clip.fontColor);
-      return;
+  const blurOnEnter = (
+    event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.currentTarget.blur();
     }
-    if (colorDraft === clip.fontColor) return;
-    commitTextClipProperties({
-      clipId: clip.id,
-      fontColor: colorDraft.toUpperCase(),
-    });
-  };
-  const blurOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') event.currentTarget.blur();
   };
   const commitPositionField = (field: PositionField, value: number) => {
     commitClipPosition({
@@ -227,75 +220,23 @@ export function TextFloatingInspector({
         orientation='horizontal'
       />
       <div className='ec-floating-inspector__body ec-scrollbar'>
-        <section className='ec-floating-inspector__section'>
-          <h3>标题</h3>
-          <label className='ec-floating-inspector__field'>
-            <span>标题内容</span>
-            <TextInput
-              aria-label='标题内容'
-              onBlur={commitText}
-              onChange={(event) => setTextDraft(event.target.value)}
-              onKeyDown={blurOnEnter}
-              size='medium'
-              value={textDraft}
-            />
-          </label>
-        </section>
+        <section
+          aria-label='文字属性'
+          className='ec-text-inspector__primary'
+        >
+          <textarea
+            aria-label='标题内容'
+            className='ec-text-inspector__content-input'
+            onBlur={commitText}
+            onChange={(event) =>
+              setTextDraft(event.target.value.replace(/[\r\n]+/g, ' '))
+            }
+            onKeyDown={blurOnEnter}
+            rows={3}
+            value={textDraft}
+          />
 
-        <Separator.Root
-          className='ec-floating-inspector__separator'
-          decorative
-          orientation='horizontal'
-        />
-        <section className='ec-floating-inspector__section'>
-          <h3>时间</h3>
-          <div className='ec-floating-inspector__number-grid'>
-            <div className='ec-floating-inspector__number-field'>
-              <span>开始时间</span>
-              <InputNumber
-                label='开始时间'
-                min={0}
-                onCommit={(value) =>
-                  commitTextClipTiming({
-                    clipId: clip.id,
-                    endUs,
-                    startUs: secondsToMicroseconds(value),
-                  })
-                }
-                step={0.1}
-                suffix='秒'
-                value={microsecondsToSeconds(displayedTiming.startUs)}
-              />
-            </div>
-            <div className='ec-floating-inspector__number-field'>
-              <span>结束时间</span>
-              <InputNumber
-                label='结束时间'
-                min={0.6}
-                onCommit={(value) =>
-                  commitTextClipTiming({
-                    clipId: clip.id,
-                    endUs: secondsToMicroseconds(value),
-                    startUs: displayedTiming.startUs,
-                  })
-                }
-                step={0.1}
-                suffix='秒'
-                value={microsecondsToSeconds(endUs)}
-              />
-            </div>
-          </div>
-        </section>
-
-        <Separator.Root
-          className='ec-floating-inspector__separator'
-          decorative
-          orientation='horizontal'
-        />
-        <section className='ec-floating-inspector__section'>
-          <h3>字体</h3>
-          <label className='ec-floating-inspector__field'>
-            <span>字体</span>
+          <div className='ec-text-inspector__typography-row'>
             <Select
               label='字体'
               onValueChange={(fontType) => {
@@ -305,10 +246,21 @@ export function TextFloatingInspector({
               options={textFontOptions}
               value={fontTypeDraft}
             />
-          </label>
+            <InputNumber
+              label='字号'
+              min={1}
+              onCommit={(fontSize) => {
+                setFontSizeDraft(fontSize);
+                void commitMeasuredProperties({ fontSize });
+              }}
+              suffix='px'
+              value={fontSizeDraft}
+            />
+          </div>
+
           <div
             aria-label='文字样式'
-            className='ec-floating-inspector__text-style'
+            className='ec-text-inspector__toolbar'
             role='group'
           >
             <button
@@ -351,27 +303,26 @@ export function TextFloatingInspector({
               <UnderlineIcon aria-hidden='true' size={16} />
               <span>下划线</span>
             </button>
-          </div>
-          <div className='ec-floating-inspector__number-field'>
-            <span>字号</span>
-            <InputNumber
-              label='字号'
-              min={1}
-              onCommit={(fontSize) => {
-                setFontSizeDraft(fontSize);
-                void commitMeasuredProperties({ fontSize });
-              }}
-              value={fontSizeDraft}
+
+            <span
+              aria-hidden='true'
+              className='ec-text-inspector__toolbar-separator'
             />
-          </div>
-          <label className='ec-floating-inspector__field'>
-            <span>字体颜色</span>
-            <span className='ec-floating-inspector__color-field'>
+
+            <label
+              className='ec-text-inspector__color-control'
+              title='字体颜色'
+            >
+              <CaseSensitive aria-hidden='true' size={20} />
+              <span
+                aria-hidden='true'
+                className='ec-text-inspector__color-swatch'
+                style={{ backgroundColor: toRgbColor(clip.fontColor) }}
+              />
               <input
-                aria-label='字体颜色选择器'
+                aria-label='字体颜色'
                 onChange={(event) => {
                   const nextColor = `${event.target.value}${clip.fontColor.slice(7)}`.toUpperCase();
-                  setColorDraft(nextColor);
                   commitTextClipProperties({
                     clipId: clip.id,
                     fontColor: nextColor,
@@ -380,16 +331,9 @@ export function TextFloatingInspector({
                 type='color'
                 value={toRgbColor(clip.fontColor)}
               />
-              <TextInput
-                aria-label='字体颜色'
-                onBlur={commitColor}
-                onChange={(event) => setColorDraft(event.target.value)}
-                onKeyDown={blurOnEnter}
-                size='medium'
-                value={colorDraft}
-              />
-            </span>
-          </label>
+            </label>
+          </div>
+
           {layoutStatus && (
             <p
               aria-live={layoutStatus.state === 'loading' ? 'polite' : undefined}
@@ -406,9 +350,44 @@ export function TextFloatingInspector({
           decorative
           orientation='horizontal'
         />
+
         <section className='ec-floating-inspector__section'>
-          <h3>位置</h3>
+          <h3>时间与位置</h3>
           <div className='ec-floating-inspector__number-grid'>
+            <div className='ec-floating-inspector__number-field'>
+              <span>开始时间</span>
+              <InputNumber
+                label='开始时间'
+                min={0}
+                onCommit={(value) =>
+                  commitTextClipTiming({
+                    clipId: clip.id,
+                    endUs,
+                    startUs: secondsToMicroseconds(value),
+                  })
+                }
+                step={0.1}
+                suffix='秒'
+                value={microsecondsToSeconds(displayedTiming.startUs)}
+              />
+            </div>
+            <div className='ec-floating-inspector__number-field'>
+              <span>结束时间</span>
+              <InputNumber
+                label='结束时间'
+                min={0.6}
+                onCommit={(value) =>
+                  commitTextClipTiming({
+                    clipId: clip.id,
+                    endUs: secondsToMicroseconds(value),
+                    startUs: displayedTiming.startUs,
+                  })
+                }
+                step={0.1}
+                suffix='秒'
+                value={microsecondsToSeconds(endUs)}
+              />
+            </div>
             {(
               [
                 ['x', 'X 位置', 'X'],
