@@ -376,7 +376,7 @@ describe('FloatingInspector', () => {
     expect(screen.queryByText('变速')).not.toBeInTheDocument();
     expect(screen.getByLabelText('标题内容')).toHaveValue('我们的精彩旅程');
     expect(screen.getByLabelText('标题内容')).toHaveClass(
-      'ec-text-inspector__content-input',
+      'ec-title-content-textarea',
     );
     expect(
       screen.getByRole('group', { name: '文字样式' }),

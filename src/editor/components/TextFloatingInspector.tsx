@@ -6,7 +6,7 @@ import {
   Type as TypeIcon,
   Underline as UnderlineIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   TIMELINE_TEXT_FONT_PRESETS,
@@ -26,6 +26,7 @@ import type {
 import { FloatingInspectorShell } from './FloatingInspectorShell';
 import { InputNumber } from './ui/InputNumber';
 import { Select } from './ui/Select';
+import { TitleContentTextarea } from './TitleContentTextarea';
 
 type TextFloatingInspectorProps = {
   clip: TimelineTextClip;
@@ -182,14 +183,6 @@ export function TextFloatingInspector({
     if (textDraft === clip.text) return;
     void commitMeasuredProperties({ text: textDraft });
   };
-  const blurOnEnter = (
-    event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      event.currentTarget.blur();
-    }
-  };
   const commitPositionField = (field: PositionField, value: number) => {
     commitClipPosition({
       clipId: clip.id,
@@ -214,25 +207,15 @@ export function TextFloatingInspector({
       }
       sectionTitle='基本'
     >
-      <Separator.Root
-        className='ec-floating-inspector__separator ec-floating-inspector__separator--header'
-        decorative
-        orientation='horizontal'
-      />
       <div className='ec-floating-inspector__body ec-scrollbar'>
         <section
           aria-label='文字属性'
-          className='ec-text-inspector__primary'
+          className='ec-floating-inspector__section'
+          style={{ paddingTop: 0 }}
         >
-          <textarea
-            aria-label='标题内容'
-            className='ec-text-inspector__content-input'
-            onBlur={commitText}
-            onChange={(event) =>
-              setTextDraft(event.target.value.replace(/[\r\n]+/g, ' '))
-            }
-            onKeyDown={blurOnEnter}
-            rows={3}
+          <TitleContentTextarea
+            onChange={setTextDraft}
+            onCommit={commitText}
             value={textDraft}
           />
 
