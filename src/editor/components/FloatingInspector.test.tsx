@@ -377,7 +377,9 @@ describe('FloatingInspector', () => {
     expect(screen.getByLabelText('标题内容')).toHaveValue('我们的精彩旅程');
     expect(screen.getByLabelText('开始时间')).toHaveValue(1);
     expect(screen.getByLabelText('结束时间')).toHaveValue(6);
-    expect(screen.getByLabelText('字体')).toHaveValue('SY_Black');
+    expect(screen.getByRole('button', { name: '字体' })).toHaveTextContent(
+      '思源黑体',
+    );
     expect(screen.getByLabelText('字号')).toHaveValue(120);
     const textStyle = screen.getByRole('group', { name: '文字样式' });
     expect(
@@ -411,7 +413,8 @@ describe('FloatingInspector', () => {
     });
     expect(testTimelineStore.getState().past).toHaveLength(1);
 
-    await user.selectOptions(screen.getByLabelText('字体'), 'ALi_PuHui');
+    await user.click(screen.getByRole('button', { name: '字体' }));
+    await user.click(screen.getByRole('option', { name: '阿里巴巴普惠体' }));
     await waitFor(() => {
       expect(testTimelineStore.getState().clips[0]).toMatchObject({
         fontType: 'ALi_PuHui',

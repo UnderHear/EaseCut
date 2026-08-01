@@ -546,7 +546,6 @@
   font-size: 12px;
 }
 
-.ec-floating-inspector__field select,
 .ec-floating-inspector__color-field input[type='color'] {
   box-sizing: border-box;
   width: 100%;

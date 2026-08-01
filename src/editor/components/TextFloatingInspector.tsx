@@ -8,7 +8,6 @@ import {
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 
 import {
-  isTimelineTextFontType,
   TIMELINE_TEXT_FONT_PRESETS,
 } from '../core/text-fonts';
 import {
@@ -25,6 +24,7 @@ import type {
 } from '../types';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
 import { InputNumber } from './ui/InputNumber';
+import { Select } from './ui/Select';
 import { TextInput } from './ui/TextInput';
 
 type TextFloatingInspectorProps = {
@@ -39,6 +39,10 @@ type TextFloatingInspectorProps = {
 type PositionField = keyof TimelineClipPosition;
 
 const toRgbColor = (fontColor: string) => fontColor.slice(0, 7);
+const textFontOptions = TIMELINE_TEXT_FONT_PRESETS.map((preset) => ({
+  label: preset.label,
+  value: preset.fontType,
+}));
 
 export function TextFloatingInspector({
   clip,
@@ -292,22 +296,15 @@ export function TextFloatingInspector({
           <h3>字体</h3>
           <label className='ec-floating-inspector__field'>
             <span>字体</span>
-            <select
-              aria-label='字体'
-              onChange={(event) => {
-                const fontType = event.target.value;
-                if (!isTimelineTextFontType(fontType)) return;
+            <Select
+              label='字体'
+              onValueChange={(fontType) => {
                 setFontTypeDraft(fontType);
                 void commitMeasuredProperties({ fontType });
               }}
+              options={textFontOptions}
               value={fontTypeDraft}
-            >
-              {TIMELINE_TEXT_FONT_PRESETS.map((preset) => (
-                <option key={preset.fontType} value={preset.fontType}>
-                  {preset.label}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <div
             aria-label='文字样式'
