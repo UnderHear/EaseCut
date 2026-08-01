@@ -542,12 +542,12 @@
 .ec-floating-inspector__field {
   display: grid;
   gap: 7px;
-  color: var(--ec-muted-text);
+  color: var(--ec-text-muted);
   font-size: 12px;
 }
 
-.ec-floating-inspector__field input,
-.ec-floating-inspector__field select {
+.ec-floating-inspector__field select,
+.ec-floating-inspector__color-field input[type='color'] {
   box-sizing: border-box;
   width: 100%;
   min-height: 32px;
@@ -582,7 +582,7 @@
   border: 1px solid var(--ec-border);
   border-radius: 6px;
   background: var(--ec-panel);
-  color: var(--ec-muted-text);
+  color: var(--ec-text-muted);
   font-size: 10px;
 }
 
@@ -744,7 +744,6 @@
   transform: translate(-50%, -50%);
   width: min(100%, 420px);
   padding: 16px;
-  border: 1px solid var(--ec-border-strong);
   border-radius: calc(var(--ec-radius) + 2px);
   background: var(--ec-panel);
   box-shadow: 0 24px 64px rgb(0 0 0 / 50%);
@@ -777,23 +776,6 @@
   color: var(--ec-text-muted);
   font-size: 12px;
   font-weight: 600;
-}
-
-.ec-import-dialog__field input {
-  width: 100%;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--ec-border-strong);
-  border-radius: var(--ec-radius);
-  color: var(--ec-text);
-  background: #141414;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.ec-import-dialog__field input::placeholder {
-  color: #737373;
 }
 
 .ec-import-dialog__error {

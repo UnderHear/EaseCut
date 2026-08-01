@@ -11,6 +11,7 @@ import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
 import { FormDialog } from './components/FormDialog';
+import { TextInput } from './components/ui/TextInput';
 import { isTimelineMediaClip } from './core/model';
 import {
   DEFAULT_TIMELINE_TEXT_FONT_SIZE,
@@ -701,7 +702,7 @@ function VideoTimelineEditorView({
       >
         <label className='ec-import-dialog__field' htmlFor='ec-import-url'>
           <span>素材 URL</span>
-          <input
+          <TextInput
             aria-invalid={Boolean(importError)}
             autoComplete='url'
             id='ec-import-url'
@@ -709,6 +710,7 @@ function VideoTimelineEditorView({
             placeholder='https://example.com/video.mp4'
             ref={importUrlInputRef}
             required
+            size='large'
             type='url'
             value={importUrl}
           />
@@ -748,7 +750,7 @@ function VideoTimelineEditorView({
       >
         <label className='ec-import-dialog__field' htmlFor='ec-title-text'>
           <span>标题内容</span>
-          <input
+          <TextInput
             aria-invalid={Boolean(titleTextError)}
             id='ec-title-text'
             disabled={isAddingTitle}
@@ -759,6 +761,7 @@ function VideoTimelineEditorView({
             placeholder='请输入文字标题'
             ref={titleTextInputRef}
             required
+            size='large'
             type='text'
             value={titleText}
           />

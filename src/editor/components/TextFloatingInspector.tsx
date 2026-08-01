@@ -25,6 +25,7 @@ import type {
 } from '../types';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
 import { InputNumber } from './ui/InputNumber';
+import { TextInput } from './ui/TextInput';
 
 type TextFloatingInspectorProps = {
   clip: TimelineTextClip;
@@ -226,11 +227,12 @@ export function TextFloatingInspector({
           <h3>标题</h3>
           <label className='ec-floating-inspector__field'>
             <span>标题内容</span>
-            <input
+            <TextInput
               aria-label='标题内容'
               onBlur={commitText}
               onChange={(event) => setTextDraft(event.target.value)}
               onKeyDown={blurOnEnter}
+              size='medium'
               value={textDraft}
             />
           </label>
@@ -381,11 +383,12 @@ export function TextFloatingInspector({
                 type='color'
                 value={toRgbColor(clip.fontColor)}
               />
-              <input
+              <TextInput
                 aria-label='字体颜色'
                 onBlur={commitColor}
                 onChange={(event) => setColorDraft(event.target.value)}
                 onKeyDown={blurOnEnter}
+                size='medium'
                 value={colorDraft}
               />
             </span>
