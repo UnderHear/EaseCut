@@ -1392,7 +1392,11 @@ export function PreviewPanel({
         isPointInTransform(point, selectedTransform)
           ? selectedActiveClip
           : null));
-    if (!targetClip) return;
+    if (!targetClip) {
+      canvas.style.cursor = 'default';
+      selectClip(null);
+      return;
+    }
 
     const mode: PreviewInteractionMode = resizeHandle ?? 'move';
 

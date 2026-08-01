@@ -1596,6 +1596,64 @@ describe('PreviewPanel', () => {
     expect(testTimelineStore.getState().selectedClipId).toBe('clip-overlay');
   });
 
+  it('clears the selected clip when pointer starts on empty composition content', () => {
+    testTimelineStore.setState((state) => ({
+      clips: state.clips.filter((clip) => clip.id === 'clip-overlay'),
+    }));
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+    const initialTransform = getMediaClipById('clip-overlay').transform;
+
+    expect(
+      screen.getByRole('navigation', { name: '属性分类' }),
+    ).toBeVisible();
+
+    fireEvent.pointerDown(canvas, { clientX: 810, clientY: 400, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 810, clientY: 400, pointerId: 1 });
+
+    expect(testTimelineStore.getState().selectedClipId).toBeNull();
+    expect(
+      screen.queryByRole('navigation', { name: '属性分类' }),
+    ).not.toBeInTheDocument();
+    expect(canvas).toHaveStyle({ cursor: 'default' });
+    expect(canvas.setPointerCapture).not.toHaveBeenCalled();
+    expect(testTimelineStore.getState().past).toHaveLength(0);
+    expect(getMediaClipById('clip-overlay').transform).toEqual(initialTransform);
+  });
+
+  it('clears the selected clip when pointer starts on preview letterboxing', () => {
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 130, clientY: 120, pointerId: 1 });
+
+    expect(testTimelineStore.getState().selectedClipId).toBeNull();
+    expect(testTimelineStore.getState().past).toHaveLength(0);
+    expect(canvas.setPointerCapture).not.toHaveBeenCalled();
+  });
+
+  it('selects another visible clip instead of clearing the selection', () => {
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+    triggerPreviewResize(1600, 720);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    mockWidePreviewRect(canvas);
+
+    fireEvent.pointerDown(canvas, { clientX: 810, clientY: 400, pointerId: 1 });
+
+    expect(testTimelineStore.getState().selectedClipId).toBe('clip-main');
+    expect(canvas.setPointerCapture).toHaveBeenCalledWith(1);
+  });
+
   it('does not select unclipped transform area outside the composition canvas', () => {
     testTimelineStore.setState((state) => ({
       clips: state.clips.map((clip) =>
