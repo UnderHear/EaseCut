@@ -745,7 +745,7 @@
   width: min(100%, 420px);
   padding: 16px;
   border-radius: calc(var(--ec-radius) + 2px);
-  background: var(--ec-panel);
+  background: rgb(34 34 34 / 96%);
   box-shadow: 0 24px 64px rgb(0 0 0 / 50%);
 }
 
