@@ -140,7 +140,7 @@ export function VideoTimelineEditor({
   const [store] = useState(() =>
     createTimelineStore({
       draft: initialDraft,
-      sources,
+      sources: sources.filter(hasCompleteSourceMetadata),
     }),
   );
 
@@ -243,10 +243,6 @@ function VideoTimelineEditorView({
   }, [store]);
 
   useEffect(() => {
-    syncSources(sources);
-  }, [sources, syncSources]);
-
-  useEffect(() => {
     let cancelled = false;
     const activeSourceIds = new Set(sources.map((source) => source.id));
     for (const sourceId of notifiedMetadataFailureSourceIdsRef.current) {
@@ -255,15 +251,31 @@ function VideoTimelineEditorView({
       }
     }
 
-    void Promise.all(
-      sources.map(async (source) => {
-        if (hasCompleteSourceMetadata(source)) return source;
+    const reportMetadataFailure = (sourceId: string) => {
+      if (
+        cancelled ||
+        notifiedMetadataFailureSourceIdsRef.current.has(sourceId)
+      ) {
+        return;
+      }
+      notifiedMetadataFailureSourceIdsRef.current.add(sourceId);
+      setMediaError('该素材上传失败');
+    };
 
-        try {
-          const metadata = await runtime.getMetadata(source);
-          if (!metadata) return source;
+    for (const source of sources) {
+      if (hasCompleteSourceMetadata(source)) {
+        syncSources([source]);
+        continue;
+      }
 
-          return {
+      void runtime.getMetadata(source).then(
+        (metadata) => {
+          if (cancelled) return;
+          if (!metadata) {
+            reportMetadataFailure(source.id);
+            return;
+          }
+          const resolvedSource = {
             ...source,
             ...(!isPositiveNumber(source.durationUs) &&
             isPositiveNumber(metadata.durationUs)
@@ -278,25 +290,15 @@ function VideoTimelineEditorView({
               ? { width: metadata.width }
               : {}),
           };
-        } catch {
-          return source;
-        }
-      }),
-    ).then((resolvedSources) => {
-      if (cancelled) return;
-
-      const hasNewMetadataFailure = resolvedSources.some((source) => {
-        if (hasCompleteSourceMetadata(source)) return false;
-        if (notifiedMetadataFailureSourceIdsRef.current.has(source.id)) {
-          return false;
-        }
-
-        notifiedMetadataFailureSourceIdsRef.current.add(source.id);
-        return true;
-      });
-      if (hasNewMetadataFailure) setMediaError('该素材上传失败');
-      syncSources(resolvedSources);
-    });
+          if (!hasCompleteSourceMetadata(resolvedSource)) {
+            reportMetadataFailure(source.id);
+            return;
+          }
+          syncSources([resolvedSource]);
+        },
+        () => reportMetadataFailure(source.id),
+      );
+    }
 
     return () => {
       cancelled = true;

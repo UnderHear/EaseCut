@@ -44,6 +44,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
       const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
       const isPlaying = useTimelineStore((state) => state.isPlaying);
       const selectedClipId = useTimelineStore((state) => state.selectedClipId);
+      const tracks = useTimelineStore((state) => state.tracks);
       const selectClip = useTimelineStore((state) => state.selectClip);
       const setIsPlaying = useTimelineStore((state) => state.setIsPlaying);
       const toggleTrackMute = useTimelineStore(
@@ -84,6 +85,12 @@ vi.mock('./timeline/TimelinePanel', async () => {
             data-last-type={lastClip?.type ?? ''}
             data-playing={String(isPlaying)}
             data-selected-clip-id={selectedClipId ?? ''}
+            data-source-ids={JSON.stringify(
+              clips.flatMap((clip) =>
+                clip.type === 'text' ? [] : [clip.sourceId],
+              ),
+            )}
+            data-track-count={tracks.length}
             data-testid='timeline-state'
           >
             <button
@@ -584,9 +591,8 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('fills a missing audio duration through the injected metadata loader', async () => {
-    const loadMetadata = vi.fn().mockResolvedValue({
-      durationUs: secondsToMicroseconds(9),
-    });
+    const metadata = createDeferred<{ durationUs: number }>();
+    const loadMetadata = vi.fn().mockReturnValue(metadata.promise);
     const loadBlob = vi.fn();
     render(
       <VideoTimelineEditor
@@ -595,14 +601,75 @@ describe('VideoTimelineEditor', () => {
       />,
     );
 
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '0',
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-track-count',
+      '1',
+    );
+    await act(async () => {
+      metadata.resolve({ durationUs: secondsToMicroseconds(9) });
+      await metadata.promise;
+    });
     await waitFor(() =>
       expect(screen.getByTestId('timeline-state')).toHaveAttribute(
         'data-first-duration',
         String(secondsToMicroseconds(9)),
       ),
     );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-track-count',
+      '2',
+    );
     expect(loadMetadata).toHaveBeenCalledOnce();
     expect(loadBlob).not.toHaveBeenCalled();
+  });
+
+  it('adds a verified source without waiting for another source metadata request', async () => {
+    const pendingMetadata = createDeferred<{ durationUs: number }>();
+    const pendingSource: VideoTimelineSource = {
+      ...audioSource,
+      durationUs: undefined,
+      id: 'pending-audio',
+      src: '/pending-audio.mp3',
+    };
+    const verifiedSource: VideoTimelineSource = {
+      ...audioSource,
+      durationUs: undefined,
+      id: 'verified-audio',
+      src: '/verified-audio.mp3',
+    };
+    const loadMetadata = vi.fn((source: VideoTimelineSource) =>
+      source.id === pendingSource.id
+        ? pendingMetadata.promise
+        : Promise.resolve({ durationUs: secondsToMicroseconds(6) }),
+    );
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
+        sources={[pendingSource, verifiedSource]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+        'data-source-ids',
+        JSON.stringify([verifiedSource.id]),
+      ),
+    );
+
+    await act(async () => {
+      pendingMetadata.resolve({ durationUs: secondsToMicroseconds(7) });
+      await pendingMetadata.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+        'data-source-ids',
+        JSON.stringify([verifiedSource.id, pendingSource.id]),
+      ),
+    );
   });
 
   it('contains a square video after metadata is resolved and exports that transform', async () => {
@@ -715,21 +782,126 @@ describe('VideoTimelineEditor', () => {
     );
   });
 
-  it('shows one upload failure notification when metadata loading falls back to defaults', async () => {
-    const loadMetadata = vi.fn().mockResolvedValue(null);
+  it('reports metadata failures without adding the source to the timeline or draft', async () => {
+    const onDraftChange = vi.fn<(draft: VideoTimelineDraft) => void>();
+    const loadMetadata = vi
+      .fn()
+      .mockRejectedValue(new Error('无法读取媒体元数据'));
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
+        onDraftChange={onDraftChange}
         sources={[{ ...audioSource, durationUs: undefined }]}
       />,
     );
 
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
     expect(await screen.findByText('该素材上传失败')).toBeVisible();
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '0',
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-track-count',
+      '1',
+    );
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps existing clips and tracks when an incrementally added source fails', async () => {
+    const loadMetadata = vi
+      .fn()
+      .mockRejectedValue(new Error('无法读取媒体元数据'));
+    const mediaLoader = { loadBlob: vi.fn(), loadMetadata };
+    const failedAudioSource: VideoTimelineSource = {
+      ...audioSource,
+      durationUs: undefined,
+      id: 'failed-audio',
+      src: '/failed-audio.mp3',
+    };
+    const { rerender } = render(
+      <VideoTimelineEditor
+        mediaLoader={mediaLoader}
+        sources={[videoSource]}
+      />,
+    );
+
+    rerender(
+      <VideoTimelineEditor
+        mediaLoader={mediaLoader}
+        sources={[videoSource, failedAudioSource]}
+      />,
+    );
+
+    expect(await screen.findByText('该素材上传失败')).toBeVisible();
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '1',
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-track-count',
+      '1',
+    );
+
+    rerender(
+      <VideoTimelineEditor
+        mediaLoader={mediaLoader}
+        sources={[
+          videoSource,
+          { ...failedAudioSource, durationUs: secondsToMicroseconds(4) },
+        ]}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+        'data-clip-count',
+        '2',
+      ),
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-track-count',
+      '2',
+    );
+  });
+
+  it('ignores metadata that resolves after its pending source is removed', async () => {
+    const metadata = createDeferred<{ durationUs: number }>();
+    const loadMetadata = vi.fn().mockReturnValue(metadata.promise);
+    const mediaLoader = { loadBlob: vi.fn(), loadMetadata };
+    const pendingAudioSource: VideoTimelineSource = {
+      ...audioSource,
+      durationUs: undefined,
+      id: 'pending-audio',
+      src: '/pending-audio.mp3',
+    };
+    const { rerender } = render(
+      <VideoTimelineEditor
+        mediaLoader={mediaLoader}
+        sources={[videoSource, pendingAudioSource]}
+      />,
+    );
+    await waitFor(() => expect(loadMetadata).toHaveBeenCalledOnce());
+
+    rerender(
+      <VideoTimelineEditor
+        mediaLoader={mediaLoader}
+        sources={[videoSource]}
+      />,
+    );
+    await act(async () => {
+      metadata.resolve({ durationUs: secondsToMicroseconds(7) });
+      await metadata.promise;
+    });
+
+    await flushEffects();
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '1',
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-track-count',
+      '1',
+    );
+    expect(screen.queryByText('该素材上传失败')).not.toBeInTheDocument();
   });
 
   it('emits draft changes for persistent edits but not playback state', async () => {
