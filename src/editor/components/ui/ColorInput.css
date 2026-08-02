@@ -1,0 +1,32 @@
+.ec-color-input {
+  display: block;
+  padding: 0;
+  border: none;
+  outline: 1px solid #333333;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ec-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.ec-color-input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 6px;
+}
+
+.ec-color-input::-moz-color-swatch {
+  border: 0;
+  border-radius: 6px;
+}
+
+.ec-color-input:focus-visible {
+  outline: 2px solid var(--ec-accent, #00cae0);
+  outline-offset: 2px;
+}
+
+.ec-color-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}

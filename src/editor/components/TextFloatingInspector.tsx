@@ -1,7 +1,6 @@
 import * as Separator from '@radix-ui/react-separator';
 import {
   Bold as BoldIcon,
-  CaseSensitive,
   Italic as ItalicIcon,
   Type as TypeIcon,
   Underline as UnderlineIcon,
@@ -24,6 +23,7 @@ import type {
   TimelineTextClip,
 } from '../types';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
+import { ColorInput } from './ui/ColorInput';
 import { IconButton } from './ui/IconButton';
 import { InputNumber } from './ui/InputNumber';
 import { Select } from './ui/Select';
@@ -290,29 +290,19 @@ export function TextFloatingInspector({
               className='ec-text-inspector__toolbar-separator'
             />
 
-            <label
-              className='ec-text-inspector__color-control'
+            <ColorInput
+              aria-label='字体颜色'
+              onChange={(event) => {
+                const nextColor = `${event.target.value}${clip.fontColor.slice(7)}`.toUpperCase();
+                commitTextClipProperties({
+                  clipId: clip.id,
+                  fontColor: nextColor,
+                });
+              }}
+              size={20}
               title='字体颜色'
-            >
-              <CaseSensitive aria-hidden='true' size={20} />
-              <span
-                aria-hidden='true'
-                className='ec-text-inspector__color-swatch'
-                style={{ backgroundColor: toRgbColor(clip.fontColor) }}
-              />
-              <input
-                aria-label='字体颜色'
-                onChange={(event) => {
-                  const nextColor = `${event.target.value}${clip.fontColor.slice(7)}`.toUpperCase();
-                  commitTextClipProperties({
-                    clipId: clip.id,
-                    fontColor: nextColor,
-                  });
-                }}
-                type='color'
-                value={toRgbColor(clip.fontColor)}
-              />
-            </label>
+              value={toRgbColor(clip.fontColor)}
+            />
           </div>
 
           {layoutStatus && (

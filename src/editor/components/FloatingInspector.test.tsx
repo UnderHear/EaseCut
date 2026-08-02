@@ -453,12 +453,14 @@ describe('FloatingInspector', () => {
     });
     expect(testTimelineStore.getState().past).toHaveLength(3);
 
-    fireEvent.change(screen.getByLabelText('字体颜色'), {
+    const colorInput = screen.getByLabelText('字体颜色');
+    fireEvent.change(colorInput, {
       target: { value: '#123456' },
     });
     expect(testTimelineStore.getState().clips[0]).toMatchObject({
       fontColor: '#123456FF',
     });
+    expect(screen.getByLabelText('字体颜色')).toBe(colorInput);
     expect(testTimelineStore.getState().past).toHaveLength(4);
   });
 
