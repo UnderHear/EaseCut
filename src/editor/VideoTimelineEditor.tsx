@@ -11,6 +11,7 @@ import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
 
 import { PreviewPanel } from './components/PreviewPanel';
 import { FormDialog } from './components/FormDialog';
+import { IconButton } from './components/ui/IconButton';
 import { TextInput } from './components/ui/TextInput';
 import { isTimelineMediaClip } from './core/model';
 import {
@@ -643,15 +644,13 @@ function VideoTimelineEditorView({
             </button>
           )}
           {onClose && (
-            <button
+            <IconButton
               aria-label='关闭视频编辑器'
-              className='ec-icon-button'
               onClick={onClose}
               title='关闭'
-              type='button'
             >
               <X aria-hidden='true' size={17} />
-            </button>
+            </IconButton>
           )}
         </div>
       </header>

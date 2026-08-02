@@ -24,6 +24,7 @@ import type {
   TimelineTextClip,
 } from '../types';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
+import { IconButton } from './ui/IconButton';
 import { InputNumber } from './ui/InputNumber';
 import { Select } from './ui/Select';
 import { TitleContentTextarea } from './TitleContentTextarea';
@@ -246,7 +247,7 @@ export function TextFloatingInspector({
             className='ec-text-inspector__toolbar'
             role='group'
           >
-            <button
+            <IconButton
               aria-label='粗体'
               aria-pressed={boldDraft}
               onClick={() => {
@@ -254,12 +255,11 @@ export function TextFloatingInspector({
                 setBoldDraft(bold);
                 void commitMeasuredProperties({ bold });
               }}
-              type='button'
+              title='粗体'
             >
               <BoldIcon aria-hidden='true' size={16} />
-              <span>粗体</span>
-            </button>
-            <button
+            </IconButton>
+            <IconButton
               aria-label='斜体'
               aria-pressed={italicDraft}
               onClick={() => {
@@ -267,12 +267,11 @@ export function TextFloatingInspector({
                 setItalicDraft(italic);
                 void commitMeasuredProperties({ italic });
               }}
-              type='button'
+              title='斜体'
             >
               <ItalicIcon aria-hidden='true' size={16} />
-              <span>斜体</span>
-            </button>
-            <button
+            </IconButton>
+            <IconButton
               aria-label='下划线'
               aria-pressed={clip.underline}
               onClick={() =>
@@ -281,11 +280,10 @@ export function TextFloatingInspector({
                   underline: !clip.underline,
                 })
               }
-              type='button'
+              title='下划线'
             >
               <UnderlineIcon aria-hidden='true' size={16} />
-              <span>下划线</span>
-            </button>
+            </IconButton>
 
             <span
               aria-hidden='true'

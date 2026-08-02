@@ -2,6 +2,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import type { FormEvent, ReactNode, RefObject } from 'react';
 
+import { IconButton } from './ui/IconButton';
+
 type FormDialogProps = {
   actions: ReactNode;
   children: ReactNode;
@@ -53,14 +55,13 @@ export function FormDialog({
           <div className='ec-import-dialog__header'>
             <Dialog.Title>{title}</Dialog.Title>
             <Dialog.Close asChild disabled={disabled}>
-              <button
+              <IconButton
                 aria-label={closeLabel}
-                className='ec-icon-button'
+                disabled={disabled}
                 title='关闭'
-                type='button'
               >
                 <X aria-hidden='true' size={17} />
-              </button>
+              </IconButton>
             </Dialog.Close>
           </div>
           {children}

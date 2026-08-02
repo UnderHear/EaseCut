@@ -28,6 +28,7 @@ import {
 import { canSplitClipAtTime } from '../core/timeline-commands';
 import { useTimelineStore } from '../store/timeline-store-context';
 import { formatTimelineTime } from '../util/format-timeline-time';
+import { IconButton } from './ui/IconButton';
 
 type TimelineToolbarProps = {
   onRequestAddTitle?: () => void;
@@ -115,46 +116,55 @@ export function TimelineToolbar({
   return (
     <div className='ec-timeline-toolbar' role='toolbar' aria-label='时间线工具栏'>
       <div className='ec-timeline-toolbar__group ec-timeline-toolbar__group--start'>
-        <ToolbarButton
+        <IconButton
+          aria-label='撤销'
           disabled={!canUndo}
-          label='撤销 Ctrl+Z'
           onClick={undo}
+          title='撤销 Ctrl+Z'
         >
           <Undo2 aria-hidden='true' />
-        </ToolbarButton>
-        <ToolbarButton
+        </IconButton>
+        <IconButton
+          aria-label='重做'
           disabled={!canRedo}
-          label='重做 Ctrl+Y'
           onClick={redo}
+          title='重做 Ctrl+Y'
         >
           <Redo2 aria-hidden='true' />
-        </ToolbarButton>
+        </IconButton>
         <span aria-hidden='true' className='ec-timeline-toolbar__separator' />
-        <ToolbarButton
+        <IconButton
+          aria-label='分割片段'
           disabled={!canSplitAtPlayhead}
-          label='分割片段 Ctrl+B'
           onClick={splitAtPlayhead}
+          title='分割片段 Ctrl+B'
         >
           <SquareSplitHorizontal aria-hidden='true' />
-        </ToolbarButton>
-        <ToolbarButton
+        </IconButton>
+        <IconButton
+          aria-label='删除选中片段'
           disabled={!selectedClipId}
-          label='删除选中片段 Backspace'
           onClick={deleteSelectedClip}
+          title='删除选中片段 Backspace'
         >
           <Trash2 aria-hidden='true' />
-        </ToolbarButton>
+        </IconButton>
         {onRequestImport && (
-          <ToolbarButton label='导入素材' onClick={onRequestImport}>
+          <IconButton
+            aria-label='导入素材'
+            onClick={onRequestImport}
+            title='导入素材'
+          >
             <FilePlus2 aria-hidden='true' />
-          </ToolbarButton>
+          </IconButton>
         )}
-        <ToolbarButton
-          label='添加标题'
+        <IconButton
+          aria-label='添加标题'
           onClick={() => onRequestAddTitle?.()}
+          title='添加标题'
         >
           <TypeIcon aria-hidden='true' />
-        </ToolbarButton>
+        </IconButton>
       </div>
 
       <div className='ec-timeline-toolbar__transport'>
@@ -164,35 +174,37 @@ export function TimelineToolbar({
         >
           {formatTimelineTime(currentTimeUs)}
         </time>
-        <ToolbarButton
-          className='ec-icon-button--transport'
-          label={`${isPlaying ? '暂停时间线' : '播放时间线'} Space`}
+        <IconButton
+          aria-label={isPlaying ? '暂停时间线' : '播放时间线'}
           onClick={() => setIsPlaying(!isPlaying)}
+          title={`${isPlaying ? '暂停时间线' : '播放时间线'} Space`}
         >
           {isPlaying ? <Pause aria-hidden='true' /> : <Play aria-hidden='true' />}
-        </ToolbarButton>
+        </IconButton>
         <time
           className='ec-timeline-toolbar__time ec-timeline-toolbar__time--muted'
           dateTime={`PT${microsecondsToSeconds(duration)}S`}
         >
           {formatTimelineTime(duration)}
         </time>
-        <ToolbarButton label='全屏预览' onClick={onRequestPreviewFullscreen}>
+        <IconButton
+          aria-label='全屏预览'
+          onClick={onRequestPreviewFullscreen}
+          title='全屏预览'
+        >
           <Maximize aria-hidden='true' />
-        </ToolbarButton>
+        </IconButton>
       </div>
 
       <div className='ec-timeline-toolbar__group ec-timeline-toolbar__group--end'>
         <Dialog.Root>
           <Dialog.Trigger asChild>
-            <button
+            <IconButton
               aria-label='查看快捷键'
-              className='ec-icon-button'
               title='查看快捷键'
-              type='button'
             >
               <Keyboard aria-hidden='true' />
-            </button>
+            </IconButton>
           </Dialog.Trigger>
           <Dialog.Portal>
             <Dialog.Overlay className='ec-shortcuts-dialog__overlay' />
@@ -202,14 +214,12 @@ export function TimelineToolbar({
                   快捷键
                 </Dialog.Title>
                 <Dialog.Close asChild>
-                  <button
+                  <IconButton
                     aria-label='关闭快捷键弹窗'
-                    className='ec-icon-button'
                     title='关闭'
-                    type='button'
                   >
                     <X aria-hidden='true' size={17} />
-                  </button>
+                  </IconButton>
                 </Dialog.Close>
               </div>
               <div className='ec-shortcuts-dialog__groups'>
@@ -238,33 +248,33 @@ export function TimelineToolbar({
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
-        <ToolbarButton
-          active={playheadFollowEnabled}
-          label='播放头跟随'
+        <IconButton
+          aria-label='播放头跟随'
+          aria-pressed={playheadFollowEnabled}
           onClick={togglePlayheadFollow}
-          pressed={playheadFollowEnabled}
+          title='播放头跟随'
         >
           <TextCursorInput aria-hidden='true' />
-        </ToolbarButton>
-        <ToolbarButton
-          active={snappingEnabled}
-          label='时间轴吸附'
+        </IconButton>
+        <IconButton
+          aria-label='时间轴吸附'
+          aria-pressed={snappingEnabled}
           onClick={toggleSnapping}
-          pressed={snappingEnabled}
+          title='时间轴吸附'
         >
           <Magnet aria-hidden='true' />
-        </ToolbarButton>
-        <ToolbarButton
-          active={canvasSnappingEnabled}
-          label='画布辅助线'
+        </IconButton>
+        <IconButton
+          aria-label='画布辅助线'
+          aria-pressed={canvasSnappingEnabled}
           onClick={toggleCanvasSnapping}
-          pressed={canvasSnappingEnabled}
+          title='画布辅助线'
         >
           <ScanLine aria-hidden='true' />
-        </ToolbarButton>
-        <ToolbarButton
+        </IconButton>
+        <IconButton
+          aria-label='缩小'
           disabled={pixelsPerSecond <= MIN_PIXELS_PER_SECOND}
-          label='缩小'
           onClick={() =>
             setPixelsPerSecond(
               Math.max(
@@ -273,9 +283,10 @@ export function TimelineToolbar({
               ),
             )
           }
+          title='缩小'
         >
           <ZoomOut aria-hidden='true' />
-        </ToolbarButton>
+        </IconButton>
         <input
           aria-label='时间轴缩放'
           className='ec-range-input ec-timeline-toolbar__zoom'
@@ -285,9 +296,9 @@ export function TimelineToolbar({
           type='range'
           value={pixelsPerSecond}
         />
-        <ToolbarButton
+        <IconButton
+          aria-label='放大'
           disabled={pixelsPerSecond >= MAX_PIXELS_PER_SECOND}
-          label='放大'
           onClick={() =>
             setPixelsPerSecond(
               Math.min(
@@ -296,44 +307,11 @@ export function TimelineToolbar({
               ),
             )
           }
+          title='放大'
         >
           <ZoomIn aria-hidden='true' />
-        </ToolbarButton>
+        </IconButton>
       </div>
     </div>
-  );
-}
-
-type ToolbarButtonProps = {
-  active?: boolean;
-  children: React.ReactNode;
-  className?: string;
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-  pressed?: boolean;
-};
-
-function ToolbarButton({
-  active = false,
-  children,
-  className = '',
-  disabled = false,
-  label,
-  onClick,
-  pressed,
-}: ToolbarButtonProps) {
-  return (
-    <button
-      aria-label={label.split(' ')[0]}
-      aria-pressed={pressed}
-      className={`ec-icon-button${active ? ' ec-is-active' : ''}${className ? ` ${className}` : ''}`}
-      disabled={disabled}
-      onClick={onClick}
-      title={label}
-      type='button'
-    >
-      {children}
-    </button>
   );
 }

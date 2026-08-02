@@ -394,15 +394,17 @@ describe('FloatingInspector', () => {
     expect(screen.getByLabelText('字号')).toHaveValue(120);
     expect(screen.getByText('px')).toBeVisible();
     const textStyle = screen.getByRole('group', { name: '文字样式' });
-    expect(
-      within(textStyle).getByRole('button', { name: '粗体' }),
-    ).toHaveAttribute('aria-pressed', 'false');
-    expect(
-      within(textStyle).getByRole('button', { name: '斜体' }),
-    ).toHaveAttribute('aria-pressed', 'false');
-    expect(
-      within(textStyle).getByRole('button', { name: '下划线' }),
-    ).toHaveAttribute('aria-pressed', 'false');
+    const boldButton = within(textStyle).getByRole('button', { name: '粗体' });
+    const italicButton = within(textStyle).getByRole('button', { name: '斜体' });
+    const underlineButton = within(textStyle).getByRole('button', {
+      name: '下划线',
+    });
+    expect(boldButton).toHaveClass('ec-icon-button');
+    expect(boldButton).toHaveAttribute('aria-pressed', 'false');
+    expect(italicButton).toHaveClass('ec-icon-button');
+    expect(italicButton).toHaveAttribute('aria-pressed', 'false');
+    expect(underlineButton).toHaveClass('ec-icon-button');
+    expect(underlineButton).toHaveAttribute('aria-pressed', 'false');
     expect(screen.queryByLabelText('宽度')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('高度')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: '文字对齐' })).not.toBeInTheDocument();

@@ -71,14 +71,12 @@ describe('TimelineToolbar', () => {
       <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
     );
 
-    expect(screen.getByRole('button', { name: '分割片段' })).toHaveAttribute(
-      'title',
-      '分割片段 Ctrl+B',
-    );
-    expect(screen.getByRole('button', { name: '撤销' })).toHaveAttribute(
-      'title',
-      '撤销 Ctrl+Z',
-    );
+    const splitButton = screen.getByRole('button', { name: '分割片段' });
+    const undoButton = screen.getByRole('button', { name: '撤销' });
+    expect(splitButton).toHaveClass('ec-icon-button');
+    expect(splitButton).toHaveAttribute('title', '分割片段 Ctrl+B');
+    expect(undoButton).toHaveClass('ec-icon-button');
+    expect(undoButton).toHaveAttribute('title', '撤销 Ctrl+Z');
   });
 
   it('only shows the import action when the editor provides an import handler', async () => {
