@@ -1236,6 +1236,10 @@
   border-color: var(--ec-accent);
 }
 
+.ec-timeline-clip[data-hidden='true'] {
+  opacity: 0.45;
+}
+
 .ec-clip-context-menu {
   z-index: 100;
   min-width: 180px;

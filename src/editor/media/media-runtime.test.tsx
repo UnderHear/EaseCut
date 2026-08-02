@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from 'react';
+import { StrictMode } from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,7 +11,7 @@ import {
   MediaRuntimeProvider,
   createMediaRuntime,
   useFramePreviewStrip,
-  useMediaRuntime,
+  useMediaObjectUrl,
 } from './media-runtime';
 import type { FramePreviewRequest } from './frame-preview';
 import type {
@@ -153,7 +153,7 @@ describe('MediaRuntime', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses an unauthenticated fetch and deduplicates blob and object URL loads', async () => {
+  it('deduplicates object URL leases and revokes after the last release', async () => {
     const blob = new Blob(['video']);
     const fetchMock = vi.fn().mockResolvedValue({
       blob: vi.fn().mockResolvedValue(blob),
@@ -163,11 +163,11 @@ describe('MediaRuntime', () => {
     vi.stubGlobal('fetch', fetchMock);
     const runtime = createMediaRuntime();
 
-    const first = runtime.getObjectUrl(source.src);
-    const second = runtime.getObjectUrl(source.src);
+    const first = runtime.acquireObjectUrl(source.src);
+    const second = runtime.acquireObjectUrl(source.src);
 
-    await expect(first).resolves.toBe('blob:easecut-1');
-    await expect(second).resolves.toBe('blob:easecut-1');
+    await expect(first.url).resolves.toBe('blob:easecut-1');
+    await expect(second.url).resolves.toBe('blob:easecut-1');
     await expect(runtime.getBlob(source.src)).resolves.toBe(blob);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(source.src, {
@@ -175,8 +175,13 @@ describe('MediaRuntime', () => {
     });
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
 
-    runtime.dispose();
+    first.release();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    second.release();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:easecut-1');
+
+    runtime.dispose();
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
   });
 
   it('passes source context to a custom loader and keeps instances isolated', async () => {
@@ -329,13 +334,50 @@ describe('MediaRuntime', () => {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
     };
     const runtime = createMediaRuntime(loader, [source]);
-    await runtime.getObjectUrl(source.src);
+    const lease = runtime.acquireObjectUrl(source.src);
+    await lease.url;
 
     runtime.dispose();
     runtime.dispose();
+    lease.release();
 
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:easecut-1');
+  });
+
+  it('aborts a pending object URL load after the last lease is released', async () => {
+    let requestSignal: AbortSignal | undefined;
+    const loader: VideoTimelineMediaLoader = {
+      loadBlob: vi.fn((_url, { signal }) => {
+        requestSignal = signal;
+        return new Promise<Blob>((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true },
+          );
+        });
+      }),
+    };
+    const runtime = createMediaRuntime(loader, [source]);
+    const first = runtime.acquireObjectUrl(source.src);
+    const second = runtime.acquireObjectUrl(source.src);
+    const firstResult = expect(first.url).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    const secondResult = expect(second.url).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+    await Promise.resolve();
+
+    first.release();
+    expect(requestSignal?.aborted).toBe(false);
+    second.release();
+
+    expect(requestSignal?.aborted).toBe(true);
+    await firstResult;
+    await secondResult;
+    runtime.dispose();
   });
 
   it('aborts pending loads and rejects new work after disposal', async () => {
@@ -371,10 +413,7 @@ describe('MediaRuntime', () => {
     };
 
     function Consumer() {
-      const runtime = useMediaRuntime();
-      useEffect(() => {
-        void runtime.getObjectUrl(source.src);
-      }, [runtime]);
+      useMediaObjectUrl(source.src);
       return null;
     }
 

@@ -28,22 +28,35 @@ import {
   testTimelineStore,
 } from './test-helpers';
 
-const getObjectUrlMock = vi.hoisted(() =>
-  vi.fn((src: string) => Promise.resolve(`blob:${src}`)),
-);
-const measureTextLayoutMock = vi.hoisted(() =>
-  vi.fn<
+const {
+  acquireObjectUrlMock,
+  mediaRuntimeMock,
+  measureTextLayoutMock,
+  releaseObjectUrlMock,
+} = vi.hoisted(() => {
+  const releaseObjectUrl = vi.fn();
+  const acquireObjectUrl = vi.fn((src: string) => ({
+    release: () => releaseObjectUrl(src),
+    url: Promise.resolve(`blob:${src}`),
+  }));
+  const measureTextLayout = vi.fn<
     (request: TextLayoutRequest) => Promise<TimelineTextLayoutSize>
-  >(() => Promise.resolve({ height: 120, width: 800 })),
-);
+  >(() => Promise.resolve({ height: 120, width: 800 }));
+  return {
+    acquireObjectUrlMock: acquireObjectUrl,
+    mediaRuntimeMock: {
+      acquireObjectUrl,
+      measureTextLayout,
+    },
+    measureTextLayoutMock: measureTextLayout,
+    releaseObjectUrlMock: releaseObjectUrl,
+  };
+});
 vi.mock('../media', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../media')>();
   return {
     ...actual,
-    useMediaRuntime: () => ({
-      getObjectUrl: getObjectUrlMock,
-      measureTextLayout: measureTextLayoutMock,
-    }),
+    useMediaRuntime: () => mediaRuntimeMock,
   };
 });
 
@@ -133,6 +146,7 @@ const createClip = (
   volume: 1,
   zIndex: 0,
   ...patch,
+  hidden: patch.hidden ?? false,
   };
   return clip.type === 'audio'
     ? { ...clip, type: 'audio' }
@@ -219,7 +233,8 @@ describe('PreviewPanel', () => {
     resizeObserverCallback = null;
     seekingMediaElements = new WeakSet();
     strokeRectMock = createCanvasCallMock('strokeRect');
-    getObjectUrlMock.mockClear();
+    acquireObjectUrlMock.mockClear();
+    releaseObjectUrlMock.mockClear();
     Object.defineProperty(window.navigator, 'userAgent', {
       configurable: true,
       value: 'Chrome',
@@ -520,6 +535,94 @@ describe('PreviewPanel', () => {
     });
   });
 
+  it('does not preload hidden video, audio, or text clips', async () => {
+    const textTrack: TimelineTrack = {
+      id: 'hidden-text-track',
+      muted: false,
+      name: '文字轨',
+      type: 'text',
+      zIndex: 3,
+    };
+    testTimelineStore.setState({
+      clips: [
+        createClip({ id: 'visible-video', src: '/visible.mp4' }),
+        createClip({ hidden: true, id: 'hidden-video', src: '/hidden.mp4' }),
+        createClip({
+          hidden: true,
+          id: 'hidden-audio',
+          src: '/hidden.mp3',
+          trackId: audioTrack.id,
+          type: 'audio',
+        }),
+        {
+          bold: false,
+          durationUs: secondsToMicroseconds(5),
+          fontColor: '#FFFFFFFF',
+          fontSize: 120,
+          fontType: 'SY_Black',
+          hidden: true,
+          id: 'hidden-text',
+          italic: false,
+          layoutSize: { height: 120, width: 800 },
+          position: { x: 240, y: 300 },
+          startUs: 0,
+          text: '隐藏标题',
+          trackId: textTrack.id,
+          type: 'text',
+          underline: false,
+          zIndex: 0,
+        },
+      ],
+      selectedClipId: 'visible-video',
+      tracks: [mainTrack, overlayTrack, audioTrack, textTrack],
+    });
+
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('video')).toHaveLength(1);
+      expect(acquireObjectUrlMock).toHaveBeenCalledWith('/visible.mp4');
+    });
+    expect(document.querySelectorAll('audio')).toHaveLength(0);
+    expect(acquireObjectUrlMock).not.toHaveBeenCalledWith('/hidden.mp4');
+    expect(acquireObjectUrlMock).not.toHaveBeenCalledWith('/hidden.mp3');
+    expect(measureTextLayoutMock).not.toHaveBeenCalled();
+  });
+
+  it('stops and unmounts an active media element when its clip is hidden', async () => {
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+    const overlayVideo = await waitFor(() => {
+      const videos = Array.from(document.querySelectorAll('video'));
+      expect(videos).toHaveLength(2);
+      return videos[1]!;
+    });
+    const pause = vi.spyOn(overlayVideo, 'pause');
+    pause.mockClear();
+
+    act(() => {
+      testTimelineStore.getState().setIsPlaying(true);
+    });
+    await waitFor(() => {
+      expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    });
+    releaseObjectUrlMock.mockClear();
+
+    act(() => {
+      testTimelineStore.getState().setClipHidden('clip-overlay', true);
+    });
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('video')).toHaveLength(1);
+      expect(pause).toHaveBeenCalled();
+      expect(releaseObjectUrlMock).toHaveBeenCalledWith('/overlay.mp4');
+    });
+    expect(releaseObjectUrlMock).not.toHaveBeenCalledWith('/main.mp4');
+  });
+
   it('plays active audio without drawing it into the preview canvas', async () => {
     testTimelineStore.setState((state) => ({
       clips: [
@@ -578,7 +681,8 @@ describe('PreviewPanel', () => {
       durationUs: secondsToMicroseconds(5),
       fontColor: '#12345680',
       fontSize: 120,
-      fontType: 'SY_Black',
+          fontType: 'SY_Black',
+          hidden: false,
       id: 'text-clip-1',
       italic: true,
       layoutSize: { height: 200, width: 2_000 },
@@ -646,7 +750,8 @@ describe('PreviewPanel', () => {
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
-      fontType: 'ALi_PuHui',
+          fontType: 'ALi_PuHui',
+          hidden: false,
       id: 'text-clip-upcoming-font',
       italic: false,
       layoutSize: { height: 200, width: 1_000 },
@@ -735,7 +840,8 @@ describe('PreviewPanel', () => {
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
-      fontType: 'SY_Black',
+          fontType: 'SY_Black',
+          hidden: false,
       id: 'text-clip-font-loading',
       italic: false,
       layoutSize: { height: 200, width: 1_000 },
@@ -975,7 +1081,8 @@ describe('PreviewPanel', () => {
       durationUs: secondsToMicroseconds(1),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
-      fontType: 'SY_Black',
+          fontType: 'SY_Black',
+          hidden: false,
       id: 'text-clip-media-continuity',
       italic: false,
       layoutSize: { height: 200, width: 1_000 },
@@ -1251,9 +1358,9 @@ describe('PreviewPanel', () => {
 
     await waitFor(() => {
       expect(document.querySelectorAll('video')).toHaveLength(3);
-      expect(getObjectUrlMock).toHaveBeenCalledWith('/main-next.mp4');
+      expect(acquireObjectUrlMock).toHaveBeenCalledWith('/main-next.mp4');
     });
-    expect(getObjectUrlMock).not.toHaveBeenCalledWith('/main-later.mp4');
+    expect(acquireObjectUrlMock).not.toHaveBeenCalledWith('/main-later.mp4');
   });
 
   it('keeps the previous frame until the preloaded clip is ready at an adjacent boundary', async () => {
@@ -1392,12 +1499,12 @@ describe('PreviewPanel', () => {
       expect(document.querySelectorAll('video')).toHaveLength(6);
     });
     for (let index = 0; index < 4; index += 1) {
-      expect(getObjectUrlMock).toHaveBeenCalledWith(
+      expect(acquireObjectUrlMock).toHaveBeenCalledWith(
         `/future-${index}.mp4`,
       );
     }
-    expect(getObjectUrlMock).not.toHaveBeenCalledWith('/future-4.mp4');
-    expect(getObjectUrlMock).not.toHaveBeenCalledWith('/future-5.mp4');
+    expect(acquireObjectUrlMock).not.toHaveBeenCalledWith('/future-4.mp4');
+    expect(acquireObjectUrlMock).not.toHaveBeenCalledWith('/future-5.mp4');
   });
 
   it('draws selected clip bounds after every active clip so overlays cannot cover the frame', async () => {
@@ -1511,7 +1618,8 @@ describe('PreviewPanel', () => {
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
-      fontType: 'SY_Black',
+          fontType: 'SY_Black',
+          hidden: false,
       id: 'text-clip-scrub',
       italic: false,
       layoutSize: { height: 200, width: 1_000 },
@@ -1718,7 +1826,8 @@ describe('PreviewPanel', () => {
       durationUs: secondsToMicroseconds(5),
       fontColor: '#FFFFFFFF',
       fontSize: 120,
-      fontType: 'SY_Black',
+          fontType: 'SY_Black',
+          hidden: false,
       id: 'text-clip-move-only',
       italic: false,
       layoutSize: { height: 180, width: 320 },

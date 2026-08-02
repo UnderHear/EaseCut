@@ -19,8 +19,16 @@ const createPayload = (
     Height: Math.round(snapshot.canvasSize.height),
     Width: Math.round(snapshot.canvasSize.width),
   },
+  Duration: microsecondsToMilliseconds(
+    snapshot.clips.reduce(
+      (durationUs, clip) =>
+        Math.max(durationUs, clip.startUs + clip.durationUs),
+      0,
+    ),
+  ),
   Track: snapshot.tracks.map((track) =>
     getCompositionTrackClips(snapshot, track.id)
+      .filter((clip) => !clip.hidden)
       .map((clip) => {
         const clipTransform = getTimelineClipTransform(clip);
         const targetTime = [

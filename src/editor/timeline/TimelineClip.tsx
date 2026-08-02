@@ -10,6 +10,8 @@ import {
   ClipboardPaste,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   SquareSplitHorizontal,
   Trash2,
 } from 'lucide-react';
@@ -55,6 +57,7 @@ export type TimelineClipViewProps = {
   onCopy: () => void;
   onDelete: () => void;
   onDownload: () => void | Promise<void>;
+  onHiddenChange: (hidden: boolean) => void;
   onMoveStart: (event: PointerEvent<HTMLElement>, clip: TimelineClip) => void;
   onPaste: () => void;
   onSelect: (clipId: string) => void;
@@ -302,6 +305,7 @@ export function TimelineClipView({
   onCopy,
   onDelete,
   onDownload,
+  onHiddenChange,
   onMoveStart,
   onPaste,
   onSelect,
@@ -365,9 +369,10 @@ export function TimelineClipView({
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
         <article
-          aria-label={`${clip.type} clip: ${clipLabel}`}
+          aria-label={`${clip.type} clip: ${clipLabel}${clip.hidden ? '，已隐藏' : ''}`}
           className='ec-timeline-clip'
           data-clip-id={clip.id}
+          data-hidden={clip.hidden}
           data-selected={isSelected}
           data-type={clip.type}
           onClick={(event) => event.stopPropagation()}
@@ -449,9 +454,20 @@ export function TimelineClipView({
             <ClipboardPaste aria-hidden='true' />
             <span>粘贴</span>
           </ContextMenu.Item>
+          <ContextMenu.Separator className='ec-clip-context-menu__separator' />
+          <ContextMenu.Item
+            className='ec-clip-context-menu__item'
+            onSelect={() => onHiddenChange(!clip.hidden)}
+          >
+            {clip.hidden ? (
+              <Eye aria-hidden='true' />
+            ) : (
+              <EyeOff aria-hidden='true' />
+            )}
+            <span>{clip.hidden ? '显示片段' : '隐藏片段'}</span>
+          </ContextMenu.Item>
           {isTimelineMediaClip(clip) && (
             <>
-              <ContextMenu.Separator className='ec-clip-context-menu__separator' />
               <ContextMenu.Item
                 className='ec-clip-context-menu__item'
                 onSelect={() => void onDownload()}
@@ -527,6 +543,7 @@ export function TimelineClipDragOverlay({
     <div
       aria-hidden='true'
       className='ec-timeline-clip ec-timeline-clip--drag-overlay'
+      data-hidden={clip.hidden}
       data-type={clip.type}
       style={style}
     >

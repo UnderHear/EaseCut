@@ -6,6 +6,7 @@ export {
   useMediaMetadata,
   useMediaObjectUrl,
   useMediaRuntime,
+  type MediaObjectUrlLease,
   type MediaRuntime,
   type MediaRuntimeProviderProps,
 } from './media-runtime';

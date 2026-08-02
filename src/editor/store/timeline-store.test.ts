@@ -8,6 +8,7 @@ import {
   createVideoTimelineDraft,
   MAIN_VIDEO_TRACK_ID,
   createTimelineStore,
+  selectTimelineDuration,
 } from './timeline-store';
 import type {
   TimelineClip,
@@ -113,6 +114,7 @@ const resetToTwoVisualVideoTracks = () => {
 const createFixtureClips = (): TimelineVideoClip[] => [
   {
     durationUs: secondsToMicroseconds(4),
+    hidden: false,
     id: 'clip-video-1',
     name: 'video-1.mp4',
     sourceId: 'video-1',
@@ -130,6 +132,7 @@ const createFixtureClips = (): TimelineVideoClip[] => [
   },
   {
     durationUs: secondsToMicroseconds(5),
+    hidden: false,
     id: 'clip-video-2',
     name: 'video-2.mp4',
     sourceId: 'video-2',
@@ -147,6 +150,7 @@ const createFixtureClips = (): TimelineVideoClip[] => [
   },
   {
     durationUs: secondsToMicroseconds(3.5),
+    hidden: false,
     id: 'clip-video-3',
     name: 'video-3.mp4',
     sourceId: 'video-3',
@@ -166,6 +170,7 @@ const createFixtureClips = (): TimelineVideoClip[] => [
 
 const createAudioClip = (id: string, trackId: string): TimelineClip => ({
   durationUs: secondsToMicroseconds(4),
+  hidden: false,
   id,
   name: `${id}.mp3`,
   sourceId: id,
@@ -302,7 +307,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().tracks).toEqual(draft.tracks);
     expect(timelineStore.getState().clips).toEqual(draft.clips);
-    expect(draft.schemaVersion).toBe(10);
+    expect(draft.schemaVersion).toBe(11);
   });
 
   it('compacts main-track gaps when restoring a saved composition draft', () => {
@@ -321,7 +326,7 @@ describe('timelineStore video track layout', () => {
             zIndex: 0,
           },
         ],
-        schemaVersion: 10,
+        schemaVersion: 11,
         tracks: [
           createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
           createVideoTrack('video-overlay-1', '视频轨 2', 1),
@@ -340,7 +345,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual([['clip-video-3', secondsToMicroseconds(7)]]);
   });
 
-  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('rejects a schema v%s draft', (schemaVersion) => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])('rejects a schema v%s draft', (schemaVersion) => {
     const validDraft = createVideoTimelineDraft(timelineStore.getState());
     const previousState = timelineStore.getState();
 
@@ -797,6 +802,42 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().tracks[0]?.muted).toBe(true);
   });
 
+  it('stores clip hidden changes as atomic undoable edits without changing duration', () => {
+    const state = timelineStore.getState();
+    const durationUs = selectTimelineDuration(state);
+
+    state.selectClip('clip-video-2');
+    state.setClipHidden('clip-video-2', true);
+
+    expect(getMainVideoClips()[1]?.hidden).toBe(true);
+    expect(timelineStore.getState().selectedClipId).toBe('clip-video-2');
+    expect(selectTimelineDuration(timelineStore.getState())).toBe(durationUs);
+    expect(timelineStore.getState().past).toHaveLength(1);
+
+    state.setClipHidden('clip-video-2', true);
+    state.setClipHidden('missing-clip', true);
+    expect(timelineStore.getState().past).toHaveLength(1);
+
+    state.undo();
+    expect(getMainVideoClips()[1]?.hidden).toBe(false);
+
+    state.redo();
+    expect(getMainVideoClips()[1]?.hidden).toBe(true);
+  });
+
+  it('preserves hidden state when splitting a clip', () => {
+    const state = timelineStore.getState();
+
+    state.setClipHidden('clip-video-2', true);
+    state.splitClipAtTime('clip-video-2', secondsToMicroseconds(6));
+
+    expect(
+      getMainVideoClips()
+        .filter((clip) => clip.id.startsWith('clip-video-2'))
+        .map((clip) => clip.hidden),
+    ).toEqual([true, true]);
+  });
+
   it('increments layout revision after layout-changing actions', () => {
     let revision = timelineStore.getState().layoutRevision;
 
@@ -1056,6 +1097,7 @@ describe('timelineStore video track layout', () => {
 
     expect(timelineStore.getState().createExportPayload()).toEqual({
       Canvas: { Height: 1080, Width: 1920 },
+      Duration: 10_250,
       Track: [
         [
           {
@@ -1124,6 +1166,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().createExportPayload()).toEqual({
       Canvas: { Height: 720, Width: 1280 },
+      Duration: 4_000,
       Track: [
         [
           {
@@ -1223,6 +1266,7 @@ describe('timelineStore video track layout', () => {
     ]);
     expect(timelineStore.getState().createExportPayload()).toEqual({
       Canvas: { Height: 720, Width: 1280 },
+      Duration: 5_000,
       Track: [
         [
           {
@@ -2530,6 +2574,23 @@ describe('timelineStore clip copy and paste', () => {
     expect(copiedClip.transform).not.toBe(selectedClip.transform);
     expect(timelineStore.getState().past).toEqual([]);
     expect(timelineStore.getState().future).toEqual([]);
+  });
+
+  it('preserves hidden state when copying and pasting a clip', () => {
+    const state = timelineStore.getState();
+
+    state.setClipHidden('clip-video-1', true);
+    state.selectClip('clip-video-1');
+    state.copySelectedClip();
+    state.pasteCopiedClip();
+
+    expect(timelineStore.getState().copiedClip?.hidden).toBe(true);
+    expect(
+      timelineStore
+        .getState()
+        .clips.find((clip) => clip.id === 'clip-video-1-copy')
+        ?.hidden,
+    ).toBe(true);
   });
 
   it('inserts an exact copy after the anchor and ripples later same-track clips', () => {

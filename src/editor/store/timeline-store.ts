@@ -4,6 +4,7 @@ import { createCompositionSnapshot } from '../core/composition';
 import { createCompositionExportPayload } from '../core/export-schema';
 import {
   addTextClip,
+  changeClipHidden,
   changeTextClipProperties,
   changeTextClipTiming,
   changeClipSpeed,
@@ -27,6 +28,7 @@ import {
   type ChangeTextClipPropertiesParams,
   type ChangeTextClipTimingParams,
   type ChangeClipSpeedParams,
+  type ChangeClipHiddenParams,
   type TimelineEdit,
   type TimelineEditResult,
   type TrimClipParams,
@@ -82,7 +84,7 @@ import type {
 } from '../types';
 import { isTimelineMediaClip, isTimelineTextClip } from '../core/model';
 
-export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 10;
+export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 11;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
   width: 1280,
@@ -100,6 +102,7 @@ const defaultTracks: TimelineTrack[] = [{
 
 export type CommitClipDropParams = MoveClipParams;
 export type CommitClipSpeedParams = ChangeClipSpeedParams;
+export type CommitClipHiddenParams = ChangeClipHiddenParams;
 export type CommitClipTrimParams = TrimClipParams;
 export type AddTextClipCommand = Pick<
   AddTextClipParams,
@@ -169,6 +172,7 @@ export type TimelineActions = {
   setIsPlaying: (isPlaying: boolean) => void;
   setPixelsPerSecond: (pixelsPerSecond: number) => void;
   setClipVolume: (clipId: string, volume: number) => void;
+  setClipHidden: (clipId: string, hidden: boolean) => void;
   splitAtPlayhead: () => void;
   splitClipAtTime: (clipId: string, timeUs: number) => void;
   syncSources: (sources: VideoTimelineSource[]) => void;
@@ -274,6 +278,7 @@ export const createTimelineClipsFromSources = (
     const durationUs = getSourceDurationUs(source);
     const clip: TimelineClip = {
       durationUs,
+      hidden: false,
       id: `clip-${source.id}`,
       name: source.fileName,
       sourceDurationUs: durationUs,
@@ -524,6 +529,7 @@ function mergeSources(
     }
     clips.push({
       durationUs,
+      hidden: false,
       id: `clip-${source.id}`,
       name: source.fileName,
       sourceDurationUs: durationUs,
@@ -784,6 +790,9 @@ export const createTimelineStore = (
         set((state) => ({
           canvasSnappingEnabled: !state.canvasSnappingEnabled,
         })),
+
+      setClipHidden: (clipId, hidden) =>
+        commit(changeClipHidden(asEdit(get()), { clipId, hidden })),
 
       togglePlayheadFollow: () =>
         set((state) => ({

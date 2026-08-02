@@ -16,6 +16,7 @@ const createClip = (
   durationSeconds: number,
 ): TimelineClip => ({
   durationUs: secondsToMicroseconds(durationSeconds),
+  hidden: false,
   id,
   name: id,
   sourceId: id,

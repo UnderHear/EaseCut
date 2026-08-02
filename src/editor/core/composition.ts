@@ -31,7 +31,7 @@ export type CompositionSnapshotInput = Readonly<{
 export type CompositionSnapshot = Readonly<{
   canvasSize: TimelineCanvasSize;
   clips: readonly TimelineClip[];
-  schemaVersion: 10;
+  schemaVersion: 11;
   tracks: readonly TimelineTrack[];
 }>;
 
@@ -88,6 +88,7 @@ const validateClip = (
     throw new TypeError(`片段 ${clip.id} 与轨道类型不一致`);
   }
   if (
+    typeof clip.hidden !== 'boolean' ||
     !isValidTimeUs(clip.startUs) ||
     !isValidTimeUs(clip.durationUs) ||
     clip.durationUs === 0
@@ -173,7 +174,7 @@ const validateClip = (
 export const createCompositionSnapshot = (
   input: CompositionSnapshotInput,
 ): CompositionSnapshot => {
-  if (input.schemaVersion !== undefined && input.schemaVersion !== 10) {
+  if (input.schemaVersion !== undefined && input.schemaVersion !== 11) {
     throw new RangeError(`不支持的草稿版本：${input.schemaVersion}`);
   }
   if (
@@ -217,7 +218,7 @@ export const createCompositionSnapshot = (
   return {
     canvasSize: { ...input.canvasSize },
     clips,
-    schemaVersion: 10,
+    schemaVersion: 11,
     tracks,
   };
 };
@@ -236,7 +237,9 @@ export const getCompositionActiveClips = (
   }
   return snapshot.clips.filter(
     (clip) =>
-      timeUs >= clip.startUs && timeUs < clip.startUs + clip.durationUs,
+      !clip.hidden &&
+      timeUs >= clip.startUs &&
+      timeUs < clip.startUs + clip.durationUs,
   );
 };
 
@@ -281,8 +284,12 @@ export const evaluateCompositionAt = (
 export const getCompositionVideoGaps = (
   snapshot: CompositionSnapshot,
 ): readonly CompositionVideoGap[] => {
+  const durationUs = snapshot.clips.reduce(
+    (duration, clip) => Math.max(duration, clip.startUs + clip.durationUs),
+    0,
+  );
   const ranges = snapshot.clips
-    .filter((clip) => clip.type === 'video')
+    .filter((clip) => clip.type === 'video' && !clip.hidden)
     .map((clip) => ({
       endUs: clip.startUs + clip.durationUs,
       startUs: clip.startUs,
@@ -296,6 +303,10 @@ export const getCompositionVideoGaps = (
       gaps.push({ endUs: range.startUs, startUs: coveredUntilUs });
     }
     coveredUntilUs = Math.max(coveredUntilUs, range.endUs);
+  }
+
+  if (coveredUntilUs < durationUs) {
+    gaps.push({ endUs: durationUs, startUs: coveredUntilUs });
   }
 
   return gaps;

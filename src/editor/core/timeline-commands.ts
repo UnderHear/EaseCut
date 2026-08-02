@@ -102,6 +102,11 @@ export type ChangeClipSpeedParams = {
   speed: TimelineClipSpeed;
 };
 
+export type ChangeClipHiddenParams = {
+  clipId: string;
+  hidden: boolean;
+};
+
 export type AddTextClipParams = {
   canvasSize: { height: number; width: number };
   layoutSize: TimelineTextLayoutSize;
@@ -247,6 +252,7 @@ export const addTextClip = (
     fontColor: '#FFFFFFFF',
     fontSize: DEFAULT_TIMELINE_TEXT_FONT_SIZE,
     fontType: DEFAULT_TIMELINE_TEXT_FONT_TYPE,
+    hidden: false,
     id: nextNumberedClipId(edit.clips, 'text-clip-'),
     italic: false,
     layoutSize: { ...params.layoutSize },
@@ -831,6 +837,24 @@ export const changeClipSpeed = (
   }
 
   return changedEdit(edit, clips, clip.id);
+};
+
+export const changeClipHidden = (
+  edit: TimelineEdit,
+  params: ChangeClipHiddenParams,
+): TimelineEditResult => {
+  const clip = edit.clips.find((candidate) => candidate.id === params.clipId);
+  if (!clip || clip.hidden === params.hidden) return unchanged;
+
+  return changedEdit(
+    edit,
+    edit.clips.map((candidate) =>
+      candidate.id === params.clipId
+        ? { ...candidate, hidden: params.hidden }
+        : candidate,
+    ),
+    clip.id,
+  );
 };
 
 export const restoreClipTrim = (

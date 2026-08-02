@@ -2,7 +2,7 @@
 
 # EaseCut React
 
-EaseCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频/文字轨、拖拽编排、裁剪、分割、吸附、撤销重做、固定倍速、音量调节、画面变换、文字标题预览以及可扩展导出接口。
+EaseCut React 是一个独立、可嵌入的 React 视频时间线编辑器。它提供多视频/音频/文字轨、拖拽编排、裁剪、分割、隐藏、吸附、撤销重做、固定倍速、音量调节、画面变换、文字标题预览以及可扩展导出接口。
 
 项目不依赖 React Flow、Tailwind、shadcn 或 Base UI。界面由语义 HTML、普通 CSS、原生 Canvas 和 lucide-react 构成。
 
@@ -106,9 +106,12 @@ type VideoTimelineSource = {
 
 后续向 `sources` 加入新 ID 会将素材追加到当前时间线。移除 source 不会自动删除已编辑片段，避免宿主数据刷新导致工程内容丢失。
 
-项目草稿只接受 `schemaVersion: 10`，旧 schema 会被明确拒绝且不会自动迁移。草稿中的
+项目草稿只接受 `schemaVersion: 11`，旧 schema 会被明确拒绝且不会自动迁移。草稿中的
 `startUs`、`durationUs`、`sourceDurationUs`、`trimStartUs` 和 `trimEndUs`
 均为整数微秒；浏览器媒体元素使用的浮点秒只在媒体边界换算。
+每个 clip 必须持有布尔字段 `hidden`，新建 clip 默认为 `false`。隐藏 clip 仍参与
+时间线时长、布局、碰撞和吸附并可继续编辑，但不会被预览、播放或写入导出轨道；
+复制、粘贴和分割会保留该状态。
 每个 clip 持有独立的 `volume`（`0` 至 `1`）；轨道仅持有 `muted`，静音时不会改写
 clip 的已保存音量。
 
@@ -164,11 +167,13 @@ Mediabunny 负责媒体解封装、缩略图和波形解码，不承担实时音
 - 可使用 `createCompositionExportPayload(draft)` 在组件外创建同样的导出数据。
 - `CompositionExportPayload.Track` 与草稿采用相同的从下到上顺序：
   `Track[0]` 是最低层，最后一个 Track 是最高层。
+- `CompositionExportPayload.Duration` 是包含隐藏尾段在内的项目总时长，单位为毫秒；
+  隐藏 clip 不会出现在 `Track` 中，因此对应区间输出黑画面或静音。
 - 每个音视频导出元素都会包含 `{ Type: 'speed', Speed }`。视频过滤器顺序为
   `trim → speed → transform → a_volume`，音频过滤器顺序为
   `a_volume → trim → speed`。
 - 文字导出元素包含 `Type`、`TargetTime`、`Text`、`FontType`、`FontSize`、`FontColor`、`Bold`、`Italic`、`Underline` 以及唯一的 `transform` Extra；三个样式字段始终显式输出布尔值，其中 Width、Height 来自自然尺寸测量，不包含 `AlignType` 或媒体专属的 `Source`、`trim`、`speed`、`a_volume`。
-- 草稿只读取当前 schema v10，不迁移旧版本。
+- 草稿只读取当前 schema v11，不迁移旧版本。
 
 ## 快捷键
 

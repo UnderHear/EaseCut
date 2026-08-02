@@ -51,6 +51,7 @@ const createVideoClip = (
   volume: 1,
   zIndex: 0,
   ...patch,
+  hidden: patch.hidden ?? false,
 });
 
 const createTrimGesture = (
@@ -340,7 +341,8 @@ describe('timeline clip trim planning', () => {
       durationUs: 2_000_000,
       fontColor: '#FFFFFFFF',
       fontSize: 80,
-      fontType: 'SY_Black',
+          fontType: 'SY_Black',
+          hidden: false,
       id: 'text-clip',
       italic: false,
       layoutSize: { height: 120, width: 800 },

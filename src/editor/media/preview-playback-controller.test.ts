@@ -39,6 +39,7 @@ const createClip = (
   volume: 1,
   zIndex: 0,
   ...patch,
+  hidden: patch.hidden ?? false,
 });
 
 const createMedia = () => {

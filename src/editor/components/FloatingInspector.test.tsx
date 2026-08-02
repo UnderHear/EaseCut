@@ -33,6 +33,7 @@ const videoTrack: TimelineTrack = {
 
 const videoClip: TimelineClip = {
   durationUs: secondsToMicroseconds(4.5),
+  hidden: false,
   id: 'video-clip',
   name: 'sample.mp4',
   sourceDurationUs: secondsToMicroseconds(8),
@@ -59,6 +60,7 @@ const audioTrack: TimelineTrack = {
 
 const audioClip: TimelineClip = {
   durationUs: secondsToMicroseconds(6),
+  hidden: false,
   id: 'audio-clip',
   name: 'sample.mp3',
   sourceDurationUs: secondsToMicroseconds(10),
@@ -89,6 +91,7 @@ const textClip: TimelineClip = {
   fontColor: '#FFFFFFFF',
   fontSize: 120,
   fontType: 'SY_Black',
+  hidden: false,
   id: 'text-clip-1',
   italic: false,
   layoutSize: { height: 120, width: 800 },

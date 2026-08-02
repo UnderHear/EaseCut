@@ -79,6 +79,48 @@ describe('TimelineToolbar', () => {
     expect(undoButton).toHaveAttribute('title', '撤销 Ctrl+Z');
   });
 
+  it('toggles the selected clip hidden state immediately after delete', async () => {
+    const user = userEvent.setup();
+    const clip = testTimelineStore.getState().clips[0];
+    if (!clip) throw new Error('Expected a timeline clip');
+    testTimelineStore.getState().selectClip(clip.id);
+    renderWithEditorProviders(
+      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+    );
+
+    const deleteButton = screen.getByRole('button', {
+      name: '删除选中片段',
+    });
+    const hideButton = screen.getByRole('button', {
+      name: '隐藏选中片段',
+    });
+    expect(deleteButton.nextElementSibling).toBe(hideButton);
+    expect(hideButton).toHaveAttribute('aria-pressed', 'false');
+    expect(hideButton.querySelector('.lucide-eye-off')).not.toBeNull();
+
+    await user.click(hideButton);
+
+    const showButton = screen.getByRole('button', {
+      name: '显示选中片段',
+    });
+    expect(testTimelineStore.getState().clips[0]?.hidden).toBe(true);
+    expect(showButton).toHaveAttribute('aria-pressed', 'true');
+    expect(showButton.querySelector('.lucide-eye')).not.toBeNull();
+
+    await user.click(showButton);
+    expect(testTimelineStore.getState().clips[0]?.hidden).toBe(false);
+  });
+
+  it('disables clip visibility without a selection', () => {
+    renderWithEditorProviders(
+      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: '隐藏选中片段' }),
+    ).toBeDisabled();
+  });
+
   it('only shows the import action when the editor provides an import handler', async () => {
     const user = userEvent.setup();
     const onRequestImport = vi.fn();

@@ -99,6 +99,7 @@ describe('timeline splitting', () => {
         ...state.clips,
         {
           durationUs: secondsToMicroseconds(4),
+          hidden: false,
           id: 'clip-audio',
           name: 'music.mp3',
           sourceDurationUs: secondsToMicroseconds(4),

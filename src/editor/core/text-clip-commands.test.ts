@@ -74,6 +74,7 @@ describe('text clip commands', () => {
       fontColor: '#FFFFFFFF',
       fontSize: 120,
       fontType: 'SY_Black',
+      hidden: false,
       id: 'text-clip-1',
       italic: false,
       layoutSize: defaultTextLayoutSize,

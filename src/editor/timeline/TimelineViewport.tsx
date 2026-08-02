@@ -537,6 +537,9 @@ export function TimelineViewport({
                         onCopy={() => store.getState().copySelectedClip()}
                         onDelete={() => store.getState().deleteSelectedClip()}
                         onDownload={() => onDownloadClip?.(clip)}
+                        onHiddenChange={(hidden) =>
+                          store.getState().setClipHidden(clip.id, hidden)
+                        }
                         onPaste={() => store.getState().pasteCopiedClip()}
                         onSelect={selectClip}
                         onSplit={(timeUs) =>

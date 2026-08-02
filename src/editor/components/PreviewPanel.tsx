@@ -33,7 +33,11 @@ import type {
   TimelineMediaClip,
   TimelineTextClip,
 } from '../types';
-import { createTextCanvasFont, useMediaRuntime } from '../media';
+import {
+  createTextCanvasFont,
+  useMediaRuntime,
+  type MediaObjectUrlLease,
+} from '../media';
 import { PreviewAudioEngine } from '../media/preview-audio-engine';
 import {
   getPreviewAudioConfiguration,
@@ -102,7 +106,7 @@ const createPreviewClipIndex = (
   const clipsByTrack = new Map<string, TimelineMediaClip[]>();
 
   for (const clip of clips) {
-    if (clip.type === 'text') continue;
+    if (clip.type === 'text' || clip.hidden) continue;
     const trackClips = clipsByTrack.get(clip.trackId);
     if (trackClips) {
       trackClips.push(clip);
@@ -145,7 +149,8 @@ const createPreviewTextClipIndex = (
 ): readonly TimelineTextClip[] =>
   clips
     .filter(
-      (clip): clip is TimelineTextClip => clip.type === 'text',
+      (clip): clip is TimelineTextClip =>
+        clip.type === 'text' && !clip.hidden,
     )
     .sort(comparePreviewClipOrder);
 
@@ -603,6 +608,9 @@ export function PreviewPanel({
     new PreviewPlaybackController(),
   );
   const mediaElementsRef = useRef(new Map<string, HTMLMediaElement>());
+  const previewObjectUrlLeasesRef = useRef(
+    new Map<string, MediaObjectUrlLease>(),
+  );
   const [previewObjectUrls, setPreviewObjectUrls] = useState<
     Record<string, string>
   >({});
@@ -692,7 +700,9 @@ export function PreviewPanel({
     () =>
       clips.find(
         (clip): clip is TimelineTextClip =>
-          clip.id === selectedClipId && clip.type === 'text',
+          clip.id === selectedClipId &&
+          clip.type === 'text' &&
+          !clip.hidden,
       ) ?? null,
     [clips, selectedClipId],
   );
@@ -1117,6 +1127,16 @@ export function PreviewPanel({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(
+    () => () => {
+      for (const lease of previewObjectUrlLeasesRef.current.values()) {
+        lease.release();
+      }
+      previewObjectUrlLeasesRef.current.clear();
+    },
+    [mediaRuntime],
+  );
+
   useEffect(() => {
     if (!canUseMediaElement()) return undefined;
 
@@ -1124,6 +1144,19 @@ export function PreviewPanel({
     const previewSources = previewSourcesKey
       ? previewSourcesKey.split('\n')
       : [];
+    const requestedSources = new Set(previewSources);
+    const leases = previewObjectUrlLeasesRef.current;
+
+    for (const [src, lease] of leases) {
+      if (requestedSources.has(src)) continue;
+      lease.release();
+      leases.delete(src);
+    }
+    for (const src of previewSources) {
+      if (!leases.has(src)) {
+        leases.set(src, mediaRuntime.acquireObjectUrl(src));
+      }
+    }
 
     if (previewSources.length === 0) {
       void Promise.resolve().then(() => {
@@ -1140,11 +1173,11 @@ export function PreviewPanel({
     }
 
     Promise.all(
-      previewSources.map((src) =>
-        mediaRuntime
-          .getObjectUrl(src)
-          .then((objectUrl) => [src, objectUrl] as const),
-      ),
+      previewSources.map((src) => {
+        const lease = leases.get(src);
+        if (!lease) throw new Error(`媒体 ${src} 的预览资源未初始化`);
+        return lease.url.then((objectUrl) => [src, objectUrl] as const);
+      }),
     )
       .then((entries) => {
         if (cancelled) return;

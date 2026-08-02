@@ -31,6 +31,7 @@ export type TimelineTextLayoutSize = {
 
 type TimelineClipBase = {
   durationUs: number;
+  hidden: boolean;
   id: string;
   startUs: number;
   trackId: string;
@@ -106,7 +107,7 @@ export type TimelineCanvasSize = {
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
-  schemaVersion: 10;
+  schemaVersion: 11;
   /** Bottom-to-top layer order. Track zIndex equals its array index. */
   tracks: TimelineTrack[];
 };
@@ -183,6 +184,8 @@ export type CompositionExportClip =
 
 export type CompositionExportPayload = {
   Canvas: CompositionExportCanvas;
+  /** Composition duration in milliseconds, including hidden tail clips. */
+  Duration: number;
   /** Bottom-to-top layer order. Track[0] is the lowest layer. */
   Track: CompositionExportClip[][];
 };

@@ -81,6 +81,7 @@ const createClip = (
   volume: 1,
   zIndex: 0,
   ...patch,
+  hidden: patch.hidden ?? false,
   };
   return clip.type === 'audio'
     ? { ...clip, type: 'audio' }
@@ -411,7 +412,8 @@ describe('TimelineViewport DOM interactions', () => {
           durationUs: secondsToMicroseconds(5),
           fontColor: '#FFFFFFFF',
           fontSize: 120,
-          fontType: 'SY_Black',
+            fontType: 'SY_Black',
+            hidden: false,
           id: 'text-clip-1',
           italic: false,
           layoutSize: { height: 200, width: 1_800 },
@@ -667,7 +669,7 @@ describe('TimelineViewport DOM interactions', () => {
     });
   });
 
-  it('does not show a video-gap status without a gap or without video', () => {
+  it('omits the status without a gap and marks an audio-only timeline', () => {
     testTimelineStore.setState({
       clips: [
         videoClip,
@@ -688,8 +690,11 @@ describe('TimelineViewport DOM interactions', () => {
       testTimelineStore.setState({ clips: [audioClip] });
     });
 
-    expect(screen.queryByText('有视频空隙')).not.toBeInTheDocument();
-    expect(document.querySelector('.ec-timeline-ruler__gap')).toBeNull();
+    expect(screen.getByText('有视频空隙')).toBeInTheDocument();
+    expect(document.querySelector('.ec-timeline-ruler__gap')).toHaveStyle({
+      left: `${TIMELINE_CONTENT_PADDING_X}px`,
+      width: `${4 * DEFAULT_PIXELS_PER_SECOND}px`,
+    });
   });
 
   it('updates the video-gap status during a trim preview', () => {
@@ -1286,6 +1291,39 @@ describe('TimelineViewport DOM interactions', () => {
     expect(testTimelineStore.getState().selectedClipId).toBe(audioClip.id);
     expect(testTimelineStore.getState().past).toHaveLength(0);
     expect(document.querySelector('.ec-timeline-clip--drag-overlay')).toBeNull();
+  });
+
+  it('toggles clip visibility from the context menu and dims hidden clips', () => {
+    renderTimeline();
+    const clip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+    vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 400 }),
+    );
+
+    fireEvent.contextMenu(clip, { clientX: 300, clientY: 50 });
+    fireEvent.click(screen.getByRole('menuitem', { name: '隐藏片段' }));
+
+    const hiddenClip = screen.getByRole('article', {
+      name: 'video clip: opening.mp4，已隐藏',
+    });
+    expect(hiddenClip).toHaveAttribute('data-hidden', 'true');
+    expect(testTimelineStore.getState().clips[0]?.hidden).toBe(true);
+    expect(editorStyles).toMatch(
+      /\.ec-timeline-clip\[data-hidden='true'\]\s*\{[^}]*opacity:\s*0\.45/,
+    );
+
+    vi.spyOn(hiddenClip, 'getBoundingClientRect').mockReturnValue(
+      createRect({ left: 100, width: 400 }),
+    );
+    fireEvent.contextMenu(hiddenClip, { clientX: 300, clientY: 50 });
+    fireEvent.click(screen.getByRole('menuitem', { name: '显示片段' }));
+
+    expect(
+      screen.getByRole('article', { name: 'video clip: opening.mp4' }),
+    ).toHaveAttribute('data-hidden', 'false');
+    expect(testTimelineStore.getState().clips[0]?.hidden).toBe(false);
   });
 
   it('splits a clip at the context-menu pointer without moving the playhead', () => {
@@ -2203,7 +2241,8 @@ describe('TimelineViewport DOM interactions', () => {
           durationUs: secondsToMicroseconds(5),
           fontColor: '#FFFFFFFF',
           fontSize: 120,
-          fontType: 'SY_Black',
+            fontType: 'SY_Black',
+            hidden: false,
           id: 'text-clip-1',
           italic: false,
           layoutSize: { height: 200, width: 1_800 },

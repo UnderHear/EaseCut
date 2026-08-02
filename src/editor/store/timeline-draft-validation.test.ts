@@ -9,6 +9,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
   clips: [
     {
       durationUs: secondsToMicroseconds(4),
+      hidden: false,
       id: 'clip-video-1',
       name: 'video.mp4',
       sourceDurationUs: secondsToMicroseconds(4),
@@ -25,7 +26,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
       zIndex: 0,
     },
   ],
-  schemaVersion: 10,
+  schemaVersion: 11,
   tracks: [
     {
       id: MAIN_VIDEO_TRACK_ID,
@@ -60,6 +61,7 @@ const createValidTextDraft = (): VideoTimelineDraft => {
     fontColor: '#FFFFFFFF',
     fontSize: 120,
     fontType: 'SY_Black',
+    hidden: false,
     id: 'text-clip-1',
     italic: false,
     layoutSize: { height: 120, width: 800 },
@@ -81,19 +83,19 @@ const getOnlyTextClip = (draft: VideoTimelineDraft) => {
 };
 
 describe('timeline draft validation', () => {
-  it('明确拒绝 v9 草稿且不尝试迁移', () => {
+  it('明确拒绝 v10 草稿且不尝试迁移', () => {
     const legacyDraft: Omit<VideoTimelineDraft, 'schemaVersion'> & {
       schemaVersion: number;
     } = {
       ...createValidDraft(),
-      schemaVersion: 9,
+      schemaVersion: 10,
     };
 
     expect(() =>
       createTimelineStore({
         draft: legacyDraft as VideoTimelineDraft,
       }),
-    ).toThrow('不支持的草稿版本：9');
+    ).toThrow('不支持的草稿版本：10');
   });
 
   it.each([
@@ -125,6 +127,18 @@ describe('timeline draft validation', () => {
       label: '片段音量超出范围',
       mutate: (draft: VideoTimelineDraft) => {
         getOnlyMediaClip(draft).volume = 1.01;
+      },
+    },
+    {
+      label: '缺少片段隐藏状态',
+      mutate: (draft: VideoTimelineDraft) => {
+        Reflect.deleteProperty(draft.clips[0]!, 'hidden');
+      },
+    },
+    {
+      label: '片段隐藏状态不是布尔值',
+      mutate: (draft: VideoTimelineDraft) => {
+        draft.clips[0]!.hidden = 'yes' as unknown as boolean;
       },
     },
     {

@@ -30,17 +30,21 @@ import {
 
 type MediaInput = string | VideoTimelineSource;
 
-type BlobCacheEntry =
-  | {
-      controller: AbortController;
-      promise: Promise<Blob>;
-      status: 'pending';
-    }
-  | {
-      blob: Blob;
-      objectUrl?: string;
-      status: 'ready';
-    };
+type BlobCacheEntry = {
+  blob: Blob | null;
+  controller: AbortController | null;
+  persistent: boolean;
+  promise: Promise<Blob>;
+  status: 'pending' | 'ready';
+  transientConsumers: number;
+};
+
+type ObjectUrlCacheEntry = {
+  objectUrl: string | null;
+  promise: Promise<string>;
+  referenceCount: number;
+  releaseBlob: () => void;
+};
 
 type MetadataCacheEntry =
   | {
@@ -196,7 +200,13 @@ const readBrowserMetadata = (
   });
 };
 
+export type MediaObjectUrlLease = {
+  release(): void;
+  url: Promise<string>;
+};
+
 export type MediaRuntime = {
+  acquireObjectUrl(input: MediaInput): MediaObjectUrlLease;
   dispose(): void;
   getAudioWaveformSamples(
     input: MediaInput,
@@ -206,7 +216,6 @@ export type MediaRuntime = {
   getMetadata(
     input: MediaInput,
   ): Promise<VideoTimelineMediaMetadata | null>;
-  getObjectUrl(input: MediaInput): Promise<string>;
   isDisposed(): boolean;
   measureTextLayout(
     request: TextLayoutRequest,
@@ -225,6 +234,7 @@ export const createMediaRuntime = (
 ): MediaRuntime => {
   const blobs = new Map<string, BlobCacheEntry>();
   const metadataEntries = new Map<string, MetadataCacheEntry>();
+  const objectUrlEntries = new Map<string, ObjectUrlCacheEntry>();
   const sourcesBySrc = new Map<string, VideoTimelineSource>();
   let disposed = false;
 
@@ -246,29 +256,33 @@ export const createMediaRuntime = (
     return { source: input, src: input.src };
   };
 
-  const getBlob = (input: MediaInput): Promise<Blob> => {
-    if (disposed) return Promise.reject(createAbortError());
-    const { source, src } = resolveInput(input);
-    const cached = blobs.get(src);
-    if (cached?.status === 'ready') return Promise.resolve(cached.blob);
-    if (cached?.status === 'pending') return cached.promise;
-
+  const startBlobLoad = (
+    source: VideoTimelineSource | undefined,
+    src: string,
+    persistent: boolean,
+  ) => {
     const controller = new AbortController();
-    const entry: Extract<BlobCacheEntry, { status: 'pending' }> = {
+    const entry: BlobCacheEntry = {
+      blob: null,
       controller,
+      persistent,
       promise: Promise.resolve(new Blob()),
       status: 'pending',
+      transientConsumers: 0,
     };
     entry.promise = Promise.resolve()
-      .then(() =>
-        mediaLoader.loadBlob(src, {
+      .then(() => {
+        if (disposed || controller.signal.aborted) throw createAbortError();
+        return mediaLoader.loadBlob(src, {
           signal: controller.signal,
           ...(source ? { source } : {}),
-        }),
-      )
+        });
+      })
       .then((blob) => {
         if (disposed || controller.signal.aborted) throw createAbortError();
-        blobs.set(src, { blob, status: 'ready' });
+        entry.blob = blob;
+        entry.controller = null;
+        entry.status = 'ready';
         return blob;
       })
       .catch((error: unknown) => {
@@ -276,17 +290,111 @@ export const createMediaRuntime = (
         throw error;
       });
     blobs.set(src, entry);
+    return entry;
+  };
+
+  const getBlob = (input: MediaInput): Promise<Blob> => {
+    if (disposed) return Promise.reject(createAbortError());
+    const { source, src } = resolveInput(input);
+    const entry = blobs.get(src) ?? startBlobLoad(source, src, true);
+    entry.persistent = true;
+    if (entry.status === 'ready') {
+      return entry.blob
+        ? Promise.resolve(entry.blob)
+        : Promise.reject(new Error('媒体加载失败'));
+    }
     return entry.promise;
   };
 
-  const getObjectUrl = async (input: MediaInput) => {
+  const acquireBlob = (input: MediaInput) => {
+    if (disposed) {
+      return {
+        promise: Promise.reject<Blob>(createAbortError()),
+        release: () => undefined,
+      };
+    }
+    const { source, src } = resolveInput(input);
+    const entry = blobs.get(src) ?? startBlobLoad(source, src, false);
+    entry.transientConsumers += 1;
+    let released = false;
+
+    return {
+      promise:
+        entry.status === 'ready' && entry.blob
+          ? Promise.resolve(entry.blob)
+          : entry.promise,
+      release() {
+        if (released) return;
+        released = true;
+        if (blobs.get(src) !== entry) return;
+
+        entry.transientConsumers -= 1;
+        if (entry.transientConsumers > 0 || entry.persistent) return;
+
+        blobs.delete(src);
+        entry.controller?.abort();
+      },
+    };
+  };
+
+  const acquireObjectUrl = (input: MediaInput): MediaObjectUrlLease => {
+    if (disposed) {
+      return {
+        release: () => undefined,
+        url: Promise.reject(createAbortError()),
+      };
+    }
     const { src } = resolveInput(input);
-    const blob = await getBlob(input);
-    if (disposed) throw createAbortError();
-    const entry = blobs.get(src);
-    if (!entry || entry.status !== 'ready') throw new Error('媒体加载失败');
-    if (!entry.objectUrl) entry.objectUrl = URL.createObjectURL(blob);
-    return entry.objectUrl;
+    let entry = objectUrlEntries.get(src);
+    if (!entry) {
+      const blobLease = acquireBlob(input);
+      const nextEntry: ObjectUrlCacheEntry = {
+        objectUrl: null,
+        promise: Promise.resolve(''),
+        referenceCount: 0,
+        releaseBlob: blobLease.release,
+      };
+      nextEntry.promise = blobLease.promise
+        .then((blob) => {
+          if (
+            disposed ||
+            objectUrlEntries.get(src) !== nextEntry ||
+            nextEntry.referenceCount === 0
+          ) {
+            throw createAbortError();
+          }
+          const objectUrl = URL.createObjectURL(blob);
+          nextEntry.objectUrl = objectUrl;
+          return objectUrl;
+        })
+        .catch((error: unknown) => {
+          if (objectUrlEntries.get(src) === nextEntry) {
+            objectUrlEntries.delete(src);
+            nextEntry.releaseBlob();
+          }
+          throw error;
+        });
+      objectUrlEntries.set(src, nextEntry);
+      entry = nextEntry;
+    }
+    entry.referenceCount += 1;
+    let released = false;
+
+    return {
+      release() {
+        if (released) return;
+        released = true;
+        if (objectUrlEntries.get(src) !== entry) return;
+
+        entry.referenceCount -= 1;
+        if (entry.referenceCount > 0) return;
+
+        objectUrlEntries.delete(src);
+        if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl);
+        entry.releaseBlob();
+      },
+      url: entry.promise,
+    };
   };
 
   const getMetadata = (
@@ -321,12 +429,17 @@ export const createMediaRuntime = (
         );
         const merged = mergeMetadata(knownMetadata, loaded);
         if (isMetadataComplete(merged, source)) return merged;
-        const browserMetadata = await readBrowserMetadata(
-          await getObjectUrl(input),
-          source,
-          controller.signal,
-        );
-        return mergeMetadata(merged, browserMetadata);
+        const objectUrlLease = acquireObjectUrl(input);
+        try {
+          const browserMetadata = await readBrowserMetadata(
+            await objectUrlLease.url,
+            source,
+            controller.signal,
+          );
+          return mergeMetadata(merged, browserMetadata);
+        } finally {
+          objectUrlLease.release();
+        }
       })
       .then((metadata) => {
         if (disposed || controller.signal.aborted) throw createAbortError();
@@ -354,6 +467,7 @@ export const createMediaRuntime = (
   const textLayoutRuntime = createTextLayoutRuntime();
 
   const runtime: MediaRuntime = {
+    acquireObjectUrl,
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -365,11 +479,12 @@ export const createMediaRuntime = (
         if (entry.status === 'pending') entry.controller.abort();
       });
       metadataEntries.clear();
+      objectUrlEntries.forEach((entry) => {
+        if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl);
+      });
+      objectUrlEntries.clear();
       blobs.forEach((entry) => {
-        if (entry.status === 'pending') entry.controller.abort();
-        if (entry.status === 'ready' && entry.objectUrl) {
-          URL.revokeObjectURL(entry.objectUrl);
-        }
+        entry.controller?.abort();
       });
       blobs.clear();
       sourcesBySrc.clear();
@@ -380,7 +495,6 @@ export const createMediaRuntime = (
     },
     getBlob,
     getMetadata,
-    getObjectUrl,
     isDisposed: () => disposed,
     measureTextLayout: (request, signal) =>
       textLayoutRuntime.measure(request, signal),
@@ -456,14 +570,15 @@ export const useMediaObjectUrl = (input: MediaInput, enabled = true) => {
   useEffect(() => {
     if (!enabled || !src) return undefined;
     let cancelled = false;
-    void runtime
-      .getObjectUrl(input)
+    const lease = runtime.acquireObjectUrl(input);
+    void lease.url
       .then((url) => {
         if (!cancelled) setResult({ src, url });
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
+      lease.release();
     };
   }, [enabled, input, runtime, src]);
 

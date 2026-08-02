@@ -1,6 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   FilePlus2,
+  Eye,
+  EyeOff,
   Keyboard,
   Maximize,
   Magnet,
@@ -88,6 +90,7 @@ export function TimelineToolbar({
     (state) => state.playheadFollowEnabled,
   );
   const selectedClipId = useTimelineStore((state) => state.selectedClipId);
+  const selectedClip = clips.find((clip) => clip.id === selectedClipId) ?? null;
   const snappingEnabled = useTimelineStore((state) => state.snappingEnabled);
   const deleteSelectedClip = useTimelineStore(
     (state) => state.deleteSelectedClip,
@@ -97,6 +100,7 @@ export function TimelineToolbar({
   const setPixelsPerSecond = useTimelineStore(
     (state) => state.setPixelsPerSecond,
   );
+  const setClipHidden = useTimelineStore((state) => state.setClipHidden);
   const splitAtPlayhead = useTimelineStore((state) => state.splitAtPlayhead);
   const toggleCanvasSnapping = useTimelineStore(
     (state) => state.toggleCanvasSnapping,
@@ -148,6 +152,23 @@ export function TimelineToolbar({
           title='删除选中片段 Backspace'
         >
           <Trash2 aria-hidden='true' />
+        </IconButton>
+        <IconButton
+          aria-label={selectedClip?.hidden ? '显示选中片段' : '隐藏选中片段'}
+          aria-pressed={selectedClip?.hidden ?? false}
+          disabled={!selectedClip}
+          onClick={() => {
+            if (selectedClip) {
+              setClipHidden(selectedClip.id, !selectedClip.hidden);
+            }
+          }}
+          title={selectedClip?.hidden ? '显示选中片段' : '隐藏选中片段'}
+        >
+          {selectedClip?.hidden ? (
+            <Eye aria-hidden='true' />
+          ) : (
+            <EyeOff aria-hidden='true' />
+          )}
         </IconButton>
         {onRequestImport && (
           <IconButton
