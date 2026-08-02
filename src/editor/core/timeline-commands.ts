@@ -322,8 +322,6 @@ export const changeTextClipProperties = (
   ) {
     return unchanged;
   }
-  const centerX = clip.position.x + clip.layoutSize.width / 2;
-  const centerY = clip.position.y + clip.layoutSize.height / 2;
   return changedEdit(
     edit,
     edit.clips.map((candidate) =>
@@ -336,10 +334,6 @@ export const changeTextClipProperties = (
             fontType,
             italic,
             layoutSize: { ...layoutSize },
-            position: {
-              x: centerX - layoutSize.width / 2,
-              y: centerY - layoutSize.height / 2,
-            },
             text,
             underline,
           }

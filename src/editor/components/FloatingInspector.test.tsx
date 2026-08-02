@@ -416,7 +416,7 @@ describe('FloatingInspector', () => {
     await waitFor(() => {
       expect(testTimelineStore.getState().clips[0]).toMatchObject({
         layoutSize: { height: 88, width: 420 },
-        position: { x: 750, y: 496 },
+        position: { x: 560, y: 480 },
         text: '新的标题',
         type: 'text',
       });
@@ -429,7 +429,7 @@ describe('FloatingInspector', () => {
       expect(testTimelineStore.getState().clips[0]).toMatchObject({
         fontType: 'ALi_PuHui',
         layoutSize: { height: 88, width: 420 },
-        position: { x: 750, y: 496 },
+        position: { x: 560, y: 480 },
       });
     });
     expect(testTimelineStore.getState().past).toHaveLength(2);
@@ -446,7 +446,7 @@ describe('FloatingInspector', () => {
       expect(testTimelineStore.getState().clips[0]).toMatchObject({
         fontSize: 160,
         layoutSize: { height: 160, width: 600 },
-        position: { x: 660, y: 460 },
+        position: { x: 560, y: 480 },
       });
     });
     expect(testTimelineStore.getState().past).toHaveLength(3);

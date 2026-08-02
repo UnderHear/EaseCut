@@ -234,7 +234,7 @@ describe('text clip commands', () => {
       fontType: 'ALi_PuHui',
       italic: true,
       layoutSize: { height: 88, width: 420 },
-      position: { x: 750, y: 496 },
+      position: { x: 560, y: 480 },
       text: '新标题',
       underline: true,
     });
@@ -262,7 +262,7 @@ describe('text clip commands', () => {
     });
   });
 
-  it('preserves the exact center when an odd natural dimension changes', () => {
+  it('preserves the top-left position when the natural dimensions change', () => {
     const created = expectChanged(
       addTextClip(createEdit(), {
         canvasSize: { height: 721, width: 1_281 },
@@ -284,8 +284,7 @@ describe('text clip commands', () => {
       throw new Error('Expected a text clip');
     }
 
-    expect(clip.position.x + clip.layoutSize.width / 2).toBe(640.5);
-    expect(clip.position.y + clip.layoutSize.height / 2).toBe(360.5);
+    expect(clip.position).toEqual({ x: 390, y: 310 });
   });
 
   it('moves text without changing natural size and rejects media transforms', () => {

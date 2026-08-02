@@ -38,7 +38,7 @@ describe('timeline store text clips', () => {
     });
   });
 
-  it('commits measured properties with center compensation in one history item', () => {
+  it('commits measured properties with a fixed top-left position in one history item', () => {
     const store = createTimelineStore();
     store.getState().addTextClip({
       layoutSize: { height: 101, width: 501 },
@@ -68,7 +68,7 @@ describe('timeline store text clips', () => {
       fontType: 'ALi_PuHui',
       italic: true,
       layoutSize: { height: 88, width: 420 },
-      position: { x: 430, y: 316 },
+      position: before.position,
       text: '新标题',
       underline: true,
     });
@@ -81,7 +81,7 @@ describe('timeline store text clips', () => {
       bold: true,
       italic: true,
       layoutSize: { height: 88, width: 420 },
-      position: { x: 430, y: 316 },
+      position: before.position,
       text: '新标题',
       underline: true,
     });
