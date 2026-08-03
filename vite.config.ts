@@ -171,6 +171,7 @@ const libraryExternals = [
 ];
 
 export default defineConfig(({ command, mode }) => ({
+  base: mode === 'demo' ? '/EaseCut/' : '/',
   plugins: [
     react(),
     createSoundTouchProcessorPlugin(command),
