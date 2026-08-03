@@ -10,13 +10,13 @@ const BUILT_IN_SOURCES: VideoTimelineSource[] = [
   {
     fileName: 'demo-video.mp4',
     id: 'built-in-demo-video',
-    src: 'https://yiqun-bucket.oss-cn-beijing.aliyuncs.com/uploads%2F019f0399-f9bc-791e-9d76-4ff8fd6bcb81%2F00915833-4f6b-4e3a-876d-18fb73e8516d_65854b42205ac5a8dd0b6c2b81e1b93d.mp4?OSSAccessKeyId=LTAI5t7XnCpjNo3F4SACrkRh&Expires=2098755074&Signature=0KBQCVKwSrvStmwLF90UiFcSmx4%3D',
+    src: 'https://libtv-res.liblib.art/upload-images/4d3376b999c849d285db25671acea9fa/eaedab8923a8e9da4f69df2effbdcb779a10c086.mp4',
     type: 'video',
   },
   {
     fileName: 'demo-audio.mp3',
     id: 'built-in-demo-audio',
-    src: 'https://yiqun-bucket.oss-cn-beijing.aliyuncs.com/uploads%2F019f0399-f9bc-791e-9d76-4ff8fd6bcb81%2Ff473f7c8-0a48-4446-8b08-80352a5b91ca_audio.mp3?OSSAccessKeyId=LTAI5t7XnCpjNo3F4SACrkRh&Expires=2099500568&Signature=6pCNrhMTaQ6veY3ww%2Fbs8IssCa4%3D',
+    src: 'https://libtv-res.liblib.art/upload-images/4d3376b999c849d285db25671acea9fa/c87fd89e424e6ca517c3213268373033e1523fdc.mp3',
     type: 'audio',
   },
 ];
