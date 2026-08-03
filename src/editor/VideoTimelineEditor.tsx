@@ -228,11 +228,25 @@ function VideoTimelineEditorView({
   );
 
   useEffect(() => {
+    const initialState = store.getState();
+    let previousCanvasSize = initialState.canvasSize;
+    let previousClips = initialState.clips;
+    let previousTracks = initialState.tracks;
     let previousDraftJson = JSON.stringify(
-      createVideoTimelineDraft(store.getState()),
+      createVideoTimelineDraft(initialState),
     );
 
     return store.subscribe((state) => {
+      if (
+        state.canvasSize === previousCanvasSize &&
+        state.clips === previousClips &&
+        state.tracks === previousTracks
+      ) {
+        return;
+      }
+      previousCanvasSize = state.canvasSize;
+      previousClips = state.clips;
+      previousTracks = state.tracks;
       const nextDraft = createVideoTimelineDraft(state);
       const nextDraftJson = JSON.stringify(nextDraft);
       if (nextDraftJson === previousDraftJson) return;

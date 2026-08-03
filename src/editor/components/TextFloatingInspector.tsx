@@ -5,7 +5,7 @@ import {
   Type as TypeIcon,
   Underline as UnderlineIcon,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   TIMELINE_TEXT_FONT_PRESETS,
@@ -41,6 +41,8 @@ type TextFloatingInspectorProps = {
 type PositionField = keyof TimelineClipPosition;
 
 const toRgbColor = (fontColor: string) => fontColor.slice(0, 7);
+const withFontColorAlpha = (rgbColor: string, fontColor: string) =>
+  `${rgbColor}${fontColor.slice(7)}`.toUpperCase();
 const textFontOptions = TIMELINE_TEXT_FONT_PRESETS.map((preset) => ({
   label: preset.label,
   value: preset.fontType,
@@ -66,7 +68,19 @@ export function TextFloatingInspector({
     controller: AbortController;
     id: number;
   } | null>(null);
+  const colorPreviewFrameRef = useRef<number | null>(null);
+  const colorEditTokenRef = useRef<number | null>(null);
+  const pendingColorPreviewRef = useRef<{
+    fontColor: string;
+    token: number;
+  } | null>(null);
   const mediaRuntime = useMediaRuntime();
+  const beginTextStyleEdit = useTimelineStore(
+    (state) => state.beginTextStyleEdit,
+  );
+  const cancelTextStyleEdit = useTimelineStore(
+    (state) => state.cancelTextStyleEdit,
+  );
   const commitClipPosition = useTimelineStore(
     (state) => state.commitClipPosition,
   );
@@ -75,6 +89,22 @@ export function TextFloatingInspector({
   );
   const commitTextClipTiming = useTimelineStore(
     (state) => state.commitTextClipTiming,
+  );
+  const commitTextStyleEdit = useTimelineStore(
+    (state) => state.commitTextStyleEdit,
+  );
+  const previewFontColor = useTimelineStore((state) =>
+    state.continuousEdit?.kind === 'text-style' &&
+    state.continuousEdit.clipId === clip.id &&
+    state.continuousEdit.phase === 'active'
+      ? state.continuousEdit.preview.fontColor
+      : null,
+  );
+  const previewTextStyleEdit = useTimelineStore(
+    (state) => state.previewTextStyleEdit,
+  );
+  const suspendTextStyleEdit = useTimelineStore(
+    (state) => state.suspendTextStyleEdit,
   );
 
   const displayedTiming =
@@ -88,6 +118,7 @@ export function TextFloatingInspector({
           x: clip.position.x,
           y: clip.position.y,
         };
+  const displayedRgbColor = toRgbColor(previewFontColor ?? clip.fontColor);
   const endUs = displayedTiming.startUs + displayedTiming.durationUs;
 
   useEffect(
@@ -95,6 +126,18 @@ export function TextFloatingInspector({
       layoutRequestRef.current?.controller.abort();
     },
     [],
+  );
+  useEffect(
+    () => () => {
+      if (colorPreviewFrameRef.current !== null) {
+        cancelAnimationFrame(colorPreviewFrameRef.current);
+      }
+      pendingColorPreviewRef.current = null;
+      const token = colorEditTokenRef.current;
+      colorEditTokenRef.current = null;
+      if (token !== null) cancelTextStyleEdit(clip.id, token);
+    },
+    [cancelTextStyleEdit, clip.id],
   );
 
   const commitMeasuredProperties = async (
@@ -184,6 +227,63 @@ export function TextFloatingInspector({
     if (textDraft === clip.text) return;
     void commitMeasuredProperties({ text: textDraft });
   };
+  const beginColorEdit = useCallback(() => {
+    const token = beginTextStyleEdit(clip.id);
+    if (token !== null) colorEditTokenRef.current = token;
+    return token;
+  }, [beginTextStyleEdit, clip.id]);
+  const suspendColorPreview = useCallback(() => {
+    if (colorPreviewFrameRef.current !== null) {
+      cancelAnimationFrame(colorPreviewFrameRef.current);
+      colorPreviewFrameRef.current = null;
+    }
+    pendingColorPreviewRef.current = null;
+    const token = colorEditTokenRef.current;
+    if (token !== null) suspendTextStyleEdit(clip.id, token);
+  }, [clip.id, suspendTextStyleEdit]);
+  const previewColor = useCallback(
+    (rgbColor: string) => {
+      const token = beginColorEdit();
+      if (token === null) return;
+      pendingColorPreviewRef.current = {
+        fontColor: withFontColorAlpha(rgbColor, clip.fontColor),
+        token,
+      };
+      if (colorPreviewFrameRef.current !== null) return;
+      colorPreviewFrameRef.current = requestAnimationFrame(() => {
+        colorPreviewFrameRef.current = null;
+        const preview = pendingColorPreviewRef.current;
+        pendingColorPreviewRef.current = null;
+        if (preview) {
+          previewTextStyleEdit(clip.id, preview.token, preview.fontColor);
+        }
+      });
+    },
+    [
+      beginColorEdit,
+      clip.fontColor,
+      clip.id,
+      previewTextStyleEdit,
+    ],
+  );
+  const commitColor = useCallback(
+    (rgbColor: string) => {
+      if (colorPreviewFrameRef.current !== null) {
+        cancelAnimationFrame(colorPreviewFrameRef.current);
+        colorPreviewFrameRef.current = null;
+      }
+      pendingColorPreviewRef.current = null;
+      const token = colorEditTokenRef.current ?? beginColorEdit();
+      if (token === null) return;
+      commitTextStyleEdit(
+        clip.id,
+        token,
+        withFontColorAlpha(rgbColor, clip.fontColor),
+      );
+      colorEditTokenRef.current = null;
+    },
+    [beginColorEdit, clip.fontColor, clip.id, commitTextStyleEdit],
+  );
   const commitPositionField = (field: PositionField, value: number) => {
     commitClipPosition({
       clipId: clip.id,
@@ -292,16 +392,14 @@ export function TextFloatingInspector({
 
             <ColorInput
               aria-label='字体颜色'
-              onChange={(event) => {
-                const nextColor = `${event.target.value}${clip.fontColor.slice(7)}`.toUpperCase();
-                commitTextClipProperties({
-                  clipId: clip.id,
-                  fontColor: nextColor,
-                });
-              }}
+              isPreviewing={previewFontColor !== null}
+              onBlur={suspendColorPreview}
+              onCommit={commitColor}
+              onFocus={beginColorEdit}
+              onPreview={previewColor}
               size={20}
               title='字体颜色'
-              value={toRgbColor(clip.fontColor)}
+              value={displayedRgbColor}
             />
           </div>
 

@@ -1,6 +1,12 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { secondsToMicroseconds } from '../core/time';
 import { TextLayoutError } from '../media/text-layout-runtime';
@@ -124,6 +130,10 @@ describe('FloatingInspector', () => {
       selectedClipId: videoClip.id,
       tracks: [videoTrack],
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('renders selected clip properties instead of static placeholder controls', () => {
@@ -457,6 +467,7 @@ describe('FloatingInspector', () => {
     expect(testTimelineStore.getState().past).toHaveLength(3);
 
     const colorInput = screen.getByLabelText('字体颜色');
+    fireEvent.focus(colorInput);
     fireEvent.change(colorInput, {
       target: { value: '#123456' },
     });
@@ -465,6 +476,122 @@ describe('FloatingInspector', () => {
     });
     expect(screen.getByLabelText('字体颜色')).toBe(colorInput);
     expect(testTimelineStore.getState().past).toHaveLength(4);
+  });
+
+  it('coalesces rapid color previews and commits the gesture once', () => {
+    let pendingPreviewFrame: FrameRequestCallback | null = null;
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        pendingPreviewFrame = callback;
+        return 17;
+      });
+    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame');
+    testTimelineStore.setState({
+      clips: [textClip],
+      future: [],
+      past: [],
+      selectedClipId: textClip.id,
+      tracks: [textTrack],
+    });
+    renderWithEditorProviders(<FloatingInspector />);
+    const colorInput = screen.getByLabelText('字体颜色');
+
+    fireEvent.focus(colorInput);
+    fireEvent.input(colorInput, { target: { value: '#123456' } });
+    fireEvent.input(colorInput, { target: { value: '#abcdef' } });
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalledOnce();
+    expect(colorInput).toHaveValue('#abcdef');
+    const initialColorEdit = testTimelineStore.getState().continuousEdit;
+    if (initialColorEdit?.kind !== 'text-style') {
+      throw new Error('Expected a text style edit');
+    }
+    expect(testTimelineStore.getState().continuousEdit).toEqual({
+      clipId: textClip.id,
+      kind: 'text-style',
+      phase: 'active',
+      preview: { fontColor: '#FFFFFFFF' },
+      token: initialColorEdit.token,
+    });
+    expect(testTimelineStore.getState().clips[0]).toEqual(textClip);
+    expect(testTimelineStore.getState().past).toEqual([]);
+
+    act(() => {
+      const previewFrame = pendingPreviewFrame;
+      pendingPreviewFrame = null;
+      previewFrame?.(0);
+    });
+
+    expect(testTimelineStore.getState().continuousEdit).toEqual({
+      clipId: textClip.id,
+      kind: 'text-style',
+      phase: 'active',
+      preview: { fontColor: '#ABCDEFFF' },
+      token: initialColorEdit.token,
+    });
+    expect(screen.getByLabelText('字体颜色')).toHaveValue('#abcdef');
+    expect(testTimelineStore.getState().clips[0]).toEqual(textClip);
+    expect(testTimelineStore.getState().past).toEqual([]);
+
+    fireEvent.change(colorInput, { target: { value: '#abcdef' } });
+
+    expect(screen.getByLabelText('字体颜色')).toBe(colorInput);
+    expect(testTimelineStore.getState().continuousEdit).toBeNull();
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      fontColor: '#ABCDEFFF',
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+
+    fireEvent.input(colorInput, { target: { value: '#654321' } });
+    const blurredColorEdit = testTimelineStore.getState().continuousEdit;
+    if (blurredColorEdit?.kind !== 'text-style') {
+      throw new Error('Expected a text style edit');
+    }
+    fireEvent.blur(colorInput);
+
+    expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(17);
+    expect(testTimelineStore.getState().continuousEdit).toEqual({
+      ...blurredColorEdit,
+      phase: 'awaiting-change',
+    });
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      fontColor: '#ABCDEFFF',
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(1);
+
+    fireEvent.change(colorInput);
+
+    expect(testTimelineStore.getState().continuousEdit).toBeNull();
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      fontColor: '#654321FF',
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(2);
+
+    fireEvent.focus(colorInput);
+    fireEvent.input(colorInput, { target: { value: '#fedcba' } });
+    expect(colorInput).toHaveValue('#fedcba');
+
+    act(() => {
+      testTimelineStore.getState().cancelTextStyleEdit(textClip.id);
+    });
+
+    expect(colorInput).toHaveValue('#654321');
+    act(() => {
+      const previewFrame = pendingPreviewFrame;
+      pendingPreviewFrame = null;
+      previewFrame?.(0);
+    });
+    expect(testTimelineStore.getState().continuousEdit).toBeNull();
+    expect(testTimelineStore.getState().past).toHaveLength(2);
+
+    fireEvent.change(colorInput);
+
+    expect(testTimelineStore.getState().continuousEdit).toBeNull();
+    expect(testTimelineStore.getState().clips[0]).toMatchObject({
+      fontColor: '#654321FF',
+    });
+    expect(testTimelineStore.getState().past).toHaveLength(2);
   });
 
   it('toggles text styles with one history item per successful action', async () => {

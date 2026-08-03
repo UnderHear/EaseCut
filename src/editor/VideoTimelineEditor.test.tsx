@@ -41,17 +41,30 @@ vi.mock('./timeline/TimelinePanel', async () => {
       onRequestPreviewFullscreen: () => void;
     }) => {
       const clips = useTimelineStore((state) => state.clips);
+      const beginTextStyleEdit = useTimelineStore(
+        (state) => state.beginTextStyleEdit,
+      );
+      const commitTextStyleEdit = useTimelineStore(
+        (state) => state.commitTextStyleEdit,
+      );
+      const continuousEdit = useTimelineStore(
+        (state) => state.continuousEdit,
+      );
       const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
       const isPlaying = useTimelineStore((state) => state.isPlaying);
       const selectedClipId = useTimelineStore((state) => state.selectedClipId);
       const tracks = useTimelineStore((state) => state.tracks);
       const selectClip = useTimelineStore((state) => state.selectClip);
       const setIsPlaying = useTimelineStore((state) => state.setIsPlaying);
+      const previewTextStyleEdit = useTimelineStore(
+        (state) => state.previewTextStyleEdit,
+      );
       const toggleTrackMute = useTimelineStore(
         (state) => state.toggleTrackMute,
       );
       const firstClip = clips[0];
       const lastClip = clips.at(-1);
+      const textClip = clips.find((clip) => clip.type === 'text');
 
       return (
         <>
@@ -75,6 +88,9 @@ vi.mock('./timeline/TimelinePanel', async () => {
                 : ''
             }
             data-last-duration={lastClip?.durationUs ?? ''}
+            data-last-font-color={
+              lastClip?.type === 'text' ? lastClip.fontColor : ''
+            }
             data-last-layout={JSON.stringify(
               lastClip?.type === 'text' ? lastClip.layoutSize : null,
             )}
@@ -96,6 +112,36 @@ vi.mock('./timeline/TimelinePanel', async () => {
             <button
               aria-label='测试：切换播放'
               onClick={() => setIsPlaying(!isPlaying)}
+              type='button'
+            />
+            <button
+              aria-label='测试：预览文字颜色'
+              disabled={!textClip}
+              onClick={() => {
+                if (!textClip) return;
+                const token = beginTextStyleEdit(textClip.id);
+                if (token !== null) {
+                  previewTextStyleEdit(textClip.id, token, '#123456FF');
+                }
+              }}
+              type='button'
+            />
+            <button
+              aria-label='测试：提交文字颜色'
+              disabled={!textClip}
+              onClick={() => {
+                if (
+                  textClip &&
+                  continuousEdit?.kind === 'text-style' &&
+                  continuousEdit.clipId === textClip.id
+                ) {
+                  commitTextStyleEdit(
+                    textClip.id,
+                    continuousEdit.token,
+                    '#123456FF',
+                  );
+                }
+              }}
               type='button'
             />
             <button
@@ -146,6 +192,47 @@ const audioSource: VideoTimelineSource = {
   id: 'audio-1',
   src: '/music.mp3',
   type: 'audio',
+};
+
+const textDraft: VideoTimelineDraft = {
+  canvasSize: { height: 720, width: 1280 },
+  clips: [
+    {
+      bold: false,
+      durationUs: secondsToMicroseconds(5),
+      fontColor: '#FFFFFFFF',
+      fontSize: 120,
+      fontType: 'SY_Black',
+      hidden: false,
+      id: 'text-clip-1',
+      italic: false,
+      layoutSize: { height: 120, width: 800 },
+      position: { x: 240, y: 300 },
+      startUs: 0,
+      text: '颜色事务',
+      trackId: 'text-track-1',
+      type: 'text',
+      underline: false,
+      zIndex: 0,
+    },
+  ],
+  schemaVersion: 11,
+  tracks: [
+    {
+      id: 'video-track-1',
+      muted: false,
+      name: '视频轨',
+      type: 'video',
+      zIndex: 0,
+    },
+    {
+      id: 'text-track-1',
+      muted: false,
+      name: '文字轨 1',
+      type: 'text',
+      zIndex: 1,
+    },
+  ],
 };
 
 const flushEffects = async () => {
@@ -932,6 +1019,39 @@ describe('VideoTimelineEditor', () => {
         (track) => track.type === 'audio',
       )?.muted,
     ).toBe(true);
+  });
+
+  it('does not emit draft changes until a text color transaction commits', async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn<(draft: VideoTimelineDraft) => void>();
+    render(
+      <VideoTimelineEditor
+        initialDraft={textDraft}
+        onDraftChange={onDraftChange}
+        sources={[]}
+      />,
+    );
+    await flushEffects();
+    onDraftChange.mockClear();
+
+    await user.click(
+      screen.getByRole('button', { name: '测试：预览文字颜色' }),
+    );
+
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-last-font-color',
+      '#FFFFFFFF',
+    );
+    expect(onDraftChange).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole('button', { name: '测试：提交文字颜色' }),
+    );
+
+    await waitFor(() => expect(onDraftChange).toHaveBeenCalledOnce());
+    expect(onDraftChange.mock.calls[0][0].clips[0]).toMatchObject({
+      fontColor: '#123456FF',
+    });
   });
 
   it('handles shortcuts only when they originate inside the focused editor', async () => {

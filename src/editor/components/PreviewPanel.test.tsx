@@ -192,9 +192,11 @@ describe('PreviewPanel', () => {
   );
   let drawImageMock: ReturnType<typeof vi.fn>;
   let drawCalls: CanvasDrawCall[];
+  let drawnTextColors: string[];
   let drawnTextFonts: string[];
   let fillRectMock: ReturnType<typeof vi.fn>;
   let fillTextMock: ReturnType<typeof vi.fn>;
+  let currentCanvasFillStyle: string;
   let measureTextMock: ReturnType<typeof vi.fn>;
   let currentCanvasFont: string;
   let mediaReadyState: number;
@@ -212,7 +214,9 @@ describe('PreviewPanel', () => {
     measureTextLayoutMock.mockReset();
     measureTextLayoutMock.mockResolvedValue({ height: 120, width: 800 });
     drawCalls = [];
+    drawnTextColors = [];
     drawnTextFonts = [];
+    currentCanvasFillStyle = '';
     currentCanvasFont = '';
     const createCanvasCallMock = (kind: CanvasDrawCall['kind']) =>
       vi.fn((...args: unknown[]) => {
@@ -222,6 +226,7 @@ describe('PreviewPanel', () => {
     fillRectMock = createCanvasCallMock('fillRect');
     fillTextMock = vi.fn((...args: unknown[]) => {
       drawCalls.push({ args, kind: 'fillText' });
+      drawnTextColors.push(currentCanvasFillStyle);
       drawnTextFonts.push(currentCanvasFont);
     });
     measureTextMock = vi.fn(
@@ -293,7 +298,12 @@ describe('PreviewPanel', () => {
             drawImage: drawImageMock,
             fill: createCanvasCallMock('fill'),
             fillRect: fillRectMock,
-            fillStyle: '',
+            get fillStyle() {
+              return currentCanvasFillStyle;
+            },
+            set fillStyle(value: string) {
+              currentCanvasFillStyle = value;
+            },
             fillText: fillTextMock,
             get font() {
               return currentCanvasFont;
@@ -709,6 +719,9 @@ describe('PreviewPanel', () => {
       -100,
       400,
     );
+    expect(drawnTextColors).toContain(
+      `rgba(18, 52, 86, ${128 / 255})`,
+    );
     await waitFor(() => {
       expect(drawnTextFonts).toContain(
         'italic 700 120px "Source Han Sans SC", sans-serif',
@@ -729,6 +742,29 @@ describe('PreviewPanel', () => {
       ),
     ).toBe(false);
     expect(drawCalls.some((call) => call.kind === 'roundRect')).toBe(false);
+
+    act(() => {
+      const token = testTimelineStore
+        .getState()
+        .beginTextStyleEdit(textClip.id);
+      if (token === null) throw new Error('Expected a text style edit token');
+      testTimelineStore
+        .getState()
+        .previewTextStyleEdit(textClip.id, token, '#ABCDEFFF');
+    });
+
+    expect(drawnTextColors.at(-1)).toBe('rgba(171, 205, 239, 1)');
+    expect(
+      testTimelineStore.getState().clips.find(({ id }) => id === textClip.id),
+    ).toEqual(textClip);
+    expect(testTimelineStore.getState().past).toEqual([]);
+
+    act(() => {
+      testTimelineStore.getState().cancelTextStyleEdit(textClip.id);
+    });
+    expect(drawnTextColors.at(-1)).toBe(
+      `rgba(18, 52, 86, ${128 / 255})`,
+    );
   });
 
   it('preloads an upcoming text font and draws a fallback on its first active frame', async () => {

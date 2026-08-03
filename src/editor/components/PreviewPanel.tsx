@@ -374,6 +374,7 @@ const toCanvasColor = (fontColor: string) => {
 const drawTextClip = (
   context: CanvasRenderingContext2D,
   clip: Extract<TimelineClip, { type: 'text' }>,
+  fontColor: string,
   fontFamily: string,
   transform: TimelineClipTransform,
   previewFrame: PreviewFrame,
@@ -384,7 +385,7 @@ const drawTextClip = (
     previewTransform.y + previewTransform.height / 2;
 
   context.save();
-  context.fillStyle = toCanvasColor(clip.fontColor);
+  context.fillStyle = toCanvasColor(fontColor);
   context.font = createTextCanvasFont(
     {
       bold: clip.bold,
@@ -587,6 +588,12 @@ export function PreviewPanel({
   );
   const canvasSize = useTimelineStore((state) => state.canvasSize);
   const clips = useTimelineStore((state) => state.clips);
+  const textStyleEdit = useTimelineStore((state) =>
+    state.continuousEdit?.kind === 'text-style' &&
+    state.continuousEdit.phase === 'active'
+      ? state.continuousEdit
+      : null,
+  );
   const commitClipPosition = useTimelineStore(
     (state) => state.commitClipPosition,
   );
@@ -772,7 +779,9 @@ export function PreviewPanel({
               clip.text,
               clip.fontType,
               clip.fontSize,
-              clip.fontColor,
+              textStyleEdit?.clipId === clip.id
+                ? textStyleEdit.preview.fontColor
+                : clip.fontColor,
             ].join(':')
           : '',
         transform.height,
@@ -951,6 +960,9 @@ export function PreviewPanel({
           drawTextClip(
             context,
             clip,
+            textStyleEdit?.clipId === clip.id
+              ? textStyleEdit.preview.fontColor
+              : clip.fontColor,
             fontFamily,
             transform,
             previewFrame,
@@ -1014,6 +1026,7 @@ export function PreviewPanel({
       previewFrame,
       previewObjectUrls,
       selectedClipId,
+      textStyleEdit,
     ],
   );
   useLayoutEffect(() => {

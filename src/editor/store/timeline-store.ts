@@ -76,6 +76,7 @@ import type {
   TimelineClip,
   TimelineClipPosition,
   TimelineMediaClip,
+  TimelineTextClip,
   TimelineClipTransform,
   TimelineSnapshot,
   TimelineTrack,
@@ -116,6 +117,15 @@ export type CommitMediaClipTransformParams = {
   clipId: string;
   transform: TimelineClipTransform;
 };
+export type TimelineContinuousEdit = {
+  clipId: string;
+  kind: 'text-style';
+  phase: 'active' | 'awaiting-change';
+  preview: {
+    fontColor: string;
+  };
+  token: number;
+};
 
 export type ResetTimelineParams = {
   draft?: VideoTimelineDraft;
@@ -126,6 +136,7 @@ export type TimelineState = {
   canvasSnappingEnabled: boolean;
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
+  continuousEdit: TimelineContinuousEdit | null;
   copiedClip: TimelineClip | null;
   currentTimeUs: number;
   future: TimelineSnapshot[];
@@ -146,6 +157,8 @@ export type TimelineDraftSource = Pick<
 
 export type TimelineActions = {
   addTextClip: (params: AddTextClipCommand) => void;
+  beginTextStyleEdit: (clipId: string) => number | null;
+  cancelTextStyleEdit: (clipId: string, token?: number) => void;
   commitClipDrop: (params: CommitClipDropParams) => void;
   commitClipPosition: (params: CommitClipPositionParams) => void;
   commitClipSpeed: (params: CommitClipSpeedParams) => void;
@@ -159,11 +172,21 @@ export type TimelineActions = {
   commitTextClipProperties: (
     params: ChangeTextClipPropertiesParams,
   ) => void;
+  commitTextStyleEdit: (
+    clipId: string,
+    token: number,
+    fontColor: string,
+  ) => void;
   commitTextClipTiming: (params: ChangeTextClipTimingParams) => void;
   copySelectedClip: () => void;
   createExportPayload: () => CompositionExportPayload;
   deleteSelectedClip: () => void;
   pasteCopiedClip: () => void;
+  previewTextStyleEdit: (
+    clipId: string,
+    token: number,
+    fontColor: string,
+  ) => void;
   redo: () => void;
   resetTimeline: (params?: ResetTimelineParams) => void;
   restoreClipTrim: (clipId: string) => void;
@@ -175,6 +198,7 @@ export type TimelineActions = {
   setClipHidden: (clipId: string, hidden: boolean) => void;
   splitAtPlayhead: () => void;
   splitClipAtTime: (clipId: string, timeUs: number) => void;
+  suspendTextStyleEdit: (clipId: string, token: number) => void;
   syncSources: (sources: VideoTimelineSource[]) => void;
   toggleCanvasSnapping: () => void;
   togglePlayheadFollow: () => void;
@@ -321,6 +345,7 @@ const createBaseState = (
   canvasSnappingEnabled: true,
   canvasSize,
   clips,
+  continuousEdit: null,
   copiedClip: null,
   currentTimeUs: 0,
   future: [],
@@ -419,8 +444,14 @@ const applyEdit = (
     layoutRevision: state.layoutRevision + 1,
     past: [...state.past, createSnapshot(state)],
     selectedClipId: result.selectedClipId,
+    continuousEdit: null,
     tracks: result.tracks,
   };
+};
+
+const normalizeTextClipFontColor = (fontColor: string) => {
+  const normalized = fontColor.toUpperCase();
+  return /^#[\dA-F]{8}$/.test(normalized) ? normalized : null;
 };
 
 function mergeSources(
@@ -563,6 +594,7 @@ function mergeSources(
 export const createTimelineStore = (
   params?: ResetTimelineParams,
 ): TimelineStoreApi => {
+  let nextContinuousEditToken = 1;
   const knownSourceIds = new Set(
     (params?.sources ?? []).map((source) => source.id),
   );
@@ -586,6 +618,53 @@ export const createTimelineStore = (
             text,
           }),
         );
+      },
+
+      beginTextStyleEdit: (clipId) => {
+        const state = get();
+        const clip = state.clips.find(
+          (candidate): candidate is TimelineTextClip =>
+            candidate.id === clipId && isTimelineTextClip(candidate),
+        );
+        if (!clip) return null;
+        if (
+          state.continuousEdit?.kind === 'text-style' &&
+          state.continuousEdit.clipId === clipId
+        ) {
+          if (state.continuousEdit.phase === 'awaiting-change') {
+            set({
+              continuousEdit: {
+                ...state.continuousEdit,
+                phase: 'active',
+                preview: { fontColor: clip.fontColor },
+              },
+            });
+          }
+          return state.continuousEdit.token;
+        }
+        const token = nextContinuousEditToken;
+        nextContinuousEditToken += 1;
+        set({
+          continuousEdit: {
+            clipId,
+            kind: 'text-style',
+            phase: 'active',
+            preview: { fontColor: clip.fontColor },
+            token,
+          },
+        });
+        return token;
+      },
+
+      cancelTextStyleEdit: (clipId, token) => {
+        const continuousEdit = get().continuousEdit;
+        if (
+          continuousEdit?.kind === 'text-style' &&
+          continuousEdit.clipId === clipId &&
+          (token === undefined || continuousEdit.token === token)
+        ) {
+          set({ continuousEdit: null });
+        }
       },
 
       commitClipDrop: (command) => commit(moveClip(asEdit(get()), command)),
@@ -641,6 +720,38 @@ export const createTimelineStore = (
       commitTextClipProperties: (params) =>
         commit(changeTextClipProperties(asEdit(get()), params)),
 
+      commitTextStyleEdit: (clipId, token, fontColor) => {
+        const state = get();
+        if (
+          state.continuousEdit?.kind !== 'text-style' ||
+          state.continuousEdit.clipId !== clipId ||
+          state.continuousEdit.token !== token
+        ) {
+          return;
+        }
+        const normalized = normalizeTextClipFontColor(fontColor);
+        if (!normalized) {
+          if (state.continuousEdit?.clipId === clipId) {
+            set({ continuousEdit: null });
+          }
+          return;
+        }
+        const next = applyEdit(
+          state,
+          changeTextClipProperties(asEdit(state), {
+            clipId,
+            fontColor: normalized,
+          }),
+        );
+        if (next) {
+          set(next);
+          return;
+        }
+        if (state.continuousEdit?.clipId === clipId) {
+          set({ continuousEdit: null });
+        }
+      },
+
       commitTextClipTiming: (params) =>
         commit(changeTextClipTiming(asEdit(get()), params)),
 
@@ -691,7 +802,31 @@ export const createTimelineStore = (
           layoutRevision: state.layoutRevision + 1,
           past: [...state.past, createSnapshot(state)],
           selectedClipId: next.selectedClipId,
+          continuousEdit: null,
           tracks: cloneTracks(next.tracks),
+        });
+      },
+
+      previewTextStyleEdit: (clipId, token, fontColor) => {
+        const state = get();
+        const continuousEdit = state.continuousEdit;
+        const normalized = normalizeTextClipFontColor(fontColor);
+        if (
+          continuousEdit?.kind !== 'text-style' ||
+          continuousEdit.clipId !== clipId ||
+          continuousEdit.token !== token ||
+          !normalized ||
+          (continuousEdit.phase === 'active' &&
+            continuousEdit.preview.fontColor === normalized)
+        ) {
+          return;
+        }
+        set({
+          continuousEdit: {
+            ...continuousEdit,
+            phase: 'active',
+            preview: { fontColor: normalized },
+          },
         });
       },
 
@@ -709,7 +844,14 @@ export const createTimelineStore = (
       restoreClipTrim: (clipId) =>
         commit(restoreClipTrim(asEdit(get()), clipId)),
 
-      selectClip: (selectedClipId) => set({ selectedClipId }),
+      selectClip: (selectedClipId) =>
+        set((state) => ({
+          selectedClipId,
+          continuousEdit:
+            state.continuousEdit?.clipId === selectedClipId
+              ? state.continuousEdit
+              : null,
+        })),
 
       setCurrentTimeUs: (timeUs) =>
         set({
@@ -769,6 +911,25 @@ export const createTimelineStore = (
           ),
         ),
 
+      suspendTextStyleEdit: (clipId, token) => {
+        const state = get();
+        const continuousEdit = state.continuousEdit;
+        if (
+          continuousEdit?.kind !== 'text-style' ||
+          continuousEdit.clipId !== clipId ||
+          continuousEdit.token !== token ||
+          continuousEdit.phase === 'awaiting-change'
+        ) {
+          return;
+        }
+        set({
+          continuousEdit: {
+            ...continuousEdit,
+            phase: 'awaiting-change',
+          },
+        });
+      },
+
       syncSources: (sources) => {
         const state = get();
         const newSourceIds = new Set(
@@ -824,6 +985,7 @@ export const createTimelineStore = (
           layoutRevision: state.layoutRevision + 1,
           past: state.past.slice(0, -1),
           selectedClipId: previous.selectedClipId,
+          continuousEdit: null,
           tracks: cloneTracks(previous.tracks),
         });
       },
