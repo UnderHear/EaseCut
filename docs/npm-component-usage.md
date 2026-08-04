@@ -10,7 +10,7 @@ EaseCut React 提供一个完整的 React 视频时间线编辑器组件 `VideoT
 
 组件内置以下编辑能力：
 
-- 视频、音频和单行文字多轨时间线；
+- 视频、音频、图片和单行文字多轨时间线；
 - 片段选择、拖动、裁剪、双击还原裁剪、分割、复制、粘贴、删除和隐藏；
 - 撤销、重做、时间轴缩放、时间轴吸附、画布辅助线和播放头跟随；
 - 视频位置与尺寸调整；
@@ -313,7 +313,7 @@ async function submitExport({
 
 ```ts
 type VideoTimelineImportRequest = {
-  type: 'video' | 'audio';
+  type: 'video' | 'audio' | 'image';
   url: string;
 };
 ```
@@ -332,6 +332,14 @@ m3u8, ogv, ts, webm
 ```text
 aac, aif, aiff, flac, m4a, mp3, oga, ogg, opus, wav, weba, wma
 ```
+
+识别的图片后缀：
+
+```text
+jpeg, jpg, png
+```
+
+图片加载时还会校验实际文件签名，只接受 PNG、JPEG 和 JPG。
 
 `onImportMedia` 只通知宿主，不会自行把 URL 加入时间线。宿主必须在回调成功前后把新 source 写入 `sources`：
 
@@ -411,30 +419,40 @@ export function OnlineMediaEditor() {
 ## 6. 媒体源 `VideoTimelineSource`
 
 ```ts
-type VideoTimelineMediaType = 'video' | 'audio';
+type VideoTimelineMediaType = 'video' | 'audio' | 'image';
 
-type VideoTimelineSource = {
+type VideoTimelineSourceBase = {
   id: string;
-  type: VideoTimelineMediaType;
   fileName: string;
   src: string;
-  waveformSrc?: string;
-  durationUs?: number;
-  width?: number;
-  height?: number;
 };
+
+type VideoTimelineSource =
+  | (VideoTimelineSourceBase & {
+      type: 'video' | 'audio';
+      durationUs?: number;
+      waveformSrc?: string;
+      width?: number;
+      height?: number;
+    })
+  | (VideoTimelineSourceBase & {
+      type: 'image';
+      durationUs?: number;
+      width?: number;
+      height?: number;
+    });
 ```
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `id` | 是 | 宿主定义的稳定唯一素材 ID，也是 source 更新与草稿重连的依据 |
-| `type` | 是 | `'video'` 或 `'audio'` |
+| `type` | 是 | `'video'`、`'audio'` 或 `'image'` |
 | `fileName` | 是 | UI 显示名称，也是“下载原始素材”默认文件名 |
 | `src` | 是 | 浏览器可加载的媒体 URL；可为远程 URL、Blob URL 等 |
-| `waveformSrc` | 否 | 仅用于音频波形解码的替代 URL；未提供时使用 `src` |
-| `durationUs` | 否 | 素材总时长，整数微秒；建议视频和音频都提供 |
-| `width` | 否 | 视频原始宽度；音频无需提供 |
-| `height` | 否 | 视频原始高度；音频无需提供 |
+| `waveformSrc` | 否 | 仅音视频 Source 可用；用于音频波形解码的替代 URL，未提供时使用 `src` |
+| `durationUs` | 否 | 音视频素材总时长；图片中表示初始展示时长，省略时默认 5 秒；单位均为整数微秒 |
+| `width` | 否 | 视频或图片原始宽度；音频无需提供 |
+| `height` | 否 | 视频或图片原始高度；音频无需提供 |
 
 推荐直接提供完整元数据：
 
@@ -454,6 +472,7 @@ const source: VideoTimelineSource = {
 
 - 视频需要解析出 `durationUs`、`width` 和 `height`；
 - 音频需要解析出 `durationUs`；
+- 图片需要解析出 `width` 和 `height`，不要求媒体时长；
 - 组件先调用可选的 `mediaLoader.loadMetadata`，信息仍不完整时再使用浏览器媒体元素读取。
 
 所有 `*Us` 字段都使用整数微秒：
@@ -622,7 +641,7 @@ function AuthorizedEditor({ token }: { token: string }) {
 
 ```ts
 type VideoTimelineDraft = {
-  schemaVersion: 11;
+  schemaVersion: 12;
   canvasSize: VideoTimelineCanvasSize;
   tracks: VideoTimelineTrack[];
   clips: VideoTimelineClip[];
@@ -668,7 +687,7 @@ type VideoTimelineTrack = {
 ```ts
 type ClipBase = {
   id: string;
-  type: 'video' | 'audio' | 'text';
+  type: 'video' | 'audio' | 'image' | 'text';
   trackId: string;
   startUs: number;
   durationUs: number;
@@ -678,7 +697,7 @@ type ClipBase = {
 ```
 
 - `id` 在工程内唯一；
-- `trackId` 必须引用同类型轨道；
+- `trackId` 必须引用兼容轨道；图片 Clip 使用视频轨道；
 - `startUs` 是非负安全整数微秒；
 - `durationUs` 是正安全整数微秒；
 - `hidden` 的 clip 仍参与工程总时长、布局、碰撞和吸附，但不参与预览、播放和导出 Track；
@@ -687,7 +706,7 @@ type ClipBase = {
 ### 8.3 音视频 Clip
 
 ```ts
-type TimelineMediaClip = ClipBase & {
+type TimelineTimedMediaClip = ClipBase & {
   type: 'video' | 'audio';
   name: string;
   sourceId: string;
@@ -718,7 +737,28 @@ type TimelineMediaClip = ClipBase & {
 - `durationUs` 是裁剪区间应用倍速后的时间线时长，不是原始素材时长；
 - 倍速时长使用绝对端点分别换算后相减，因此手写草稿时必须与组件的整数微秒取整结果一致。
 
-### 8.4 文字 Clip
+### 8.4 图片 Clip
+
+```ts
+type TimelineImageClip = ClipBase & {
+  type: 'image';
+  name: string;
+  sourceId: string;
+  src: string;
+  transform: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+};
+
+type TimelineMediaClip = TimelineTimedMediaClip | TimelineImageClip;
+```
+
+图片 Clip 与视频 Clip 使用同一类视频轨道，支持移动、裁剪、分割、复制、隐藏和画布变换。图片的 `durationUs` 是权威展示时长；图片不保存 `sourceDurationUs`、`trimStartUs`、`trimEndUs`、`speed`、`volume` 或 `waveformSrc`。
+
+### 8.5 文字 Clip
 
 ```ts
 type TimelineTextClip = ClipBase & {
@@ -774,13 +814,13 @@ type TimelineTextFontPreset = Readonly<{
 
 八款字体资源随组件库构建产物提供并按需加载。当前包只公开字体相关类型，没有公开字体预设常量或查询函数。
 
-### 8.5 完整草稿示例
+### 8.6 完整草稿示例
 
 ```ts
 import type { VideoTimelineDraft } from 'easecut-react';
 
 const draft: VideoTimelineDraft = {
-  schemaVersion: 11,
+  schemaVersion: 12,
   canvasSize: {
     width: 1920,
     height: 1080,
@@ -875,7 +915,7 @@ type CompositionExportPayload = {
 媒体导出元素：
 
 ```ts
-type CompositionExportMediaClip = {
+type CompositionExportTimedMediaClip = {
   Type: 'video' | 'audio';
   Source: string;
   TargetTime: [number, number];
@@ -886,6 +926,17 @@ type CompositionExportMediaClip = {
     | CompositionExportVolume
   >;
 };
+
+type CompositionExportImageClip = {
+  Type: 'image';
+  Source: string;
+  TargetTime: [number, number];
+  Extra: [CompositionExportTransform];
+};
+
+type CompositionExportMediaClip =
+  | CompositionExportTimedMediaClip
+  | CompositionExportImageClip;
 
 type CompositionExportTrim = {
   Type: 'trim';
@@ -916,6 +967,7 @@ type CompositionExportVolume = {
 
 - 视频：`trim -> speed -> transform -> a_volume`；
 - 音频：`a_volume -> trim -> speed`；
+- 图片：唯一的 `transform`，不包含 trim、speed 或音量过滤器；
 - 轨道静音时生成的 `a_volume.Volume` 为 `0`，但草稿内 clip 的 `volume` 不变。
 
 文字导出元素：
@@ -938,7 +990,7 @@ type CompositionExportTextClip = {
 公开类型把三个样式布尔字段声明为可选，但当前生成函数始终显式输出 `Bold`、`Italic` 和 `Underline`。文字不包含 `Source`、trim、speed 或音量过滤器。
 `FontColor` 会被规范化为大写的 `#RRGGBBAA` 字符串。
 
-前述 8.5 节草稿会生成：
+前述 8.6 节草稿会生成：
 
 ```json
 {
@@ -1083,11 +1135,17 @@ VideoTimelineClipVolume
 TimelineClipType
 TimelineClipPosition
 TimelineClipSpeed
+TimelineImageClip
 TimelineMediaClip
+TimelineMediaType
+TimelineTimedMediaClip
+TimelineTimedMediaType
 TimelineTextClip
 TimelineTextLayoutSize
 TimelineTextFontType
 TimelineTextFontPreset
+TimelineTrackType
+TimelineVisualMediaClip
 ```
 
 导出数据：
@@ -1096,8 +1154,10 @@ TimelineTextFontPreset
 CompositionExportPayload
 CompositionExportCanvas
 CompositionExportClip
+CompositionExportImageClip
 CompositionExportMediaClip
 CompositionExportTextClip
+CompositionExportTimedMediaClip
 CompositionExportTrim
 CompositionExportSpeed
 CompositionExportTransform
@@ -1119,9 +1179,14 @@ RationalFrameRate
 | `VideoTimelineClipSpeed` | `number`，有效范围 `0.1..4` |
 | `TimelineClipSpeed` | 与 `VideoTimelineClipSpeed` 相同 |
 | `VideoTimelineClipVolume` | `number`，有效范围 `0..1` |
-| `VideoTimelineMediaType` | `'video' \| 'audio'` |
-| `TimelineClipType` | `'video' \| 'audio' \| 'text'` |
-| `TimelineMediaClip` | 视频或音频 clip 的联合类型 |
+| `VideoTimelineMediaType` | `'video' \| 'audio' \| 'image'` |
+| `TimelineMediaType` | 与 `VideoTimelineMediaType` 相同 |
+| `TimelineTimedMediaType` | `'video' \| 'audio'` |
+| `TimelineTrackType` | `'video' \| 'audio' \| 'text'`；图片使用视频轨道 |
+| `TimelineClipType` | `'video' \| 'audio' \| 'image' \| 'text'` |
+| `TimelineTimedMediaClip` | 视频或音频 clip 的联合类型 |
+| `TimelineVisualMediaClip` | 视频或图片 clip 的联合类型 |
+| `TimelineMediaClip` | 视频、音频或图片 clip 的联合类型 |
 | `VideoTimelineClip` | 媒体或文字 clip 的联合类型 |
 
 ## 12. 快捷键与焦点

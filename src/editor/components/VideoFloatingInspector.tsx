@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { useTimelineStore } from '../store/timeline-store-context';
 import type {
-  TimelineMediaClip,
+  TimelineVisualMediaClip,
   TimelineClipTimingPreview,
   TimelineClipTransform,
 } from '../types';
@@ -17,7 +17,7 @@ type VideoInspectorSection = 'basic' | 'background' | 'speed';
 type TransformField = keyof TimelineClipTransform;
 
 type VideoFloatingInspectorProps = {
-  clip: TimelineMediaClip & { type: 'video' };
+  clip: TimelineVisualMediaClip;
   previewTiming: TimelineClipTimingPreview | null;
   previewTransform: {
     clipId: string;
@@ -43,12 +43,16 @@ export function VideoFloatingInspector({
       : clip.transform;
   const displayedTiming =
     previewTiming?.clipId === clip.id ? previewTiming : clip;
+  const visibleSection =
+    clip.type === 'image' && activeSection === 'speed'
+      ? 'basic'
+      : activeSection;
   const sectionTitle = {
     basic: '基本',
     background: '背景',
     speed: '变速',
-  }[activeSection];
-  const activeRailSection = isPanelOpen ? activeSection : null;
+  }[visibleSection];
+  const activeRailSection = isPanelOpen ? visibleSection : null;
 
   const selectSection = (section: VideoInspectorSection) => {
     setActiveSection(section);
@@ -88,20 +92,22 @@ export function VideoFloatingInspector({
             <Image aria-hidden='true' size={20} />
             <span>背景</span>
           </button>
-          <button
-            aria-current={activeRailSection === 'speed' ? 'page' : undefined}
-            className={`ec-floating-inspector__rail-item${activeRailSection === 'speed' ? ' ec-is-active' : ''}`}
-            onClick={() => selectSection('speed')}
-            type='button'
-          >
-            <Gauge aria-hidden='true' size={20} />
-            <span>变速</span>
-          </button>
+          {clip.type === 'video' && (
+            <button
+              aria-current={activeRailSection === 'speed' ? 'page' : undefined}
+              className={`ec-floating-inspector__rail-item${activeRailSection === 'speed' ? ' ec-is-active' : ''}`}
+              onClick={() => selectSection('speed')}
+              type='button'
+            >
+              <Gauge aria-hidden='true' size={20} />
+              <span>变速</span>
+            </button>
+          )}
         </>
       }
       sectionTitle={sectionTitle}
     >
-      {activeSection === 'basic' && (
+      {visibleSection === 'basic' && (
         <FloatingInspectorBasicPanel clip={clip} timing={displayedTiming}>
           <Separator.Root
             className='ec-floating-inspector__separator'
@@ -153,7 +159,7 @@ export function VideoFloatingInspector({
           </section>
         </FloatingInspectorBasicPanel>
       )}
-      {activeSection === 'speed' && (
+      {visibleSection === 'speed' && clip.type === 'video' && (
         <FloatingInspectorSpeedPanel clip={clip} />
       )}
     </FloatingInspectorShell>

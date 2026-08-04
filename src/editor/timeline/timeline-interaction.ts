@@ -39,6 +39,7 @@ import type {
   TimelineClipTrimEdge,
   TimelineTrack,
 } from '../types';
+import { getTimelineTrackTypeForClipType } from '../core/model';
 
 type ContentPoint = { x: number; y: number };
 
@@ -159,16 +160,17 @@ const getTrackInsertTargets = (
   tracks: TimelineTrack[],
   type: TimelineClip['type'],
 ) => {
+  const trackType = getTimelineTrackTypeForClipType(type);
   const { endIndex, startIndex } = getTimelineTrackTypeRange(
     tracks,
-    type,
+    trackType,
   );
 
   return Array.from(
     { length: endIndex - startIndex + 1 },
     (_, offset): TrackInsertTarget => ({
       index: startIndex + offset,
-      type,
+      type: trackType,
     }),
   );
 };
@@ -185,8 +187,9 @@ export const getTrackInsertTargetAtY = (
   pointerY: number,
   previousInsert: TrackInsertTarget | null = null,
 ) => {
+  const trackType = getTimelineTrackTypeForClipType(type);
   if (
-    previousInsert?.type === type &&
+    previousInsert?.type === trackType &&
     getInsertTargetDistance(tracks, previousInsert, pointerY) <=
       TRACK_INSERT_RELEASE_DISTANCE
   ) {
@@ -220,6 +223,7 @@ const getDropTarget = (
   pointerY: number,
   previousPreview: ClipDropPreview | null,
 ) => {
+  const clipTrackType = getTimelineTrackTypeForClipType(clip.type);
   const previousInsert =
     previousPreview?.target?.kind === 'insert'
       ? previousPreview.target.insert
@@ -236,7 +240,7 @@ const getDropTarget = (
 
   const hoveredTrack = getTrackAtY(tracks, pointerY);
 
-  if (hoveredTrack?.type === clip.type) {
+  if (hoveredTrack?.type === clipTrackType) {
     return {
       insertLineY: null,
       target: { kind: 'existing', trackId: hoveredTrack.id } as const,
@@ -248,27 +252,27 @@ const getDropTarget = (
     TIMELINE_RULER_HEIGHT + getTimelineTracksHeight(tracks);
   const { endIndex, startIndex } = getTimelineTrackTypeRange(
     tracks,
-    clip.type,
+    clipTrackType,
   );
   const isAboveTargetGroup =
     pointerY < TIMELINE_RULER_HEIGHT ||
     (hoveredTrack &&
-      trackTypeRank[hoveredTrack.type] > trackTypeRank[clip.type]);
+      trackTypeRank[hoveredTrack.type] > trackTypeRank[clipTrackType]);
   const isBelowTargetGroup =
     pointerY >= tracksBottom ||
     (hoveredTrack &&
-      trackTypeRank[hoveredTrack.type] < trackTypeRank[clip.type]);
+      trackTypeRank[hoveredTrack.type] < trackTypeRank[clipTrackType]);
 
   if (isAboveTargetGroup) {
     return createInsertDropTarget(tracks, {
       index: endIndex,
-      type: clip.type,
+      type: clipTrackType,
     });
   }
   if (isBelowTargetGroup) {
     return createInsertDropTarget(tracks, {
       index: startIndex,
-      type: clip.type,
+      type: clipTrackType,
     });
   }
 

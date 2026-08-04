@@ -21,6 +21,7 @@ import {
   HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   useAudioWaveformSamples,
   useFramePreviewStrip,
+  useMediaObjectUrl,
   type FramePreviewRequest,
   type FramePreviewStrip,
 } from '../media';
@@ -35,6 +36,7 @@ import {
 import {
   getTimelineClipLabel,
   isTimelineMediaClip,
+  isTimelineTimedMediaClip,
 } from '../core/model';
 import { TIMELINE_AUDIO_CLIP_HEIGHT } from '../core/timeline-layout';
 import {
@@ -83,11 +85,23 @@ const useTimelineClipPresentation = (
   visibleTimeEndUs: number,
   visibleTimeStartUs: number,
 ) => {
-  const mediaSourceDurationUs =
-    clip.type === 'text' ? 0 : clip.sourceDurationUs;
-  const mediaSpeed = clip.type === 'text' ? 1 : clip.speed;
+  const mediaSourceDurationUs = isTimelineTimedMediaClip(clip)
+    ? clip.sourceDurationUs
+    : 0;
+  const mediaSpeed = isTimelineTimedMediaClip(clip) ? clip.speed : 1;
   const mediaSrc = clip.type === 'text' ? '' : clip.src;
-  const mediaTrimStartUs = clip.type === 'text' ? 0 : clip.trimStartUs;
+  const imageSrc = clip.type === 'image' ? clip.src : '';
+  const imageInput = useMemo(
+    () => ({
+      src: imageSrc,
+      type: 'image' as const,
+    }),
+    [imageSrc],
+  );
+  const mediaTrimStartUs = isTimelineTimedMediaClip(clip)
+    ? clip.trimStartUs
+    : 0;
+  const imageUrl = useMediaObjectUrl(imageInput, clip.type === 'image');
   const previewRequest = useMemo<FramePreviewRequest | null>(() => {
     if (
       clip.type !== 'video' ||
@@ -193,8 +207,9 @@ const useTimelineClipPresentation = (
   );
 
   return {
+    imageUrl,
     previewStrip,
-    volume: isTimelineMediaClip(clip) ? clampUnit(clip.volume) : 1,
+    volume: isTimelineTimedMediaClip(clip) ? clampUnit(clip.volume) : 1,
     waveformTiles,
     waveformSamples,
   };
@@ -202,6 +217,7 @@ const useTimelineClipPresentation = (
 
 type TimelineClipVisualProps = {
   clip: TimelineClip;
+  imageUrl: string | null;
   pixelsPerSecond: number;
   previewStrip: FramePreviewStrip | null;
   waveformTiles: readonly AudioWaveformTile[];
@@ -211,6 +227,7 @@ type TimelineClipVisualProps = {
 
 function TimelineClipVisual({
   clip,
+  imageUrl,
   pixelsPerSecond,
   previewStrip,
   waveformTiles,
@@ -221,10 +238,10 @@ function TimelineClipVisual({
     previewStrip?.pixelsPerSecond ??
     getSpeedAdjustedPixelsPerSecond(
       pixelsPerSecond,
-      isTimelineMediaClip(clip) ? clip.speed : 1,
+      isTimelineTimedMediaClip(clip) ? clip.speed : 1,
     );
   const previewOffset = durationUsToWidth(
-    isTimelineMediaClip(clip) ? clip.trimStartUs : 0,
+    isTimelineTimedMediaClip(clip) ? clip.trimStartUs : 0,
     previewPixelsPerSecond,
   );
 
@@ -256,6 +273,16 @@ function TimelineClipVisual({
               />
             ))}
           </div>
+        ) : clip.type === 'image' ? (
+          <div
+            aria-hidden='true'
+            className='ec-timeline-clip__image-preview'
+            style={{
+              backgroundImage: imageUrl
+                ? `url(${JSON.stringify(imageUrl)})`
+                : undefined,
+            }}
+          />
         ) : (
           waveformTiles.map((tile) => (
             <AudioWaveformCanvas
@@ -319,6 +346,7 @@ export function TimelineClipView({
 }: TimelineClipViewProps) {
   const [contextMenuTimeUs, setContextMenuTimeUs] = useState(clip.startUs);
   const {
+    imageUrl,
     previewStrip,
     volume,
     waveformTiles,
@@ -346,7 +374,7 @@ export function TimelineClipView({
       if (event.button === 0) onTrimStart(event, clip, edge);
     };
   const isTrimmedAt = (edge: TimelineClipTrimEdge) =>
-    isTimelineMediaClip(clip) &&
+    isTimelineTimedMediaClip(clip) &&
     (
       edge === 'start'
         ? clip.trimStartUs > 0
@@ -387,6 +415,7 @@ export function TimelineClipView({
         >
           <TimelineClipVisual
             clip={clip}
+            imageUrl={imageUrl}
             pixelsPerSecond={pixelsPerSecond}
             previewStrip={previewStrip}
             waveformTiles={waveformTiles}
@@ -515,6 +544,7 @@ export function TimelineClipDragOverlay({
   width,
 }: TimelineClipDragOverlayProps) {
   const {
+    imageUrl,
     previewStrip,
     volume,
     waveformTiles,
@@ -549,6 +579,7 @@ export function TimelineClipDragOverlay({
     >
       <TimelineClipVisual
         clip={clip}
+        imageUrl={imageUrl}
         pixelsPerSecond={pixelsPerSecond}
         previewStrip={previewStrip}
         waveformTiles={waveformTiles}

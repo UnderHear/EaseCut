@@ -1,5 +1,9 @@
 import type { TrackInsertTarget } from './timeline-tracks';
-import type { TimelineClipType, TimelineTrack } from './model';
+import {
+  getTimelineTrackTypeForClipType,
+  type TimelineClipType,
+  type TimelineTrack,
+} from './model';
 
 export const TIMELINE_RULER_HEIGHT = 32;
 export const TIMELINE_TRACK_HEIGHT = 56;
@@ -14,7 +18,9 @@ export const getTimelineTrackHeight = (track: Pick<TimelineTrack, 'type'>) =>
   track.type === 'video' ? TIMELINE_TRACK_HEIGHT : TIMELINE_AUDIO_TRACK_HEIGHT;
 
 export const getTimelineClipHeight = (type: TimelineClipType) =>
-  type === 'video' ? TIMELINE_CLIP_HEIGHT : TIMELINE_AUDIO_CLIP_HEIGHT;
+  getTimelineTrackTypeForClipType(type) === 'video'
+    ? TIMELINE_CLIP_HEIGHT
+    : TIMELINE_AUDIO_CLIP_HEIGHT;
 
 export type TimelineTrackLayout<
   T extends Pick<TimelineTrack, 'type'> = Pick<TimelineTrack, 'type'>,

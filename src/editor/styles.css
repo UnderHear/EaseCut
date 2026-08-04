@@ -1219,6 +1219,10 @@
   background: linear-gradient(135deg, #5b3fa3, #7c4dca);
 }
 
+.ec-timeline-clip[data-type='image'] {
+  background: #323232;
+}
+
 .ec-timeline-clip__text-preview {
   display: flex;
   height: 100%;
@@ -1340,6 +1344,15 @@
   display: block;
   max-width: none;
   object-fit: cover;
+  pointer-events: none;
+}
+
+.ec-timeline-clip__image-preview {
+  position: absolute;
+  inset: 0;
+  background-position: left center;
+  background-repeat: repeat-x;
+  background-size: auto 100%;
   pointer-events: none;
 }
 

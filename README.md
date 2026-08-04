@@ -54,6 +54,14 @@ const sources: VideoTimelineSource[] = [
     width: 1920,
     height: 1080,
   },
+  {
+    id: 'image-1',
+    type: 'image',
+    fileName: 'cover.png',
+    src: 'https://example.com/cover.png',
+    width: 1200,
+    height: 1600,
+  },
 ];
 
 export function Editor() {
@@ -87,33 +95,46 @@ export function Editor() {
 
 ## 媒体源
 
-视频源建议提供时长、宽度和高度；音频源建议提供时长。如果缺失，编辑器会通过浏览器媒体元素异步读取。
+视频源建议提供时长、宽度和高度；音频源建议提供时长；图片源建议提供宽度和高度。如果缺失，编辑器会通过对应的浏览器媒体元素异步读取。
 
-配置 `onImportMedia` 后，在线素材弹窗会根据 URL 路径中的文件后缀自动识别视频或音频，无需用户选择类型；查询参数和签名不会影响识别。
+配置 `onImportMedia` 后，在线素材弹窗会根据 URL 路径中的文件后缀自动识别视频、音频或图片，无需用户选择类型；查询参数和签名不会影响识别。图片仅接受 PNG、JPEG 和 JPG，加载时还会校验实际文件签名，不支持 WebP、GIF 或 SVG。
 
 ```ts
-type VideoTimelineSource = {
+type VideoTimelineSourceBase = {
   id: string;
-  type: 'video' | 'audio';
   fileName: string;
   src: string;
-  waveformSrc?: string;
-  durationUs?: number;
-  width?: number;
-  height?: number;
 };
+
+type VideoTimelineSource =
+  | (VideoTimelineSourceBase & {
+      type: 'video' | 'audio';
+      durationUs?: number;
+      waveformSrc?: string;
+      width?: number;
+      height?: number;
+    })
+  | (VideoTimelineSourceBase & {
+      type: 'image';
+      // 仅表示初始展示时长，省略时默认 5 秒。
+      durationUs?: number;
+      width?: number;
+      height?: number;
+    });
 ```
 
 后续向 `sources` 加入新 ID 会将素材追加到当前时间线。移除 source 不会自动删除已编辑片段，避免宿主数据刷新导致工程内容丢失。
 
-项目草稿只接受 `schemaVersion: 11`，旧 schema 会被明确拒绝且不会自动迁移。草稿中的
+项目草稿只接受 `schemaVersion: 12`，旧 schema 会被明确拒绝且不会自动迁移。草稿中的
 `startUs`、`durationUs`、`sourceDurationUs`、`trimStartUs` 和 `trimEndUs`
 均为整数微秒；浏览器媒体元素使用的浮点秒只在媒体边界换算。
 每个 clip 必须持有布尔字段 `hidden`，新建 clip 默认为 `false`。隐藏 clip 仍参与
 时间线时长、布局、碰撞和吸附并可继续编辑，但不会被预览、播放或写入导出轨道；
 复制、粘贴和分割会保留该状态。
-每个 clip 持有独立的 `volume`（`0` 至 `1`）；轨道仅持有 `muted`，静音时不会改写
+每个音视频 clip 持有独立的 `volume`（`0` 至 `1`）；轨道仅持有 `muted`，静音时不会改写
 clip 的已保存音量。
+
+图片 Clip 与视频 Clip 混排在视频轨，支持选择、移动、吸附、分割、复制、隐藏、画布变换和撤销重做。图片默认展示 5 秒，source 的 `durationUs` 可覆盖首次创建时长；创建后由 clip 的 `durationUs` 作为权威状态。图片两侧裁剪直接改变时间线区间，可像文字 Clip 一样延长，不保存 `sourceDurationUs`、`trimStartUs`、`trimEndUs`、`speed`、`volume` 或 `waveformSrc`。视频轨静音不会隐藏图片。
 
 工具栏“添加标题”会从当前播放头创建一个默认 5 秒的文字 Clip；即使超出主视频结尾，也会延长项目时长。文字 Clip 保存标题内容、`FontType`、字号、`#RRGGBBAA` 颜色、`bold`、`italic`、`underline`、可编辑的 `position` 和系统测量得到的 `layoutSize`，不会保存虚假的媒体 Source。默认样式为思源黑体、120 px、白色，粗体、斜体和下划线均关闭，并以文字自然尺寸放置在画布中心。文字始终保持单行，不能手动调整宽高；修改内容、字体、字号、粗体或斜体时会重新测量并保持中心点不变，下划线不改变自然尺寸，超出画布的部分只由组合画布边界裁切。内置字体没有独立样式文件时，粗体和斜体由浏览器合成。
 
@@ -151,6 +172,8 @@ clip 的已保存音量。
 
 同一编辑器实例会复用 Blob、Object URL、波形、帧预览和元数据缓存；卸载时会中止未完成请求并释放 Object URL。不同编辑器实例之间不会共享这些资源。
 
+图片通过运行时管理的 Object URL 和 `HTMLImageElement` 解码尺寸，在预览 Canvas 中作为静态视觉层绘制；不会进入视频 seek、音频图或帧预览 Worker。
+
 时间线帧预览在独立 Worker 中使用 Mediabunny `CanvasSink.canvasesAtTimestamps()` 按当前时间线密度批量解码，并将 48px 高的 OffscreenCanvas 编码为 JPEG 缩略图；任务取消或编辑器卸载时会释放 Worker、Mediabunny 输入资源和生成的 Object URL。该能力要求浏览器支持 Worker、OffscreenCanvas 和 WebCodecs。
 
 音频波形会优先在独立 Worker 中使用 Mediabunny 分段解码；每个解码样本会立即聚合为归一化峰值并释放，不会在主线程保留整段 PCM。运行时销毁会同步取消解码；容器、编码格式或浏览器能力不支持时，自动回退到 `AudioContext.decodeAudioData()`。
@@ -172,8 +195,10 @@ Mediabunny 负责媒体解封装、缩略图和波形解码，不承担实时音
 - 每个音视频导出元素都会包含 `{ Type: 'speed', Speed }`。视频过滤器顺序为
   `trim → speed → transform → a_volume`，音频过滤器顺序为
   `a_volume → trim → speed`。
+- 图片导出元素包含 `Type: 'image'`、`Source`、`TargetTime` 和唯一的
+  `transform` Extra，不包含 `trim`、`speed` 或 `a_volume`。
 - 文字导出元素包含 `Type`、`TargetTime`、`Text`、`FontType`、`FontSize`、`FontColor`、`Bold`、`Italic`、`Underline` 以及唯一的 `transform` Extra；三个样式字段始终显式输出布尔值，其中 Width、Height 来自自然尺寸测量，不包含 `AlignType` 或媒体专属的 `Source`、`trim`、`speed`、`a_volume`。
-- 草稿只读取当前 schema v11，不迁移旧版本。
+- 草稿只读取当前 schema v12，不迁移旧版本。
 
 ## 快捷键
 

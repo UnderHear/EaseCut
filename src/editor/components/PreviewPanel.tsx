@@ -14,7 +14,10 @@ import {
   createCompositionSnapshot,
   getCompositionActiveClips,
 } from '../core/composition';
-import { getTimelineClipTransform } from '../core/model';
+import {
+  getTimelineClipTransform,
+  isTimelineTimedMediaClip,
+} from '../core/model';
 import { getTimelineTextFontPreset } from '../core/text-fonts';
 import { secondsToMicroseconds } from '../core/time';
 import {
@@ -30,8 +33,10 @@ import type {
   TimelineClip,
   TimelineClipTimingPreview,
   TimelineClipTransform,
+  TimelineImageClip,
   TimelineMediaClip,
   TimelineTextClip,
+  TimelineTimedMediaClip,
 } from '../types';
 import {
   createTextCanvasFont,
@@ -198,7 +203,7 @@ const getPreviewMediaClips = (
 };
 
 type PreviewMediaElementProps = {
-  clip: TimelineMediaClip;
+  clip: TimelineTimedMediaClip;
   isActive: boolean;
   muted: boolean;
   onElementChange: (
@@ -206,7 +211,7 @@ type PreviewMediaElementProps = {
     element: HTMLMediaElement | null,
   ) => void;
   onLoadedMetadata: (
-    clip: TimelineMediaClip,
+    clip: TimelineTimedMediaClip,
     isActive: boolean,
     element: HTMLMediaElement,
   ) => void;
@@ -244,6 +249,46 @@ function PreviewMediaElement({
     <video {...commonProps} ref={elementRef} playsInline />
   ) : (
     <audio {...commonProps} ref={elementRef} />
+  );
+}
+
+type PreviewImageElementProps = {
+  clip: TimelineImageClip;
+  onDecodeError: () => void;
+  onElementChange: (
+    clipId: string,
+    element: HTMLImageElement | null,
+  ) => void;
+  onVisualChange: () => void;
+  src: string | undefined;
+};
+
+function PreviewImageElement({
+  clip,
+  onDecodeError,
+  onElementChange,
+  onVisualChange,
+  src,
+}: PreviewImageElementProps) {
+  const elementRef = useCallback(
+    (element: HTMLImageElement | null) => {
+      onElementChange(clip.id, element);
+    },
+    [clip.id, onElementChange],
+  );
+
+  return (
+    <img
+      ref={elementRef}
+      alt=''
+      decoding='async'
+      onError={() => {
+        onDecodeError();
+        onVisualChange();
+      }}
+      onLoad={onVisualChange}
+      src={src}
+    />
   );
 }
 
@@ -615,6 +660,7 @@ export function PreviewPanel({
     new PreviewPlaybackController(),
   );
   const mediaElementsRef = useRef(new Map<string, HTMLMediaElement>());
+  const imageElementsRef = useRef(new Map<string, HTMLImageElement>());
   const previewObjectUrlLeasesRef = useRef(
     new Map<string, MediaObjectUrlLease>(),
   );
@@ -655,6 +701,10 @@ export function PreviewPanel({
     [activeClips],
   );
   const activeMediaClips = useMemo(
+    () => activeClips.filter(isTimelineTimedMediaClip),
+    [activeClips],
+  );
+  const activeSourceClips = useMemo(
     () => activeClips.filter((clip) => clip.type !== 'text'),
     [activeClips],
   );
@@ -677,14 +727,25 @@ export function PreviewPanel({
     () => createPreviewClipIndex(clips),
     [clips],
   );
-  const previewMediaClips = useMemo(
+  const previewSourceClips = useMemo(
     () =>
       getPreviewMediaClips(
         previewClipIndex,
-        activeMediaClips,
+        activeSourceClips,
         currentTimeUs,
       ),
-    [activeMediaClips, currentTimeUs, previewClipIndex],
+    [activeSourceClips, currentTimeUs, previewClipIndex],
+  );
+  const previewMediaClips = useMemo(
+    () => previewSourceClips.filter(isTimelineTimedMediaClip),
+    [previewSourceClips],
+  );
+  const previewImageClips = useMemo(
+    () =>
+      previewSourceClips.filter(
+        (clip): clip is TimelineImageClip => clip.type === 'image',
+      ),
+    [previewSourceClips],
   );
   const previewTextClipIndex = useMemo(
     () => createPreviewTextClipIndex(clips),
@@ -730,10 +791,15 @@ export function PreviewPanel({
       : null;
   const previewSourcesKey = useMemo(
     () =>
-      Array.from(new Set(previewMediaClips.map((clip) => clip.src))).join(
-        '\n',
-      ),
-    [previewMediaClips],
+      Array.from(
+        new Map(
+          previewSourceClips.map((clip) => [
+            clip.src,
+            `${clip.type}\t${clip.src}`,
+          ]),
+        ).values(),
+      ).join('\n'),
+    [previewSourceClips],
   );
   const activeMediaClipIdsKey = activeMediaClips
     .map((clip) => clip.id)
@@ -842,6 +908,21 @@ export function PreviewPanel({
     },
     [],
   );
+  const setClipImageElement = useCallback(
+    (clipId: string, element: HTMLImageElement | null) => {
+      if (element) {
+        imageElementsRef.current.set(clipId, element);
+      } else {
+        imageElementsRef.current.delete(clipId);
+      }
+    },
+    [],
+  );
+  const handleImageDecodeError = useCallback(() => {
+    setMediaError(
+      '图片解码失败，请确认文件未损坏且为 PNG、JPEG 或 JPG 格式',
+    );
+  }, []);
   const drawCurrentPreview = useCallback(() => {
     drawPreviewRef.current(interactionRef.current);
   }, []);
@@ -875,7 +956,7 @@ export function PreviewPanel({
   );
   const handleLoadedMediaMetadata = useCallback(
     (
-      clip: TimelineMediaClip,
+      clip: TimelineTimedMediaClip,
       isActive: boolean,
       element: HTMLMediaElement,
     ) => {
@@ -969,6 +1050,28 @@ export function PreviewPanel({
           );
           if (fontLoadStatus === 'ready') {
             renderedFontTypeByClipIdRef.current.set(clip.id, clip.fontType);
+          }
+        } else if (clip.type === 'image') {
+          const image = imageElementsRef.current.get(clip.id);
+          const objectUrl = previewObjectUrls[clip.src];
+          const previewTransform = toPreviewTransform(
+            transform,
+            previewFrame,
+          );
+          if (
+            image &&
+            objectUrl &&
+            image.complete &&
+            image.naturalHeight > 0 &&
+            image.naturalWidth > 0
+          ) {
+            context.drawImage(
+              image,
+              previewTransform.x,
+              previewTransform.y,
+              previewTransform.width,
+              previewTransform.height,
+            );
           }
         } else {
           const video = mediaElementsRef.current.get(clip.id);
@@ -1155,9 +1258,15 @@ export function PreviewPanel({
 
     let cancelled = false;
     const previewSources = previewSourcesKey
-      ? previewSourcesKey.split('\n')
+      ? previewSourcesKey.split('\n').map((entry) => {
+          const separatorIndex = entry.indexOf('\t');
+          return {
+            src: entry.slice(separatorIndex + 1),
+            type: entry.slice(0, separatorIndex) as TimelineMediaClip['type'],
+          };
+        })
       : [];
-    const requestedSources = new Set(previewSources);
+    const requestedSources = new Set(previewSources.map(({ src }) => src));
     const leases = previewObjectUrlLeasesRef.current;
 
     for (const [src, lease] of leases) {
@@ -1165,9 +1274,14 @@ export function PreviewPanel({
       lease.release();
       leases.delete(src);
     }
-    for (const src of previewSources) {
+    for (const { src, type } of previewSources) {
       if (!leases.has(src)) {
-        leases.set(src, mediaRuntime.acquireObjectUrl(src));
+        leases.set(
+          src,
+          mediaRuntime.acquireObjectUrl(
+            type === 'image' ? { src, type } : src,
+          ),
+        );
       }
     }
 
@@ -1186,7 +1300,7 @@ export function PreviewPanel({
     }
 
     Promise.all(
-      previewSources.map((src) => {
+      previewSources.map(({ src }) => {
         const lease = leases.get(src);
         if (!lease) throw new Error(`媒体 ${src} 的预览资源未初始化`);
         return lease.url.then((objectUrl) => [src, objectUrl] as const);
@@ -1631,6 +1745,16 @@ export function PreviewPanel({
                 />
               );
             })}
+            {previewImageClips.map((clip) => (
+              <PreviewImageElement
+                key={clip.id}
+                clip={clip}
+                onDecodeError={handleImageDecodeError}
+                onElementChange={setClipImageElement}
+                onVisualChange={drawCurrentPreview}
+                src={previewObjectUrls[clip.src]}
+              />
+            ))}
           </div>
         </div>
       </div>

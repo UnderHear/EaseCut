@@ -14,6 +14,7 @@ import type {
   VideoTimelineMediaMetadata,
   VideoTimelineSource,
 } from '../types';
+import type { TimelineMediaType } from '../core/model';
 import { isValidTimeUs, secondsToMicroseconds } from '../core/time';
 import { createAudioWaveformCache, isAbortError } from './audio-waveform';
 import {
@@ -28,7 +29,12 @@ import {
   type TextLayoutRequest,
 } from './text-layout-runtime';
 
-type MediaInput = string | VideoTimelineSource;
+type MediaReference = {
+  src: string;
+  type: TimelineMediaType;
+};
+
+type MediaInput = string | VideoTimelineSource | MediaReference;
 
 type BlobCacheEntry = {
   blob: Blob | null;
@@ -119,10 +125,13 @@ const isMetadataComplete = (
 ) =>
   Boolean(
     metadata &&
-      hasPositiveTimeUs(metadata.durationUs) &&
-      (source?.type === 'audio' ||
-        (hasPositiveNumber(metadata.height) &&
-          hasPositiveNumber(metadata.width))),
+      (source?.type === 'image'
+        ? hasPositiveNumber(metadata.height) &&
+          hasPositiveNumber(metadata.width)
+        : hasPositiveTimeUs(metadata.durationUs) &&
+          (source?.type === 'audio' ||
+            (hasPositiveNumber(metadata.height) &&
+              hasPositiveNumber(metadata.width)))),
   );
 
 const canReadMediaMetadata = () =>
@@ -147,6 +156,47 @@ const readBrowserMetadata = (
 ) => {
   if (!canReadMediaMetadata()) {
     return Promise.resolve<VideoTimelineMediaMetadata | null>(null);
+  }
+
+  if (source?.type === 'image') {
+    return new Promise<VideoTimelineMediaMetadata>((resolve, reject) => {
+      const image = document.createElement('img');
+      const cleanup = () => {
+        signal.removeEventListener('abort', handleAbort);
+        image.onload = null;
+        image.onerror = null;
+      };
+      const release = () => {
+        cleanup();
+        image.removeAttribute('src');
+      };
+      const handleAbort = () => {
+        release();
+        reject(createAbortError());
+      };
+      image.onload = () => {
+        const metadata = {
+          height: image.naturalHeight,
+          width: image.naturalWidth,
+        };
+        release();
+        if (
+          !hasPositiveNumber(metadata.height) ||
+          !hasPositiveNumber(metadata.width)
+        ) {
+          reject(new Error('图片尺寸无效'));
+          return;
+        }
+        resolve(metadata);
+      };
+      image.onerror = () => {
+        release();
+        reject(new Error('无法读取图片元数据'));
+      };
+      signal.addEventListener('abort', handleAbort, { once: true });
+      image.decoding = 'async';
+      image.src = objectUrl;
+    });
   }
 
   return new Promise<VideoTimelineMediaMetadata>((resolve, reject) => {
@@ -200,6 +250,41 @@ const readBrowserMetadata = (
   });
 };
 
+const validateImageBlob = async (blob: Blob) => {
+  const header = blob.slice(0, 8);
+  const arrayBuffer = await (
+    typeof header.arrayBuffer === 'function'
+      ? header.arrayBuffer()
+      : new Promise<ArrayBuffer>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error('无法读取图片文件签名'));
+          reader.onload = () => {
+            if (reader.result instanceof ArrayBuffer) {
+              resolve(reader.result);
+            } else {
+              reject(new Error('无法读取图片文件签名'));
+            }
+          };
+          reader.readAsArrayBuffer(header);
+        })
+  );
+  const signature = new Uint8Array(arrayBuffer);
+  const isPng =
+    signature.length >= 8 &&
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
+      (byte, index) => signature[index] === byte,
+    );
+  const isJpeg =
+    signature.length >= 3 &&
+    signature[0] === 0xff &&
+    signature[1] === 0xd8 &&
+    signature[2] === 0xff;
+  if (!isPng && !isJpeg) {
+    throw new TypeError('图片素材仅支持 PNG、JPEG 或 JPG 格式');
+  }
+  return blob;
+};
+
 export type MediaObjectUrlLease = {
   release(): void;
   url: Promise<string>;
@@ -242,24 +327,37 @@ export const createMediaRuntime = (
     if (disposed) return;
     for (const source of sources) {
       sourcesBySrc.set(source.src, source);
-      if (source.waveformSrc) sourcesBySrc.set(source.waveformSrc, source);
+      if ('waveformSrc' in source && source.waveformSrc) {
+        sourcesBySrc.set(source.waveformSrc, source);
+      }
     }
   };
   setSources(initialSources);
 
   const resolveInput = (input: MediaInput) => {
     if (typeof input === 'string') {
-      return { source: sourcesBySrc.get(input), src: input };
+      const source = sourcesBySrc.get(input);
+      return { source, src: input, type: source?.type };
     }
-    sourcesBySrc.set(input.src, input);
-    if (input.waveformSrc) sourcesBySrc.set(input.waveformSrc, input);
-    return { source: input, src: input.src };
+    if ('fileName' in input) {
+      sourcesBySrc.set(input.src, input);
+      if ('waveformSrc' in input && input.waveformSrc) {
+        sourcesBySrc.set(input.waveformSrc, input);
+      }
+      return { source: input, src: input.src, type: input.type };
+    }
+    return {
+      source: sourcesBySrc.get(input.src),
+      src: input.src,
+      type: input.type,
+    };
   };
 
   const startBlobLoad = (
     source: VideoTimelineSource | undefined,
     src: string,
     persistent: boolean,
+    type: TimelineMediaType | undefined,
   ) => {
     const controller = new AbortController();
     const entry: BlobCacheEntry = {
@@ -278,6 +376,7 @@ export const createMediaRuntime = (
           ...(source ? { source } : {}),
         });
       })
+      .then((blob) => (type === 'image' ? validateImageBlob(blob) : blob))
       .then((blob) => {
         if (disposed || controller.signal.aborted) throw createAbortError();
         entry.blob = blob;
@@ -295,8 +394,8 @@ export const createMediaRuntime = (
 
   const getBlob = (input: MediaInput): Promise<Blob> => {
     if (disposed) return Promise.reject(createAbortError());
-    const { source, src } = resolveInput(input);
-    const entry = blobs.get(src) ?? startBlobLoad(source, src, true);
+    const { source, src, type } = resolveInput(input);
+    const entry = blobs.get(src) ?? startBlobLoad(source, src, true, type);
     entry.persistent = true;
     if (entry.status === 'ready') {
       return entry.blob
@@ -313,8 +412,8 @@ export const createMediaRuntime = (
         release: () => undefined,
       };
     }
-    const { source, src } = resolveInput(input);
-    const entry = blobs.get(src) ?? startBlobLoad(source, src, false);
+    const { source, src, type } = resolveInput(input);
+    const entry = blobs.get(src) ?? startBlobLoad(source, src, false, type);
     entry.transientConsumers += 1;
     let released = false;
 

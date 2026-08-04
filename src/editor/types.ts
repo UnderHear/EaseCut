@@ -17,8 +17,12 @@ export type {
   TimelineClip,
   TimelineClipType,
   TimelineMediaClip,
+  TimelineTimedMediaType,
   TimelineAudioClip,
+  TimelineImageClip,
+  TimelineTimedMediaClip,
   TimelineVideoClip,
+  TimelineVisualMediaClip,
   TimelineClipPosition,
   TimelineClipSpeed,
   TimelineClipTimingPreview,
@@ -29,6 +33,7 @@ export type {
   TimelineTextLayoutSize,
   TimelineSnapshot,
   TimelineTrack,
+  TimelineTrackType,
   TimelineClipVolume,
 } from './core/model';
 
@@ -47,16 +52,30 @@ export type VideoTimelineClip = TimelineClip;
 export type VideoTimelineClipDraft = TimelineClip;
 export type VideoTimelineCanvasSize = TimelineCanvasSize;
 
-export type VideoTimelineSource = {
-  durationUs?: number;
+type VideoTimelineSourceBase = {
   fileName: string;
-  height?: number;
   id: string;
   src: string;
-  type: VideoTimelineMediaType;
+};
+
+type VideoTimelineTimedMediaSource = VideoTimelineSourceBase & {
+  durationUs?: number;
+  height?: number;
+  type: Exclude<VideoTimelineMediaType, 'image'>;
   waveformSrc?: string;
   width?: number;
 };
+
+type VideoTimelineImageSource = VideoTimelineSourceBase & {
+  durationUs?: number;
+  height?: number;
+  type: 'image';
+  width?: number;
+};
+
+export type VideoTimelineSource =
+  | VideoTimelineTimedMediaSource
+  | VideoTimelineImageSource;
 
 export type VideoTimelineDraft = TimelineProject;
 
@@ -83,12 +102,14 @@ export interface VideoTimelineMediaLoader {
 export type {
   CompositionExportCanvas,
   CompositionExportClip,
+  CompositionExportImageClip,
   CompositionExportMediaClip,
   CompositionExportPayload,
   CompositionExportSpeed,
   CompositionExportTransform,
   CompositionExportTrim,
   CompositionExportTextClip,
+  CompositionExportTimedMediaClip,
   CompositionExportVolume,
 } from './core/model';
 

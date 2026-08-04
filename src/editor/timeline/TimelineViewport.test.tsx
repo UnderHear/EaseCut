@@ -11,7 +11,8 @@ import {
 import { secondsToMicroseconds } from '../core/time';
 import { MAIN_VIDEO_TRACK_ID } from '../store/timeline-store';
 import type {
-  TimelineMediaClip,
+  TimelineImageClip,
+  TimelineTimedMediaClip,
   TimelineTrack,
 } from '../types';
 import {
@@ -34,6 +35,10 @@ vi.mock('../media', async (importOriginal) => {
     ...actual,
     useAudioWaveformSamples: () => [0.2, 0.8, 0.4],
     useFramePreviewStrip: useFramePreviewStripMock,
+    useMediaObjectUrl: (
+      input: string | { src: string },
+      enabled: boolean,
+    ) => enabled ? `blob:${typeof input === 'string' ? input : input.src}` : null,
   };
 });
 
@@ -62,8 +67,8 @@ const overlayVideoTrack: TimelineTrack = {
 };
 
 const createClip = (
-  patch: Partial<TimelineMediaClip>,
-): TimelineMediaClip => {
+  patch: Partial<TimelineTimedMediaClip>,
+): TimelineTimedMediaClip => {
   const clip = {
   durationUs: secondsToMicroseconds(4),
   id: 'video-clip',
@@ -91,7 +96,7 @@ const getStoreMediaClip = (clipId: string) => {
   const clip = testTimelineStore
     .getState()
     .clips.find((candidate) => candidate.id === clipId);
-  if (!clip || clip.type === 'text') {
+  if (!clip || (clip.type !== 'video' && clip.type !== 'audio')) {
     throw new Error(`Expected media clip ${clipId}`);
   }
   return clip;
@@ -111,6 +116,20 @@ const audioClip = createClip({
   type: 'audio',
   volume: 0.5,
 });
+
+const imageClip: TimelineImageClip = {
+  durationUs: secondsToMicroseconds(5),
+  hidden: false,
+  id: 'image-clip',
+  name: 'still.png',
+  sourceId: 'image-source',
+  src: '/still.png',
+  startUs: 0,
+  trackId: MAIN_VIDEO_TRACK_ID,
+  transform: { height: 720, width: 1280, x: 0, y: 0 },
+  type: 'image',
+  zIndex: 0,
+};
 
 const createRect = ({
   height = 0,
@@ -466,6 +485,31 @@ describe('TimelineViewport DOM interactions', () => {
         ),
       ].map((lane) => lane.dataset.trackId),
     ).toEqual([textTrack.id, MAIN_VIDEO_TRACK_ID, audioTrack.id]);
+  });
+
+  it('renders a repeated image preview on a video track without audio controls', () => {
+    testTimelineStore.setState({
+      clips: [imageClip],
+      selectedClipId: imageClip.id,
+      tracks: [videoTrack],
+    });
+    renderTimeline();
+
+    const image = screen.getByRole('article', {
+      name: 'image clip: still.png',
+    });
+    const preview = image.querySelector<HTMLElement>(
+      '.ec-timeline-clip__image-preview',
+    );
+    expect(image).toHaveAttribute('data-type', 'image');
+    expect(preview?.style.backgroundImage).toContain('blob:/still.png');
+    expect(image.querySelector('.ec-timeline-clip__volume')).toBeNull();
+    expect(useFramePreviewStripMock).toHaveBeenCalledWith(null);
+    expect(
+      editorStyles.match(
+        /\.ec-timeline-clip__image-preview\s*\{([^}]*)\}/,
+      )?.[1],
+    ).toMatch(/background-repeat:\s*repeat-x;/);
   });
 
   it('requests and lays out video frames at speed-adjusted source density', () => {

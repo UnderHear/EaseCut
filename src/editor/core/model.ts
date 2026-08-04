@@ -1,5 +1,7 @@
-export type TimelineMediaType = 'video' | 'audio';
+export type TimelineMediaType = 'video' | 'audio' | 'image';
+export type TimelineTimedMediaType = Exclude<TimelineMediaType, 'image'>;
 export type TimelineClipType = TimelineMediaType | 'text';
+export type TimelineTrackType = TimelineTimedMediaType | 'text';
 export type TimelineClipTrimEdge = 'start' | 'end';
 export type TimelineClipSpeed = number;
 export type TimelineClipVolume = number;
@@ -8,7 +10,7 @@ export type TimelineTrack = {
   id: string;
   muted: boolean;
   name: string;
-  type: TimelineClipType;
+  type: TimelineTrackType;
   zIndex: number;
 };
 
@@ -38,12 +40,15 @@ type TimelineClipBase = {
   zIndex: number;
 };
 
-type TimelineMediaClipFields = TimelineClipBase & {
+type TimelineSourceClipFields = TimelineClipBase & {
   name: string;
-  sourceDurationUs: number;
   sourceId: string;
-  speed: TimelineClipSpeed;
   src: string;
+};
+
+type TimelineTimedMediaClipFields = TimelineSourceClipFields & {
+  sourceDurationUs: number;
+  speed: TimelineClipSpeed;
   trimEndUs: number;
   trimStartUs: number;
   transform: TimelineClipTransform;
@@ -51,15 +56,22 @@ type TimelineMediaClipFields = TimelineClipBase & {
   waveformSrc?: string;
 };
 
-export type TimelineVideoClip = TimelineMediaClipFields & {
+export type TimelineVideoClip = TimelineTimedMediaClipFields & {
   type: 'video';
 };
 
-export type TimelineAudioClip = TimelineMediaClipFields & {
+export type TimelineAudioClip = TimelineTimedMediaClipFields & {
   type: 'audio';
 };
 
-export type TimelineMediaClip = TimelineVideoClip | TimelineAudioClip;
+export type TimelineImageClip = TimelineSourceClipFields & {
+  transform: TimelineClipTransform;
+  type: 'image';
+};
+
+export type TimelineTimedMediaClip = TimelineVideoClip | TimelineAudioClip;
+export type TimelineVisualMediaClip = TimelineVideoClip | TimelineImageClip;
+export type TimelineMediaClip = TimelineTimedMediaClip | TimelineImageClip;
 
 export type TimelineTextClip = TimelineClipBase & {
   bold: boolean;
@@ -80,6 +92,16 @@ export const isTimelineMediaClip = (
   clip: TimelineClip,
 ): clip is TimelineMediaClip => clip.type !== 'text';
 
+export const isTimelineTimedMediaClip = (
+  clip: TimelineClip,
+): clip is TimelineTimedMediaClip =>
+  clip.type === 'video' || clip.type === 'audio';
+
+export const isTimelineVisualMediaClip = (
+  clip: TimelineClip,
+): clip is TimelineVisualMediaClip =>
+  clip.type === 'video' || clip.type === 'image';
+
 export const isTimelineTextClip = (
   clip: TimelineClip,
 ): clip is TimelineTextClip => clip.type === 'text';
@@ -99,6 +121,10 @@ export const getTimelineClipTransform = (
 export const getTimelineClipLabel = (clip: TimelineClip) =>
   clip.type === 'text' ? clip.text : clip.name;
 
+export const getTimelineTrackTypeForClipType = (
+  type: TimelineClipType,
+): TimelineTrackType => (type === 'image' ? 'video' : type);
+
 export type TimelineCanvasSize = {
   height: number;
   width: number;
@@ -107,7 +133,7 @@ export type TimelineCanvasSize = {
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
-  schemaVersion: 11;
+  schemaVersion: 12;
   /** Bottom-to-top layer order. Track zIndex equals its array index. */
   tracks: TimelineTrack[];
 };
@@ -153,7 +179,7 @@ export type CompositionExportVolume = {
   Volume: TimelineClipVolume;
 };
 
-export type CompositionExportMediaClip = {
+export type CompositionExportTimedMediaClip = {
   Extra: Array<
     | CompositionExportSpeed
     | CompositionExportTransform
@@ -162,8 +188,19 @@ export type CompositionExportMediaClip = {
   >;
   Source: string;
   TargetTime: [number, number];
-  Type: TimelineMediaType;
+  Type: TimelineTimedMediaType;
 };
+
+export type CompositionExportImageClip = {
+  Extra: [CompositionExportTransform];
+  Source: string;
+  TargetTime: [number, number];
+  Type: 'image';
+};
+
+export type CompositionExportMediaClip =
+  | CompositionExportTimedMediaClip
+  | CompositionExportImageClip;
 
 export type CompositionExportTextClip = {
   Bold?: boolean;

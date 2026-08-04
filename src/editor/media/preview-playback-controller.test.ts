@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { secondsToMicroseconds } from '../core/time';
-import type { TimelineMediaClip, TimelineTrack } from '../types';
+import type { TimelineTimedMediaClip, TimelineTrack } from '../types';
 import { PreviewPlaybackController } from './preview-playback-controller';
 
 const videoTrack: TimelineTrack = {
@@ -21,8 +21,8 @@ const overlayTrack: TimelineTrack = {
 };
 
 const createClip = (
-  patch: Partial<TimelineMediaClip> = {},
-): TimelineMediaClip => ({
+  patch: Partial<TimelineTimedMediaClip> = {},
+): TimelineTimedMediaClip => ({
   durationUs: secondsToMicroseconds(10),
   id: 'base-clip',
   name: 'base.mp4',

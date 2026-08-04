@@ -75,7 +75,7 @@ import type {
   TimelineCanvasSize,
   TimelineClip,
   TimelineClipPosition,
-  TimelineMediaClip,
+  TimelineTimedMediaClip,
   TimelineTextClip,
   TimelineClipTransform,
   TimelineSnapshot,
@@ -83,9 +83,13 @@ import type {
   VideoTimelineDraft,
   VideoTimelineSource,
 } from '../types';
-import { isTimelineMediaClip, isTimelineTextClip } from '../core/model';
+import {
+  isTimelineMediaClip,
+  isTimelineTextClip,
+  isTimelineTimedMediaClip,
+} from '../core/model';
 
-export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 11;
+export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 12;
 export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
   height: 720,
   width: 1280,
@@ -262,7 +266,7 @@ const createSourceTransform = (
   source: VideoTimelineSource,
   canvasSize: TimelineCanvasSize,
 ) => {
-  if (source.type !== 'video' || !hasSourceDimensions(source)) {
+  if (source.type === 'audio' || !hasSourceDimensions(source)) {
     return createDefaultClipTransform(canvasSize);
   }
   const scale = Math.min(
@@ -286,10 +290,10 @@ const createTrackForSource = (
   source: VideoTimelineSource,
   zIndex: number,
 ): TimelineTrack => ({
-  id: source.type === 'video' ? MAIN_VIDEO_TRACK_ID : audioTrackId(source.id),
+  id: source.type === 'audio' ? audioTrackId(source.id) : MAIN_VIDEO_TRACK_ID,
   muted: false,
-  name: source.type === 'video' ? '视频轨' : '音频轨道',
-  type: source.type,
+  name: source.type === 'audio' ? '音频轨道' : '视频轨',
+  type: source.type === 'audio' ? 'audio' : 'video',
   zIndex,
 });
 
@@ -300,27 +304,32 @@ export const createTimelineClipsFromSources = (
   let videoCursorUs = 0;
   return sources.map((source) => {
     const durationUs = getSourceDurationUs(source);
-    const clip: TimelineClip = {
+    const base = {
       durationUs,
       hidden: false,
       id: `clip-${source.id}`,
       name: source.fileName,
-      sourceDurationUs: durationUs,
       sourceId: source.id,
-      speed: DEFAULT_CLIP_SPEED,
       src: source.src,
-      startUs: source.type === 'video' ? videoCursorUs : 0,
+      startUs: source.type === 'audio' ? 0 : videoCursorUs,
       trackId:
-        source.type === 'video' ? MAIN_VIDEO_TRACK_ID : audioTrackId(source.id),
+        source.type === 'audio' ? audioTrackId(source.id) : MAIN_VIDEO_TRACK_ID,
       transform: createSourceTransform(source, canvasSize),
-      trimEndUs: durationUs,
-      trimStartUs: 0,
-      type: source.type,
-      volume: 1,
-      ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
       zIndex: 0,
     };
-    if (source.type === 'video') videoCursorUs += durationUs;
+    const clip: TimelineClip = source.type === 'image'
+      ? { ...base, type: 'image' }
+      : {
+          ...base,
+          sourceDurationUs: durationUs,
+          speed: DEFAULT_CLIP_SPEED,
+          trimEndUs: durationUs,
+          trimStartUs: 0,
+          type: source.type,
+          volume: 1,
+          ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
+        };
+    if (source.type !== 'audio') videoCursorUs += durationUs;
     return clip;
   });
 };
@@ -470,19 +479,32 @@ function mergeSources(
     if (!isTimelineMediaClip(clip)) return clip;
     const source = sourceById.get(clip.sourceId);
     if (!source || source.type !== clip.type) return clip;
+    const shouldFitSource =
+      source.type !== 'audio' &&
+      hasSourceDimensions(source) &&
+      clip.transform.height === state.canvasSize.height &&
+      clip.transform.width === state.canvasSize.width &&
+      clip.transform.x === 0 &&
+      clip.transform.y === 0;
+    if (clip.type === 'image') {
+      return source.type === 'image'
+        ? {
+            ...clip,
+            name: source.fileName,
+            src: source.src,
+            ...(shouldFitSource
+              ? { transform: createSourceTransform(source, state.canvasSize) }
+              : {}),
+          }
+        : clip;
+    }
+    if (source.type === 'image') return clip;
     const durationUs = getSourceDurationUs(source);
     const resolvedClipDurationUs = getSpeedAdjustedDurationUs(
       0,
       durationUs,
       clip.speed,
     );
-    const shouldFitSource =
-      source.type === 'video' &&
-      hasSourceDimensions(source) &&
-      clip.transform.height === state.canvasSize.height &&
-      clip.transform.width === state.canvasSize.width &&
-      clip.transform.x === 0 &&
-      clip.transform.y === 0;
     const isUntouchedFallback =
       clip.sourceDurationUs === DEFAULT_VIDEO_SOURCE_DURATION_US &&
       clip.durationUs ===
@@ -558,26 +580,33 @@ function mergeSources(
     if (!tracks.some((candidate) => candidate.id === track.id)) {
       tracks.push(track);
     }
-    clips.push({
+    const base = {
       durationUs,
       hidden: false,
       id: `clip-${source.id}`,
       name: source.fileName,
-      sourceDurationUs: durationUs,
       sourceId: source.id,
-      speed: DEFAULT_CLIP_SPEED,
       src: source.src,
-      startUs: source.type === 'video' ? videoCursorUs : 0,
+      startUs: source.type === 'audio' ? 0 : videoCursorUs,
       trackId: track.id,
       transform: createSourceTransform(source, state.canvasSize),
-      trimEndUs: durationUs,
-      trimStartUs: 0,
-      type: source.type,
-      volume: 1,
-      ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
       zIndex: 0,
-    });
-    if (source.type === 'video') videoCursorUs += durationUs;
+    };
+    clips.push(
+      source.type === 'image'
+        ? { ...base, type: 'image' }
+        : {
+            ...base,
+            sourceDurationUs: durationUs,
+            speed: DEFAULT_CLIP_SPEED,
+            trimEndUs: durationUs,
+            trimStartUs: 0,
+            type: source.type,
+            volume: 1,
+            ...(source.waveformSrc ? { waveformSrc: source.waveformSrc } : {}),
+          },
+    );
+    if (source.type !== 'audio') videoCursorUs += durationUs;
     changed = true;
   }
 
@@ -595,8 +624,14 @@ export const createTimelineStore = (
   params?: ResetTimelineParams,
 ): TimelineStoreApi => {
   let nextContinuousEditToken = 1;
+  const initialState = createInitialState(params);
   const knownSourceIds = new Set(
-    (params?.sources ?? []).map((source) => source.id),
+    [
+      ...(params?.sources ?? []).map((source) => source.id),
+      ...initialState.clips.flatMap((clip) =>
+        isTimelineMediaClip(clip) ? [clip.sourceId] : [],
+      ),
+    ],
   );
 
   return createStore<TimelineStore>()((set, get) => {
@@ -606,7 +641,7 @@ export const createTimelineStore = (
     };
 
     return {
-      ...createInitialState(params),
+      ...initialState,
 
       addTextClip: ({ layoutSize, startUs, text }) => {
         const state = get();
@@ -689,8 +724,8 @@ export const createTimelineStore = (
       commitClipVolume: (clipId, previousVolume, volume) => {
         const state = get();
         const target = state.clips.find(
-          (clip): clip is TimelineMediaClip =>
-            clip.id === clipId && isTimelineMediaClip(clip),
+          (clip): clip is TimelineTimedMediaClip =>
+            clip.id === clipId && isTimelineTimedMediaClip(clip),
         );
         if (!target) return;
         const nextVolume = normalizeClipVolume(volume);
@@ -703,14 +738,14 @@ export const createTimelineStore = (
             {
               ...createSnapshot(state),
               clips: state.clips.map((clip) =>
-                clip.id === clipId && isTimelineMediaClip(clip)
+                clip.id === clipId && isTimelineTimedMediaClip(clip)
                   ? { ...clip, volume: previous }
                   : clip,
               ),
             },
           ],
           clips: state.clips.map((clip) =>
-            clip.id === clipId && isTimelineMediaClip(clip)
+            clip.id === clipId && isTimelineTimedMediaClip(clip)
               ? { ...clip, volume: nextVolume }
               : clip,
           ),
@@ -831,12 +866,18 @@ export const createTimelineStore = (
       },
 
       resetTimeline: (nextParams) => {
+        const nextState = createInitialState(nextParams);
         knownSourceIds.clear();
         for (const source of nextParams?.sources ?? []) {
           knownSourceIds.add(source.id);
         }
+        for (const clip of nextState.clips) {
+          if (isTimelineMediaClip(clip)) {
+            knownSourceIds.add(clip.sourceId);
+          }
+        }
         set({
-          ...createInitialState(nextParams),
+          ...nextState,
           layoutRevision: get().layoutRevision + 1,
         });
       },
@@ -886,7 +927,7 @@ export const createTimelineStore = (
       setClipVolume: (clipId, volume) =>
         set((state) => ({
           clips: state.clips.map((clip) =>
-            clip.id === clipId && isTimelineMediaClip(clip)
+            clip.id === clipId && isTimelineTimedMediaClip(clip)
               ? { ...clip, volume: normalizeClipVolume(volume) }
               : clip,
           ),
@@ -1008,7 +1049,7 @@ export const selectHasAudibleMedia = (
   const tracksById = new Map(state.tracks.map((track) => [track.id, track]));
   return state.clips.some(
     (clip) =>
-      isTimelineMediaClip(clip) &&
+      isTimelineTimedMediaClip(clip) &&
       !tracksById.get(clip.trackId)?.muted &&
       clip.volume > 0,
   );

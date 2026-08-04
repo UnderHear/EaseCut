@@ -38,7 +38,11 @@ const getSourceFileName = (
   const lastPathSegment = pathSegments.at(-1);
   if (lastPathSegment) return decodeURIComponent(lastPathSegment);
 
-  return type === 'audio' ? '在线音频' : '在线视频';
+  return type === 'audio'
+    ? '在线音频'
+    : type === 'image'
+      ? '在线图片'
+      : '在线视频';
 };
 
 export function DemoApp() {

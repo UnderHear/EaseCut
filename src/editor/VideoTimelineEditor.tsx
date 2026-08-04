@@ -51,9 +51,11 @@ const isPositiveNumber = (value: number | undefined) =>
 const hasCompleteSourceMetadata = (source: VideoTimelineSource) =>
   source.type === 'audio'
     ? isPositiveNumber(source.durationUs)
-    : isPositiveNumber(source.durationUs) &&
-      isPositiveNumber(source.height) &&
-      isPositiveNumber(source.width);
+    : source.type === 'image'
+      ? isPositiveNumber(source.height) && isPositiveNumber(source.width)
+      : isPositiveNumber(source.durationUs) &&
+        isPositiveNumber(source.height) &&
+        isPositiveNumber(source.width);
 
 const VIDEO_FILE_EXTENSIONS = new Set([
   '3g2',
@@ -87,6 +89,8 @@ const AUDIO_FILE_EXTENSIONS = new Set([
   'wma',
 ]);
 
+const IMAGE_FILE_EXTENSIONS = new Set(['jpeg', 'jpg', 'png']);
+
 const detectOnlineMediaType = (url: URL): VideoTimelineMediaType => {
   const fileName = url.pathname.split('/').at(-1)?.toLowerCase() ?? '';
   const extension = fileName.match(/\.([a-z0-9]+)$/)?.[1];
@@ -96,6 +100,7 @@ const detectOnlineMediaType = (url: URL): VideoTimelineMediaType => {
   }
   if (VIDEO_FILE_EXTENSIONS.has(extension)) return 'video';
   if (AUDIO_FILE_EXTENSIONS.has(extension)) return 'audio';
+  if (IMAGE_FILE_EXTENSIONS.has(extension)) return 'image';
 
   throw new Error(`不支持的素材文件后缀：.${extension}。`);
 };
@@ -265,15 +270,24 @@ function VideoTimelineEditorView({
       }
     }
 
-    const reportMetadataFailure = (sourceId: string) => {
+    const reportMetadataFailure = (
+      source: VideoTimelineSource,
+      error?: unknown,
+    ) => {
       if (
         cancelled ||
-        notifiedMetadataFailureSourceIdsRef.current.has(sourceId)
+        notifiedMetadataFailureSourceIdsRef.current.has(source.id)
       ) {
         return;
       }
-      notifiedMetadataFailureSourceIdsRef.current.add(sourceId);
-      setMediaError('该素材上传失败');
+      notifiedMetadataFailureSourceIdsRef.current.add(source.id);
+      setMediaError(
+        source.type === 'image'
+          ? error instanceof Error
+            ? `图片素材加载失败：${error.message}`
+            : '图片素材尺寸无效，无法导入'
+          : '该素材上传失败',
+      );
     };
 
     for (const source of sources) {
@@ -286,7 +300,7 @@ function VideoTimelineEditorView({
         (metadata) => {
           if (cancelled) return;
           if (!metadata) {
-            reportMetadataFailure(source.id);
+            reportMetadataFailure(source);
             return;
           }
           const resolvedSource = {
@@ -305,12 +319,12 @@ function VideoTimelineEditorView({
               : {}),
           };
           if (!hasCompleteSourceMetadata(resolvedSource)) {
-            reportMetadataFailure(source.id);
+            reportMetadataFailure(source);
             return;
           }
           syncSources([resolvedSource]);
         },
-        () => reportMetadataFailure(source.id),
+        (error: unknown) => reportMetadataFailure(source, error),
       );
     }
 
@@ -571,7 +585,7 @@ function VideoTimelineEditorView({
   const downloadOriginalClip = async (clip: TimelineClip) => {
     if (!isTimelineMediaClip(clip)) return;
     try {
-      const blob = await runtime.getBlob(clip.src);
+      const blob = await runtime.getBlob({ src: clip.src, type: clip.type });
       downloadBlob(clip.name, blob);
     } catch (error) {
       setMediaError(

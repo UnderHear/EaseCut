@@ -34,7 +34,7 @@ describe('timeline store text clips', () => {
       type: 'text',
       underline: false,
     });
-    expect(createVideoTimelineDraft(store.getState()).schemaVersion).toBe(11);
+    expect(createVideoTimelineDraft(store.getState()).schemaVersion).toBe(12);
 
     store.getState().undo();
     expect(store.getState().clips).toEqual([]);

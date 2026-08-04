@@ -37,6 +37,33 @@ const source: VideoTimelineSource = {
   type: 'video',
 };
 
+const imageSource: VideoTimelineSource = {
+  fileName: 'still.png',
+  id: 'image-source-1',
+  src: '/still.png',
+  type: 'image',
+};
+
+const pngBlob = () =>
+  new Blob([
+    new Uint8Array([
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a,
+      0x00,
+    ]),
+  ], { type: 'image/png' });
+
+const jpegBlob = () =>
+  new Blob([
+    new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00]),
+  ], { type: 'image/jpeg' });
+
 const createTestFramePreviewSource = (): MediabunnyFramePreviewSource => ({
   dispose: vi.fn(),
   async extract(
@@ -204,6 +231,83 @@ describe('MediaRuntime', () => {
       source,
     });
     expect(secondLoader.loadBlob).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['PNG', pngBlob],
+    ['JPEG', jpegBlob],
+  ])('accepts %s image signatures and reuses the managed object URL', async (_label, createBlob) => {
+    const blob = createBlob();
+    const loader: VideoTimelineMediaLoader = {
+      loadBlob: vi.fn().mockResolvedValue(blob),
+    };
+    const runtime = createMediaRuntime(loader, [imageSource]);
+    const lease = runtime.acquireObjectUrl(imageSource.src);
+
+    await expect(lease.url).resolves.toBe('blob:easecut-1');
+    await expect(runtime.getBlob(imageSource.src)).resolves.toBe(blob);
+    expect(loader.loadBlob).toHaveBeenCalledOnce();
+
+    lease.release();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:easecut-1');
+    runtime.dispose();
+  });
+
+  it('rejects image data that is not PNG or JPEG', async () => {
+    const loader: VideoTimelineMediaLoader = {
+      loadBlob: vi
+        .fn()
+        .mockResolvedValue(
+          new Blob(['RIFFxxxxWEBP'], { type: 'image/webp' }),
+        ),
+    };
+    const runtime = createMediaRuntime(loader, [imageSource]);
+
+    await expect(runtime.getBlob(imageSource.src)).rejects.toThrow(
+      '图片素材仅支持 PNG、JPEG 或 JPG 格式',
+    );
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('decodes image dimensions without requiring a media duration', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
+      if (tagName !== 'img') return originalCreateElement(tagName);
+      let src = '';
+      const image = {
+        decoding: 'auto',
+        naturalHeight: 900,
+        naturalWidth: 600,
+        onerror: null as ((event: Event) => void) | null,
+        onload: null as ((event: Event) => void) | null,
+        removeAttribute: vi.fn((name: string) => {
+          if (name === 'src') src = '';
+        }),
+        get src() {
+          return src;
+        },
+        set src(value: string) {
+          src = value;
+          if (value) {
+            queueMicrotask(() => image.onload?.(new Event('load')));
+          }
+        },
+      };
+      return image as unknown as HTMLImageElement;
+    });
+    const loader: VideoTimelineMediaLoader = {
+      loadBlob: vi.fn().mockResolvedValue(pngBlob()),
+    };
+    const runtime = createMediaRuntime(loader, [imageSource]);
+
+    await expect(runtime.getMetadata(imageSource.src)).resolves.toEqual({
+      height: 900,
+      width: 600,
+    });
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:easecut-1');
+    runtime.dispose();
   });
 
   it('drops a failed blob entry so the source can be retried', async () => {

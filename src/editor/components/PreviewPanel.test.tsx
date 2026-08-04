@@ -14,6 +14,7 @@ import {
   MAIN_VIDEO_TRACK_ID,
 } from '../store/timeline-store';
 import type {
+  TimelineImageClip,
   TimelineMediaClip,
   TimelineTextClip,
   TimelineTextLayoutSize,
@@ -35,10 +36,15 @@ const {
   releaseObjectUrlMock,
 } = vi.hoisted(() => {
   const releaseObjectUrl = vi.fn();
-  const acquireObjectUrl = vi.fn((src: string) => ({
-    release: () => releaseObjectUrl(src),
-    url: Promise.resolve(`blob:${src}`),
-  }));
+  const acquireObjectUrl = vi.fn(
+    (input: string | { src: string; type: 'image' }) => {
+      const src = typeof input === 'string' ? input : input.src;
+      return {
+        release: () => releaseObjectUrl(src),
+        url: Promise.resolve(`blob:${src}`),
+      };
+    },
+  );
   const measureTextLayout = vi.fn<
     (request: TextLayoutRequest) => Promise<TimelineTextLayoutSize>
   >(() => Promise.resolve({ height: 120, width: 800 }));
@@ -124,6 +130,20 @@ const audioTrack: TimelineTrack = {
   type: 'audio',
   muted: false,
   zIndex: 2,
+};
+
+const imageClip: TimelineImageClip = {
+  durationUs: secondsToMicroseconds(5),
+  hidden: false,
+  id: 'clip-image',
+  name: 'still.png',
+  sourceId: 'source-image',
+  src: '/still.png',
+  startUs: 0,
+  trackId: overlayTrack.id,
+  transform: { height: 180, width: 320, x: 100, y: 80 },
+  type: 'image',
+  zIndex: 0,
 };
 
 const createClip = (
@@ -520,6 +540,84 @@ describe('PreviewPanel', () => {
 
     expect(mainDrawIndex).toBeGreaterThanOrEqual(0);
     expect(overlayDrawIndex).toBeGreaterThan(mainDrawIndex);
+  });
+
+  it('draws image clips as static visual layers without media playback elements', async () => {
+    testTimelineStore.setState({
+      clips: [
+        createClip({
+          id: 'clip-main',
+          src: '/main.mp4',
+          trackId: MAIN_VIDEO_TRACK_ID,
+        }),
+        imageClip,
+      ],
+      selectedClipId: imageClip.id,
+      tracks: [mainTrack, overlayTrack],
+    });
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() =>
+      expect(acquireObjectUrlMock).toHaveBeenCalledWith({
+        src: '/still.png',
+        type: 'image',
+      }),
+    );
+    const image = document.querySelector(
+      '.ec-preview-panel__media img',
+    ) as HTMLImageElement | null;
+    if (!image) throw new Error('Expected preview image element');
+    Object.defineProperty(image, 'complete', {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(image, 'naturalHeight', {
+      configurable: true,
+      value: 720,
+    });
+    Object.defineProperty(image, 'naturalWidth', {
+      configurable: true,
+      value: 1280,
+    });
+    drawImageMock.mockClear();
+    fireEvent.load(image);
+
+    expect(drawImageMock).toHaveBeenCalledWith(
+      image,
+      100,
+      80,
+      320,
+      180,
+    );
+    expect(document.querySelectorAll('.ec-preview-panel__media video')).toHaveLength(1);
+    expect(document.querySelectorAll('.ec-preview-panel__media audio')).toHaveLength(0);
+  });
+
+  it('reports an image element decode failure instead of leaving a silent blank frame', async () => {
+    testTimelineStore.setState({
+      clips: [imageClip],
+      selectedClipId: imageClip.id,
+      tracks: [mainTrack, overlayTrack],
+    });
+    renderWithEditorProviders(
+      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+    );
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('.ec-preview-panel__media img'),
+      ).not.toBeNull(),
+    );
+    const image = document.querySelector(
+      '.ec-preview-panel__media img',
+    ) as HTMLImageElement;
+    fireEvent.error(image);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '无法加载部分媒体：图片解码失败，请确认文件未损坏且为 PNG、JPEG 或 JPG 格式',
+    );
   });
 
   it('syncs preview media volume with each track mute state', async () => {

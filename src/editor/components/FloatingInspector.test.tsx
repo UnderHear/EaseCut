@@ -56,6 +56,20 @@ const videoClip: TimelineClip = {
   zIndex: 0,
 };
 
+const imageClip: TimelineClip = {
+  durationUs: secondsToMicroseconds(5),
+  hidden: false,
+  id: 'image-clip',
+  name: 'still.png',
+  sourceId: 'image-source',
+  src: '/still.png',
+  startUs: secondsToMicroseconds(2),
+  trackId: videoTrack.id,
+  transform: { height: 360, width: 640, x: 35, y: 20 },
+  type: 'image',
+  zIndex: 0,
+};
+
 const audioTrack: TimelineTrack = {
   id: 'audio-track',
   name: '音频轨道',
@@ -112,7 +126,7 @@ const textClip: TimelineClip = {
 
 const getFirstMediaClip = () => {
   const clip = testTimelineStore.getState().clips[0];
-  if (!clip || clip.type === 'text') {
+  if (!clip || (clip.type !== 'video' && clip.type !== 'audio')) {
     throw new Error('Expected the first clip to be media');
   }
   return clip;
@@ -245,6 +259,35 @@ describe('FloatingInspector', () => {
 
     expect(getFirstMediaClip().volume).toBe(0.45);
     expect(testTimelineStore.getState().past).toHaveLength(2);
+  });
+
+  it('shows image details and transform controls without speed or volume', async () => {
+    const user = userEvent.setup();
+    testTimelineStore.setState({
+      clips: [imageClip],
+      future: [],
+      past: [],
+      selectedClipId: imageClip.id,
+      tracks: [videoTrack],
+    });
+    renderWithEditorProviders(<FloatingInspector />);
+
+    expect(screen.getByText('图片')).toBeInTheDocument();
+    expect(screen.getByText('still.png')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '背景' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '变速' })).toBeNull();
+    expect(screen.queryByLabelText('片段音量')).toBeNull();
+
+    const xInput = screen.getByLabelText('X 位置');
+    await user.clear(xInput);
+    await user.type(xInput, '120');
+    await user.tab();
+    expect(testTimelineStore.getState().clips[0]).toEqual(
+      expect.objectContaining({
+        transform: expect.objectContaining({ x: 120 }),
+      }),
+    );
+    expect(testTimelineStore.getState().past).toHaveLength(1);
   });
 
   it('commits a typed fixed speed and updates the timeline duration once', async () => {

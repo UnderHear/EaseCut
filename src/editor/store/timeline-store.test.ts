@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getTrackClips } from '../core/collision';
-import { isTimelineMediaClip } from '../core/model';
+import {
+  isTimelineMediaClip,
+  isTimelineTimedMediaClip,
+} from '../core/model';
 import { secondsToMicroseconds } from '../core/time';
 import {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
@@ -12,6 +15,8 @@ import {
 } from './timeline-store';
 import type {
   TimelineClip,
+  TimelineTrack,
+  TimelineTimedMediaClip,
   TimelineVideoClip,
   VideoTimelineDraft,
   VideoTimelineSource,
@@ -21,7 +26,7 @@ const timelineStore = createTimelineStore();
 
 const existingTarget = (trackId: string) =>
   ({ kind: 'existing', trackId }) as const;
-const insertTarget = (type: TimelineClip['type'], index: number) =>
+const insertTarget = (type: TimelineTrack['type'], index: number) =>
   ({ insert: { index, type }, kind: 'insert' }) as const;
 
 const defaultClipTransform = {
@@ -68,9 +73,9 @@ const getMediaClips = (clips: TimelineClip[]) =>
 const getMediaClipById = (clips: TimelineClip[], clipId: string) => {
   const clip = clips.find(
     (candidate) =>
-      candidate.id === clipId && isTimelineMediaClip(candidate),
+      candidate.id === clipId && isTimelineTimedMediaClip(candidate),
   );
-  if (!clip || !isTimelineMediaClip(clip)) {
+  if (!clip || !isTimelineTimedMediaClip(clip)) {
     throw new Error(`Expected media clip ${clipId}`);
   }
   return clip;
@@ -307,7 +312,7 @@ describe('timelineStore video track layout', () => {
     });
     expect(timelineStore.getState().tracks).toEqual(draft.tracks);
     expect(timelineStore.getState().clips).toEqual(draft.clips);
-    expect(draft.schemaVersion).toBe(11);
+    expect(draft.schemaVersion).toBe(12);
   });
 
   it('compacts main-track gaps when restoring a saved composition draft', () => {
@@ -326,7 +331,7 @@ describe('timelineStore video track layout', () => {
             zIndex: 0,
           },
         ],
-        schemaVersion: 11,
+        schemaVersion: 12,
         tracks: [
           createVideoTrack(MAIN_VIDEO_TRACK_ID, '主视频', 0),
           createVideoTrack('video-overlay-1', '视频轨 2', 1),
@@ -1337,7 +1342,8 @@ describe('timelineStore video track layout', () => {
     ]);
     expect(
       getMediaClips(state.clips).find(
-        (clip) => clip.sourceId === 'audio-music',
+        (clip): clip is TimelineTimedMediaClip =>
+          clip.type === 'audio' && clip.sourceId === 'audio-music',
       )?.waveformSrc,
     ).toBe('http://localhost/music.mp3?download=1');
   });
@@ -1549,7 +1555,7 @@ describe('timelineStore video track layout', () => {
       getTrackClips(
         timelineStore.getState().clips,
         `${AUDIO_SOURCE_TRACK_ID_PREFIX}audio-music`,
-       ).filter(isTimelineMediaClip).map((clip) => ({
+       ).filter(isTimelineTimedMediaClip).map((clip) => ({
         durationUs: clip.durationUs,
         sourceDurationUs: clip.sourceDurationUs,
         speed: clip.speed,
@@ -1603,7 +1609,7 @@ describe('timelineStore video track layout', () => {
     expect(
       timelineStore
         .getState()
-        .clips.filter(isTimelineMediaClip).map((clip) => [
+        .clips.filter(isTimelineTimedMediaClip).map((clip) => [
           clip.durationUs,
           clip.sourceDurationUs,
           clip.trimStartUs,
@@ -1781,7 +1787,7 @@ describe('timelineStore video track layout', () => {
 
     const state = timelineStore.getState();
     const audioClip = state.clips.find((clip) => clip.id === 'clip-audio');
-    if (!audioClip || !isTimelineMediaClip(audioClip)) {
+    if (!audioClip || audioClip.type !== 'audio') {
       throw new Error('Expected audio clip');
     }
     state.setClipVolume(audioClip.id, 0.374);
@@ -2330,7 +2336,7 @@ describe('timelineStore video track layout', () => {
       getTrackClips(
         timelineStore.getState().clips,
         audioTrackId,
-      ).filter(isTimelineMediaClip).map((clip) => [
+      ).filter(isTimelineTimedMediaClip).map((clip) => [
         clip.id,
         clip.startUs,
         clip.durationUs,
@@ -2828,6 +2834,42 @@ describe('createTimelineStore source syncing', () => {
     expect(store.getState().future).toEqual([]);
   });
 
+  it('does not duplicate media already referenced by an opened or reset draft', () => {
+    const imageSource: VideoTimelineSource = {
+      durationUs: secondsToMicroseconds(5),
+      fileName: 'still.png',
+      height: 900,
+      id: 'image-source',
+      src: 'https://example.com/still.png',
+      type: 'image',
+      width: 600,
+    };
+    const draftStore = createTimelineStore({ sources: [imageSource] });
+    const draft = createVideoTimelineDraft(draftStore.getState());
+    const store = createTimelineStore({ draft });
+    const refreshedSource = {
+      ...imageSource,
+      fileName: 'renamed-still.png',
+    };
+    const expectSingleRefreshedClip = () => {
+      expect(store.getState().clips).toHaveLength(1);
+      expect(store.getState().clips[0]).toEqual(
+        expect.objectContaining({
+          id: 'clip-image-source',
+          name: refreshedSource.fileName,
+          sourceId: imageSource.id,
+        }),
+      );
+    };
+
+    store.getState().syncSources([refreshedSource]);
+    expectSingleRefreshedClip();
+
+    store.getState().resetTimeline({ draft });
+    store.getState().syncSources([refreshedSource]);
+    expectSingleRefreshedClip();
+  });
+
   it('keeps removed-source clips and does not resurrect a deleted clip', () => {
     const store = createTimelineStore({ sources: [source] });
 
@@ -2883,5 +2925,176 @@ describe('createTimelineStore source syncing', () => {
     expect(
       getMediaClips(store.getState().future[0]?.clips ?? [])[0]?.src,
     ).toBe(source.src);
+  });
+
+  it('creates image clips on the main video track without timed-media fields', () => {
+    const store = createTimelineStore({
+      sources: [
+        {
+          durationUs: secondsToMicroseconds(4),
+          fileName: 'opening.mp4',
+          height: 720,
+          id: 'video-source',
+          src: 'https://example.com/opening.mp4',
+          type: 'video',
+          width: 1280,
+        },
+        {
+          fileName: 'portrait.png',
+          height: 800,
+          id: 'image-default',
+          src: 'https://example.com/portrait.png',
+          type: 'image',
+          width: 400,
+        },
+        {
+          durationUs: secondsToMicroseconds(7),
+          fileName: 'cover.jpg',
+          height: 720,
+          id: 'image-custom',
+          src: 'https://example.com/cover.jpg',
+          type: 'image',
+          width: 1280,
+        },
+      ],
+    });
+    const images = store
+      .getState()
+      .clips.filter((clip) => clip.type === 'image');
+
+    expect(images).toHaveLength(2);
+    expect(images[0]).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(5),
+        startUs: secondsToMicroseconds(4),
+        trackId: MAIN_VIDEO_TRACK_ID,
+        transform: { height: 720, width: 360, x: 460, y: 0 },
+        type: 'image',
+      }),
+    );
+    expect(images[1]).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(7),
+        startUs: secondsToMicroseconds(9),
+        trackId: MAIN_VIDEO_TRACK_ID,
+      }),
+    );
+    for (const image of images) {
+      expect(image).not.toHaveProperty('sourceDurationUs');
+      expect(image).not.toHaveProperty('trimStartUs');
+      expect(image).not.toHaveProperty('trimEndUs');
+      expect(image).not.toHaveProperty('speed');
+      expect(image).not.toHaveProperty('volume');
+      expect(image).not.toHaveProperty('waveformSrc');
+    }
+    expect(store.getState().tracks.map((track) => track.type)).toEqual([
+      'video',
+    ]);
+  });
+
+  it('uses text-style trim and split timing after moving an image to a video track', () => {
+    const store = createTimelineStore({
+      sources: [
+        {
+          fileName: 'still.jpeg',
+          height: 720,
+          id: 'still',
+          src: 'https://example.com/still.jpeg',
+          type: 'image',
+          width: 1280,
+        },
+      ],
+    });
+    const imageId = 'clip-still';
+
+    store.getState().commitClipDrop({
+      clipId: imageId,
+      freeStartUs: secondsToMicroseconds(5),
+      insertionIndex: 0,
+      target: { insert: { index: 1, type: 'video' }, kind: 'insert' },
+    });
+    store.getState().commitClipTrim({
+      clipId: imageId,
+      edge: 'start',
+      timeUs: secondsToMicroseconds(2),
+    });
+    store.getState().commitClipTrim({
+      clipId: imageId,
+      edge: 'end',
+      timeUs: secondsToMicroseconds(12),
+    });
+
+    expect(store.getState().clips[0]).toEqual(
+      expect.objectContaining({
+        durationUs: secondsToMicroseconds(10),
+        startUs: secondsToMicroseconds(2),
+        type: 'image',
+      }),
+    );
+
+    store.getState().splitClipAtTime(imageId, secondsToMicroseconds(7));
+    expect(
+      store.getState().clips.map((clip) => [
+        clip.type,
+        clip.startUs,
+        clip.durationUs,
+      ]),
+    ).toEqual([
+      ['image', secondsToMicroseconds(2), secondsToMicroseconds(5)],
+      ['image', secondsToMicroseconds(7), secondsToMicroseconds(5)],
+    ]);
+
+    store.getState().undo();
+    expect(store.getState().clips).toHaveLength(1);
+    store.getState().redo();
+    expect(store.getState().clips).toHaveLength(2);
+  });
+
+  it('ripples following main-track clips when an image is trimmed', () => {
+    const store = createTimelineStore({
+      sources: [
+        {
+          fileName: 'still.png',
+          height: 720,
+          id: 'still',
+          src: 'https://example.com/still.png',
+          type: 'image',
+          width: 1280,
+        },
+        {
+          durationUs: secondsToMicroseconds(4),
+          fileName: 'ending.mp4',
+          height: 720,
+          id: 'ending',
+          src: 'https://example.com/ending.mp4',
+          type: 'video',
+          width: 1280,
+        },
+      ],
+    });
+
+    store.getState().commitClipTrim({
+      clipId: 'clip-still',
+      edge: 'end',
+      timeUs: secondsToMicroseconds(8),
+    });
+    expect(
+      store.getState().clips.map((clip) => [clip.id, clip.startUs, clip.durationUs]),
+    ).toEqual([
+      ['clip-still', 0, secondsToMicroseconds(8)],
+      ['clip-ending', secondsToMicroseconds(8), secondsToMicroseconds(4)],
+    ]);
+
+    store.getState().commitClipTrim({
+      clipId: 'clip-still',
+      edge: 'start',
+      timeUs: secondsToMicroseconds(2),
+    });
+    expect(
+      store.getState().clips.map((clip) => [clip.id, clip.startUs, clip.durationUs]),
+    ).toEqual([
+      ['clip-still', 0, secondsToMicroseconds(6)],
+      ['clip-ending', secondsToMicroseconds(6), secondsToMicroseconds(4)],
+    ]);
   });
 });

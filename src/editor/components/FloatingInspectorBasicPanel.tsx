@@ -2,6 +2,7 @@ import * as Separator from '@radix-ui/react-separator';
 import type { ReactNode } from 'react';
 
 import { microsecondsToSeconds } from '../core/time';
+import { isTimelineTimedMediaClip } from '../core/model';
 import { useTimelineStore } from '../store/timeline-store-context';
 import type { TimelineMediaClip, TimelineClipTimingPreview } from '../types';
 import { InputNumber } from './ui/InputNumber';
@@ -44,7 +45,13 @@ export function FloatingInspectorBasicPanel({
             </div>
             <div>
               <dt>类型</dt>
-              <dd>{clip.type === 'video' ? '视频' : '音频'}</dd>
+              <dd>
+                {clip.type === 'video'
+                  ? '视频'
+                  : clip.type === 'image'
+                    ? '图片'
+                    : '音频'}
+              </dd>
             </div>
             <div>
               <dt>开始时间</dt>
@@ -57,29 +64,31 @@ export function FloatingInspectorBasicPanel({
           </dl>
         </section>
 
-        <>
-          <Separator.Root
-            className='ec-floating-inspector__separator'
-            decorative
-            orientation='horizontal'
-          />
-          <section className='ec-floating-inspector__section'>
-            <h3>音量</h3>
-            <div className='ec-floating-inspector__number-field'>
-              <span>片段音量</span>
-              <InputNumber
-                label='片段音量'
-                max={100}
-                min={0}
-                onCommit={(value) =>
-                  commitClipVolume(clip.id, clip.volume, value / 100)
-                }
-                suffix='%'
-                value={Math.round(clip.volume * 100)}
-              />
-            </div>
-          </section>
-        </>
+        {isTimelineTimedMediaClip(clip) && (
+          <>
+            <Separator.Root
+              className='ec-floating-inspector__separator'
+              decorative
+              orientation='horizontal'
+            />
+            <section className='ec-floating-inspector__section'>
+              <h3>音量</h3>
+              <div className='ec-floating-inspector__number-field'>
+                <span>片段音量</span>
+                <InputNumber
+                  label='片段音量'
+                  max={100}
+                  min={0}
+                  onCommit={(value) =>
+                    commitClipVolume(clip.id, clip.volume, value / 100)
+                  }
+                  suffix='%'
+                  value={Math.round(clip.volume * 100)}
+                />
+              </div>
+            </section>
+          </>
+        )}
 
         {children}
       </div>

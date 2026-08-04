@@ -83,7 +83,8 @@ vi.mock('./timeline/TimelinePanel', async () => {
                 : null,
             )}
             data-first-clip-volume={
-              firstClip && firstClip.type !== 'text'
+              firstClip &&
+              (firstClip.type === 'video' || firstClip.type === 'audio')
                 ? firstClip.volume
                 : ''
             }
@@ -194,6 +195,15 @@ const audioSource: VideoTimelineSource = {
   type: 'audio',
 };
 
+const imageSource: VideoTimelineSource = {
+  fileName: 'still.png',
+  height: 900,
+  id: 'image-1',
+  src: '/still.png',
+  type: 'image',
+  width: 600,
+};
+
 const textDraft: VideoTimelineDraft = {
   canvasSize: { height: 720, width: 1280 },
   clips: [
@@ -216,7 +226,7 @@ const textDraft: VideoTimelineDraft = {
       zIndex: 0,
     },
   ],
-  schemaVersion: 11,
+  schemaVersion: 12,
   tracks: [
     {
       id: 'video-track-1',
@@ -472,6 +482,28 @@ describe('VideoTimelineEditor', () => {
     );
   });
 
+  it.each(['png', 'jpg', 'jpeg'])(
+    'detects .%s image URLs with uppercase suffixes and query parameters',
+    async (extension) => {
+      const user = userEvent.setup();
+      const onImportMedia = vi.fn<
+        (request: VideoTimelineImportRequest) => void
+      >();
+      render(
+        <VideoTimelineEditor
+          onImportMedia={onImportMedia}
+          sources={[videoSource]}
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: '导入素材' }));
+      const url = `https://cdn.example.com/still.${extension.toUpperCase()}?signature=1`;
+      await user.type(screen.getByLabelText('素材 URL'), url);
+      await user.click(screen.getByRole('button', { name: '确认导入' }));
+
+      expect(onImportMedia).toHaveBeenCalledWith({ type: 'image', url });
+    },
+  );
+
   it('rejects missing or unsupported URL file suffixes', async () => {
     const user = userEvent.setup();
     const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
@@ -490,6 +522,18 @@ describe('VideoTimelineEditor', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '不支持的素材文件后缀：.pdf。',
     );
+
+    for (const extension of ['webp', 'gif', 'svg']) {
+      await user.clear(urlInput);
+      await user.type(
+        urlInput,
+        `https://cdn.example.com/still.${extension}`,
+      );
+      await user.click(screen.getByRole('button', { name: '确认导入' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        `不支持的素材文件后缀：.${extension}。`,
+      );
+    }
 
     await user.clear(urlInput);
     await user.paste('https://cdn.example.com/no-extension');
@@ -656,6 +700,53 @@ describe('VideoTimelineEditor', () => {
     await waitFor(() =>
       expect(revokeObjectUrl).toHaveBeenCalledWith('blob:clip-original'),
     );
+  });
+
+  it('downloads an image original without adding audio properties', async () => {
+    const user = userEvent.setup();
+    const sourceBlob = new Blob([
+      new Uint8Array([
+        0x89,
+        0x50,
+        0x4e,
+        0x47,
+        0x0d,
+        0x0a,
+        0x1a,
+        0x0a,
+      ]),
+    ], { type: 'image/png' });
+    const loadBlob = vi.fn().mockResolvedValue(sourceBlob);
+    let downloadedFileName = '';
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:image-original');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(
+      function captureDownload(this: HTMLAnchorElement) {
+        downloadedFileName = this.download;
+      },
+    );
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob }}
+        sources={[imageSource]}
+      />,
+    );
+
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-first-clip-volume',
+      '',
+    );
+    await user.click(
+      screen.getByRole('button', {
+        name: '测试：下载首个片段原始素材',
+      }),
+    );
+
+    await waitFor(() => expect(downloadedFileName).toBe('still.png'));
+    expect(loadBlob).toHaveBeenCalledWith(imageSource.src, {
+      signal: expect.any(AbortSignal),
+      source: imageSource,
+    });
   });
 
   it('shows a media toast when downloading a clip original fails', async () => {
@@ -892,6 +983,30 @@ describe('VideoTimelineEditor', () => {
       '1',
     );
     expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  it('reports the concrete format error when an image signature is invalid', async () => {
+    const loadMetadata = vi
+      .fn()
+      .mockRejectedValue(
+        new TypeError('图片素材仅支持 PNG、JPEG 或 JPG 格式'),
+      );
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
+        sources={[{ ...imageSource, height: undefined, width: undefined }]}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        '图片素材加载失败：图片素材仅支持 PNG、JPEG 或 JPG 格式',
+      ),
+    ).toBeVisible();
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '0',
+    );
   });
 
   it('keeps existing clips and tracks when an incrementally added source fails', async () => {

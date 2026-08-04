@@ -13,7 +13,8 @@ import {
 import type {
   TimelineClip,
   TimelineClipPosition,
-  TimelineMediaClip,
+  TimelineTimedMediaClip,
+  TimelineVisualMediaClip,
   TimelineClipSpeed,
   TimelineClipTransform,
   TimelineClipVolume,
@@ -22,8 +23,10 @@ import type {
   TimelineTrack,
 } from './model';
 import {
-  isTimelineMediaClip,
+  getTimelineTrackTypeForClipType,
   isTimelineTextClip,
+  isTimelineTimedMediaClip,
+  isTimelineVisualMediaClip,
 } from './model';
 import {
   DEFAULT_TIMELINE_TEXT_FONT_SIZE,
@@ -161,7 +164,7 @@ const derivedId = (clips: readonly TimelineClip[], base: string) => {
 export const normalizeTimelineClips = (clips: TimelineClip[]) =>
   sortClipsByStart(
     relayoutTrackInClipSet(clips, MAIN_VIDEO_TRACK_ID).map((clip) =>
-      isTimelineMediaClip(clip)
+      isTimelineTimedMediaClip(clip)
         ? { ...clip, volume: normalizeClipVolume(clip.volume) }
         : clip,
     ),
@@ -430,17 +433,18 @@ export const moveClip = (
   if (!clip) return unchanged;
 
   const target = params.target;
+  const clipTrackType = getTimelineTrackTypeForClipType(clip.type);
   let tracks = edit.tracks;
   let targetTrack: TimelineTrack | undefined;
   if (target.kind === 'insert') {
-    if (target.insert.type !== clip.type) return unchanged;
+    if (target.insert.type !== clipTrackType) return unchanged;
     const insertion = insertTimelineTrack(tracks, target.insert);
     tracks = insertion.tracks;
     targetTrack = insertion.track;
   } else {
     targetTrack = tracks.find((track) => track.id === target.trackId);
   }
-  if (!targetTrack || targetTrack.type !== clip.type) return unchanged;
+  if (!targetTrack || targetTrack.type !== clipTrackType) return unchanged;
 
   const targetClips = getTrackClips(edit.clips, targetTrack.id);
   const movedClip = {
@@ -477,11 +481,11 @@ export const moveClip = (
 };
 
 const getTrimmedMediaClip = (
-  clip: TimelineMediaClip,
+  clip: TimelineTimedMediaClip,
   edge: 'start' | 'end',
   trimStartUs: number,
   trimEndUs: number,
-): TimelineMediaClip => {
+): TimelineTimedMediaClip => {
   const sourceDurationUs = clip.sourceDurationUs;
   const endUs = Math.min(
     sourceDurationUs,
@@ -574,7 +578,7 @@ export const getTrimmedClip = (
   timeUs: number,
 ): TimelineClip => {
   const boundaryUs = normalizeTimelineTimeUs(Math.max(0, timeUs));
-  if (isTimelineTextClip(clip)) {
+  if (isTimelineTextClip(clip) || clip.type === 'image') {
     const clipEndUs = clip.startUs + clip.durationUs;
     if (edge === 'start') {
       const startUs = Math.min(
@@ -682,7 +686,7 @@ export const getTrimmedTimelineClips = (
   if (!clip) return clips;
 
   let trimmed =
-    mediaTrim && isTimelineMediaClip(clip)
+    mediaTrim && isTimelineTimedMediaClip(clip)
       ? getTrimmedMediaClip(
           clip,
           edge,
@@ -736,7 +740,7 @@ export const trimClip = (
   const sourceBoundaryUs =
     params.edge === 'start' ? params.trimStartUs : params.trimEndUs;
   const currentSourceBoundaryUs =
-    isTimelineMediaClip(current)
+    isTimelineTimedMediaClip(current)
       ? params.edge === 'start'
         ? current.trimStartUs
         : current.trimEndUs
@@ -748,7 +752,7 @@ export const trimClip = (
   const boundary =
     params.timeUs !== undefined
       ? { edge: params.edge, timeUs: params.timeUs }
-      : isTimelineMediaClip(current) &&
+      : isTimelineTimedMediaClip(current) &&
           sourceBoundaryUs !== undefined &&
           currentSourceBoundaryUs !== null
         ? {
@@ -780,8 +784,8 @@ export const trimClip = (
     (next.startUs === current.startUs &&
       next.durationUs === current.durationUs &&
       (
-        !isTimelineMediaClip(next) ||
-        !isTimelineMediaClip(current) ||
+        !isTimelineTimedMediaClip(next) ||
+        !isTimelineTimedMediaClip(current) ||
         (
           next.trimStartUs === current.trimStartUs &&
           next.trimEndUs === current.trimEndUs
@@ -800,7 +804,7 @@ export const changeClipSpeed = (
   const clip = edit.clips.find((candidate) => candidate.id === params.clipId);
   if (
     !clip ||
-    !isTimelineMediaClip(clip) ||
+    !isTimelineTimedMediaClip(clip) ||
     !isValidClipSpeed(params.speed) ||
     params.speed === clip.speed
   ) {
@@ -819,7 +823,7 @@ export const changeClipSpeed = (
   const deltaUs = durationUs - clip.durationUs;
   let clips = edit.clips.map((candidate) => {
     if (candidate.id === clip.id) {
-      return isTimelineMediaClip(candidate)
+      return isTimelineTimedMediaClip(candidate)
         ? { ...candidate, durationUs, speed }
         : candidate;
     }
@@ -862,7 +866,7 @@ export const restoreClipTrim = (
   clipId: string,
 ): TimelineEditResult => {
   const clip = edit.clips.find((candidate) => candidate.id === clipId);
-  if (!clip || !isTimelineMediaClip(clip)) return unchanged;
+  if (!clip || !isTimelineTimedMediaClip(clip)) return unchanged;
   const start = trimClip(edit, {
     clipId,
     edge: 'start',
@@ -871,7 +875,7 @@ export const restoreClipTrim = (
   });
   const afterStart = start.changed ? start : edit;
   const current = afterStart.clips.find((candidate) => candidate.id === clipId);
-  if (!current || !isTimelineMediaClip(current)) return unchanged;
+  if (!current || !isTimelineTimedMediaClip(current)) return unchanged;
   const end = trimClip(afterStart, {
     clipId,
     edge: 'end',
@@ -929,8 +933,8 @@ export const transformMediaClip = (
   transform: TimelineClipTransform,
 ): TimelineEditResult => {
   const clip = edit.clips.find(
-    (candidate): candidate is TimelineMediaClip =>
-      candidate.id === clipId && isTimelineMediaClip(candidate),
+    (candidate): candidate is TimelineVisualMediaClip =>
+      candidate.id === clipId && isTimelineVisualMediaClip(candidate),
   );
   if (
     !clip ||
@@ -954,7 +958,7 @@ export const transformMediaClip = (
   return changedEdit(
     edit,
     edit.clips.map((candidate) =>
-      candidate.id === clipId && isTimelineMediaClip(candidate)
+      candidate.id === clipId && isTimelineVisualMediaClip(candidate)
         ? { ...candidate, transform }
         : candidate,
     ),
@@ -1025,7 +1029,7 @@ export const canSplitClipAtTime = (
 ) => {
   const clip = findClipAtTime(clips, timeUs, preferredClipId);
   if (!clip) return false;
-  if (isTimelineTextClip(clip)) {
+  if (isTimelineTextClip(clip) || clip.type === 'image') {
     return (
       timeUs - clip.startUs >= MIN_CLIP_DURATION_US &&
       clip.startUs + clip.durationUs - timeUs >= MIN_CLIP_DURATION_US
@@ -1057,7 +1061,7 @@ export const splitClip = (
   if (!clip || !canSplitClipAtTime(edit.clips, timeUs, clipId)) {
     return unchanged;
   }
-  if (isTimelineTextClip(clip)) {
+  if (isTimelineTextClip(clip) || clip.type === 'image') {
     const leftDurationUs = timeUs - clip.startUs;
     const rightDurationUs = clip.durationUs - leftDurationUs;
     const rightId = derivedId(edit.clips, `${clip.id}-split`);

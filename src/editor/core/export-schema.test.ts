@@ -51,7 +51,7 @@ describe('createCompositionExportPayload', () => {
           zIndex: 0,
         },
       ],
-      schemaVersion: 11,
+      schemaVersion: 12,
       tracks: [
         {
           id: 'audio-track',
@@ -130,7 +130,7 @@ describe('createCompositionExportPayload', () => {
         volume: id === 'z' ? 0.3 : 0.8,
         zIndex: 0,
       })),
-      schemaVersion: 11,
+      schemaVersion: 12,
       tracks: [
         {
           id: 'video',
@@ -178,7 +178,7 @@ describe('createCompositionExportPayload', () => {
         volume: 1,
         zIndex: 0,
       }],
-      schemaVersion: 11,
+      schemaVersion: 12,
       tracks: [{
         id: 'video-track',
         name: '视频轨',
@@ -259,7 +259,7 @@ describe('createCompositionExportPayload', () => {
           zIndex: 1,
         },
       ],
-      schemaVersion: 11,
+      schemaVersion: 12,
       tracks: [
         {
           id: 'text-track-1',
@@ -381,7 +381,7 @@ describe('createCompositionExportPayload', () => {
           zIndex: 0,
         },
       ],
-      schemaVersion: 11,
+      schemaVersion: 12,
       tracks: [
         { id: 'video-track', muted: false, name: '视频轨', type: 'video', zIndex: 0 },
         { id: 'audio-track', muted: false, name: '音频轨道', type: 'audio', zIndex: 1 },
@@ -448,5 +448,94 @@ describe('createCompositionExportPayload', () => {
     expect(getCompositionVideoGaps(snapshot)).toEqual([
       { endUs: 3_000_000, startUs: 0 },
     ]);
+  });
+
+  it('exports image clips with only transform metadata and visual coverage', () => {
+    const snapshot = createCompositionSnapshot({
+      canvasSize: { height: 720, width: 1_280 },
+      clips: [
+        {
+          durationUs: 5_000_000,
+          hidden: false,
+          id: 'image-clip',
+          name: 'still.png',
+          sourceId: 'image-source',
+          src: 'https://example.test/still.png',
+          startUs: 0,
+          trackId: 'video-track',
+          transform: { height: 360, width: 640, x: 320, y: 180 },
+          type: 'image',
+          zIndex: 0,
+        },
+      ],
+      tracks: [
+        {
+          id: 'video-track',
+          muted: true,
+          name: '视频轨',
+          type: 'video',
+          zIndex: 0,
+        },
+      ],
+    });
+
+    expect(evaluateCompositionAt(snapshot, 1_000_000)).toMatchObject({
+      audioLayers: [],
+      imageLayers: [
+        expect.objectContaining({
+          clip: expect.objectContaining({ id: 'image-clip' }),
+        }),
+      ],
+      videoLayers: [],
+    });
+    expect(getCompositionVideoGaps(snapshot)).toEqual([]);
+    expect(createCompositionExportPayload(snapshot).Track[0]).toEqual([
+      {
+        Extra: [
+          {
+            Height: 360,
+            PosX: 320,
+            PosY: 180,
+            Type: 'transform',
+            Width: 640,
+          },
+        ],
+        Source: 'https://example.test/still.png',
+        TargetTime: [0, 5_000],
+        Type: 'image',
+      },
+    ]);
+  });
+
+  it('omits hidden image clips from export', () => {
+    const snapshot = createCompositionSnapshot({
+      canvasSize: { height: 720, width: 1_280 },
+      clips: [
+        {
+          durationUs: 5_000_000,
+          hidden: true,
+          id: 'hidden-image',
+          name: 'transparent-overlay.png',
+          sourceId: 'hidden-image-source',
+          src: 'https://example.test/transparent-overlay.png',
+          startUs: 0,
+          trackId: 'video-track',
+          transform: { height: 720, width: 1_280, x: 0, y: 0 },
+          type: 'image',
+          zIndex: 0,
+        },
+      ],
+      tracks: [
+        {
+          id: 'video-track',
+          muted: false,
+          name: '视频轨',
+          type: 'video',
+          zIndex: 0,
+        },
+      ],
+    });
+
+    expect(createCompositionExportPayload(snapshot).Track).toEqual([[]]);
   });
 });

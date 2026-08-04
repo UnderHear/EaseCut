@@ -20,7 +20,7 @@ import {
   normalizeTimelineTimeUs,
   xToTimeUs,
 } from '../core/timeline-math';
-import { isTimelineMediaClip } from '../core/model';
+import { isTimelineTimedMediaClip } from '../core/model';
 import {
   getTrimmedTimelineClips,
 } from '../core/timeline-commands';
@@ -200,7 +200,7 @@ export function useTimelineController({
           state.commitClipVolume(
             gesture.clipId,
             gesture.previousVolume,
-            clip && isTimelineMediaClip(clip)
+            clip && isTimelineTimedMediaClip(clip)
               ? clip.volume
               : gesture.previousVolume,
           );
@@ -399,7 +399,7 @@ export function useTimelineController({
     event: ReactPointerEvent<HTMLElement>,
     clip: TimelineClip,
   ) => {
-    if (event.button !== 0 || !isTimelineMediaClip(clip)) return;
+    if (event.button !== 0 || !isTimelineTimedMediaClip(clip)) return;
     lastCompletedClipClickRef.current = null;
     const rect = event.currentTarget.parentElement?.getBoundingClientRect();
     if (!rect) return;

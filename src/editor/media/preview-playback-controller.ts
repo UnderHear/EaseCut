@@ -1,6 +1,6 @@
 import { timelineTimeToClipSourceTimeUs } from '../core/clip-speed';
 import { microsecondsToSeconds } from '../core/time';
-import type { TimelineMediaClip, TimelineTrack } from '../types';
+import type { TimelineTimedMediaClip, TimelineTrack } from '../types';
 import type {
   PreviewAudioConfiguration,
   PreviewAudioEngine,
@@ -22,7 +22,7 @@ type PreviewPlaybackSession = {
 };
 
 export type PreviewPlaybackUpdate = {
-  activeClips: readonly TimelineMediaClip[];
+  activeClips: readonly TimelineTimedMediaClip[];
   audioEngine: PreviewPlaybackAudioEngine | null;
   currentTimeUs: number;
   isPlaying: boolean;
@@ -37,7 +37,7 @@ export type PreviewPlaybackUpdateResult = {
 };
 
 export const getPreviewAudioConfiguration = (
-  clip: TimelineMediaClip,
+  clip: TimelineTimedMediaClip,
   tracksById: ReadonlyMap<string, TimelineTrack>,
   forceMuted = false,
 ): PreviewAudioConfiguration => ({
@@ -49,7 +49,7 @@ export const getPreviewAudioConfiguration = (
   volume: clip.volume,
 });
 
-export const getPreviewMediaTimingKey = (clip: TimelineMediaClip) =>
+export const getPreviewMediaTimingKey = (clip: TimelineTimedMediaClip) =>
   [
     clip.durationUs,
     clip.speed,
@@ -60,7 +60,7 @@ export const getPreviewMediaTimingKey = (clip: TimelineMediaClip) =>
 
 export const seekPreviewMediaToTimelineTime = (
   media: HTMLMediaElement,
-  clip: TimelineMediaClip,
+  clip: TimelineTimedMediaClip,
   timelineTimeUs: number,
   timelineToleranceSeconds = MEDIA_SEEK_TOLERANCE_SECONDS,
 ) => {
@@ -125,7 +125,7 @@ export class PreviewPlaybackController {
 
     const activeElements = new Map<string, HTMLMediaElement>();
     const audioConfigurationKeys = new Map<string, string>();
-    const clipsById = new Map<string, TimelineMediaClip>();
+    const clipsById = new Map<string, TimelineTimedMediaClip>();
     const configurationsById = new Map<
       string,
       PreviewAudioConfiguration

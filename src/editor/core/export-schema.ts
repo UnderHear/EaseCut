@@ -56,6 +56,14 @@ const createPayload = (
             Underline: clip.underline,
           };
         }
+        if (clip.type === 'image') {
+          return {
+            Extra: [transform] as [typeof transform],
+            Source: clip.src,
+            TargetTime: targetTime,
+            Type: 'image' as const,
+          };
+        }
         const trim = {
           EndTime: microsecondsToMilliseconds(clip.trimEndUs),
           StartTime: microsecondsToMilliseconds(clip.trimStartUs),

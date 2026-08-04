@@ -26,7 +26,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
       zIndex: 0,
     },
   ],
-  schemaVersion: 11,
+  schemaVersion: 12,
   tracks: [
     {
       id: MAIN_VIDEO_TRACK_ID,
@@ -40,7 +40,7 @@ const createValidDraft = (): VideoTimelineDraft => ({
 
 const getOnlyMediaClip = (draft: VideoTimelineDraft) => {
   const clip = draft.clips[0];
-  if (!clip || clip.type === 'text') {
+  if (!clip || (clip.type !== 'video' && clip.type !== 'audio')) {
     throw new Error('Expected a media clip');
   }
   return clip;
@@ -83,19 +83,84 @@ const getOnlyTextClip = (draft: VideoTimelineDraft) => {
 };
 
 describe('timeline draft validation', () => {
-  it('明确拒绝 v10 草稿且不尝试迁移', () => {
+  it('明确拒绝 v11 草稿且不尝试迁移', () => {
     const legacyDraft: Omit<VideoTimelineDraft, 'schemaVersion'> & {
       schemaVersion: number;
     } = {
       ...createValidDraft(),
-      schemaVersion: 10,
+      schemaVersion: 11,
     };
 
     expect(() =>
       createTimelineStore({
         draft: legacyDraft as VideoTimelineDraft,
       }),
-    ).toThrow('不支持的草稿版本：10');
+    ).toThrow('不支持的草稿版本：11');
+  });
+
+  it('accepts an image clip on a video track without timed-media fields', () => {
+    const draft = createValidDraft();
+    draft.clips = [
+      {
+        durationUs: secondsToMicroseconds(5),
+        hidden: false,
+        id: 'clip-image-1',
+        name: 'still.png',
+        sourceId: 'image-1',
+        src: 'https://example.test/still.png',
+        startUs: 0,
+        trackId: MAIN_VIDEO_TRACK_ID,
+        transform: { height: 720, width: 1280, x: 0, y: 0 },
+        type: 'image',
+        zIndex: 0,
+      },
+    ];
+
+    expect(() => createTimelineStore({ draft })).not.toThrow();
+  });
+
+  it('rejects image clips on non-video tracks or with timed-media fields', () => {
+    const wrongTrack = createValidDraft();
+    wrongTrack.tracks[0]!.type = 'audio';
+    wrongTrack.clips = [
+      {
+        durationUs: secondsToMicroseconds(5),
+        hidden: false,
+        id: 'clip-image-1',
+        name: 'still.jpg',
+        sourceId: 'image-1',
+        src: 'https://example.test/still.jpg',
+        startUs: 0,
+        trackId: MAIN_VIDEO_TRACK_ID,
+        transform: { height: 720, width: 1280, x: 0, y: 0 },
+        type: 'image',
+        zIndex: 0,
+      },
+    ];
+    expect(() => createTimelineStore({ draft: wrongTrack })).toThrow(
+      '草稿结构无效，无法打开项目',
+    );
+
+    const timedFields = createValidDraft();
+    timedFields.clips = [
+      {
+        durationUs: secondsToMicroseconds(5),
+        hidden: false,
+        id: 'clip-image-1',
+        name: 'still.jpeg',
+        sourceId: 'image-1',
+        src: 'https://example.test/still.jpeg',
+        startUs: 0,
+        trackId: MAIN_VIDEO_TRACK_ID,
+        transform: { height: 720, width: 1280, x: 0, y: 0 },
+        type: 'image',
+        zIndex: 0,
+      },
+    ];
+    Object.assign(timedFields.clips[0]!, { speed: 1, volume: 1 });
+    expect(() => createTimelineStore({ draft: timedFields })).toThrow(
+      '草稿结构无效，无法打开项目',
+    );
   });
 
   it.each([

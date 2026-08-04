@@ -1,7 +1,8 @@
 import type {
   TimelineCanvasSize,
   TimelineClip,
-  TimelineMediaClip,
+  TimelineImageClip,
+  TimelineTimedMediaClip,
   TimelineClipTransform,
   TimelineProject,
   TimelineTextClip,
@@ -9,8 +10,10 @@ import type {
 } from './model';
 import {
   getTimelineClipTransform,
+  getTimelineTrackTypeForClipType,
   isTimelineMediaClip,
   isTimelineTextClip,
+  isTimelineTimedMediaClip,
 } from './model';
 import {
   getSpeedAdjustedDurationUs,
@@ -31,7 +34,7 @@ export type CompositionSnapshotInput = Readonly<{
 export type CompositionSnapshot = Readonly<{
   canvasSize: TimelineCanvasSize;
   clips: readonly TimelineClip[];
-  schemaVersion: 11;
+  schemaVersion: 12;
   tracks: readonly TimelineTrack[];
 }>;
 
@@ -41,11 +44,17 @@ export type CompositionVideoGap = Readonly<{
 }>;
 
 export type CompositionMediaLayer = Readonly<{
-  clip: TimelineMediaClip;
+  clip: TimelineTimedMediaClip;
   sourceTimeUs: number;
   track: TimelineTrack;
   transform: TimelineClipTransform;
   volume: number;
+}>;
+
+export type CompositionImageLayer = Readonly<{
+  clip: TimelineImageClip;
+  track: TimelineTrack;
+  transform: TimelineClipTransform;
 }>;
 
 export type CompositionTextLayer = Readonly<{
@@ -56,6 +65,7 @@ export type CompositionTextLayer = Readonly<{
 
 export type CompositionEvaluation = Readonly<{
   audioLayers: readonly CompositionMediaLayer[];
+  imageLayers: readonly CompositionImageLayer[];
   textLayers: readonly CompositionTextLayer[];
   timeUs: number;
   videoLayers: readonly CompositionMediaLayer[];
@@ -84,7 +94,7 @@ const validateClip = (
   if (!clip.id || !track) {
     throw new TypeError(`片段 ${clip.id || '<unknown>'} 的引用无效`);
   }
-  if (track.type !== clip.type) {
+  if (track.type !== getTimelineTrackTypeForClipType(clip.type)) {
     throw new TypeError(`片段 ${clip.id} 与轨道类型不一致`);
   }
   if (
@@ -97,9 +107,13 @@ const validateClip = (
   }
   if (
     isTimelineMediaClip(clip) &&
+    (!clip.sourceId || !clip.src || !clip.name)
+  ) {
+    throw new TypeError(`片段 ${clip.id} 的素材引用无效`);
+  }
+  if (
+    isTimelineTimedMediaClip(clip) &&
     (
-      !clip.sourceId ||
-      !clip.src ||
       !isValidTimeUs(clip.sourceDurationUs) ||
       clip.sourceDurationUs === 0 ||
       !isValidTimeUs(clip.trimStartUs) ||
@@ -114,6 +128,19 @@ const validateClip = (
     )
   ) {
     throw new RangeError(`片段 ${clip.id} 的媒体时间范围无效`);
+  }
+  if (
+    clip.type === 'image' &&
+    (
+      'sourceDurationUs' in clip ||
+      'trimStartUs' in clip ||
+      'trimEndUs' in clip ||
+      'speed' in clip ||
+      'volume' in clip ||
+      'waveformSrc' in clip
+    )
+  ) {
+    throw new TypeError(`图片片段 ${clip.id} 包含无效的时序媒体属性`);
   }
   if (
     isTimelineTextClip(clip) &&
@@ -141,9 +168,6 @@ const validateClip = (
     !Number.isInteger(clip.zIndex) ||
     (isTimelineMediaClip(clip) &&
       (
-        !Number.isFinite(clip.volume) ||
-        clip.volume < 0 ||
-        clip.volume > 1 ||
         ![
           clip.transform.height,
           clip.transform.width,
@@ -152,6 +176,12 @@ const validateClip = (
         ].every(Number.isFinite) ||
         !isPositiveFinite(clip.transform.height) ||
         !isPositiveFinite(clip.transform.width)
+      )) ||
+    (isTimelineTimedMediaClip(clip) &&
+      (
+        !Number.isFinite(clip.volume) ||
+        clip.volume < 0 ||
+        clip.volume > 1
       )) ||
     (isTimelineTextClip(clip) &&
       (
@@ -174,7 +204,7 @@ const validateClip = (
 export const createCompositionSnapshot = (
   input: CompositionSnapshotInput,
 ): CompositionSnapshot => {
-  if (input.schemaVersion !== undefined && input.schemaVersion !== 11) {
+  if (input.schemaVersion !== undefined && input.schemaVersion !== 12) {
     throw new RangeError(`不支持的草稿版本：${input.schemaVersion}`);
   }
   if (
@@ -218,7 +248,7 @@ export const createCompositionSnapshot = (
   return {
     canvasSize: { ...input.canvasSize },
     clips,
-    schemaVersion: 11,
+    schemaVersion: 12,
     tracks,
   };
 };
@@ -254,6 +284,7 @@ export const evaluateCompositionAt = (
   const tracksById = new Map(snapshot.tracks.map((track) => [track.id, track]));
   const videoLayers: CompositionMediaLayer[] = [];
   const audioLayers: CompositionMediaLayer[] = [];
+  const imageLayers: CompositionImageLayer[] = [];
   const textLayers: CompositionTextLayer[] = [];
 
   for (const clip of getCompositionActiveClips(snapshot, timeUs)) {
@@ -264,6 +295,14 @@ export const evaluateCompositionAt = (
         clip,
         track,
         transform: getTimelineClipTransform(clip),
+      });
+      continue;
+    }
+    if (clip.type === 'image') {
+      imageLayers.push({
+        clip,
+        track,
+        transform: clip.transform,
       });
       continue;
     }
@@ -278,7 +317,7 @@ export const evaluateCompositionAt = (
     if (!track.muted && clip.volume > 0) audioLayers.push(layer);
   }
 
-  return { audioLayers, textLayers, timeUs, videoLayers };
+  return { audioLayers, imageLayers, textLayers, timeUs, videoLayers };
 };
 
 export const getCompositionVideoGaps = (
@@ -289,7 +328,10 @@ export const getCompositionVideoGaps = (
     0,
   );
   const ranges = snapshot.clips
-    .filter((clip) => clip.type === 'video' && !clip.hidden)
+    .filter(
+      (clip) =>
+        (clip.type === 'video' || clip.type === 'image') && !clip.hidden,
+    )
     .map((clip) => ({
       endUs: clip.startUs + clip.durationUs,
       startUs: clip.startUs,
