@@ -41,6 +41,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
       onRequestPreviewFullscreen: () => void;
     }) => {
       const clips = useTimelineStore((state) => state.clips);
+      const canvasSize = useTimelineStore((state) => state.canvasSize);
       const beginTextStyleEdit = useTimelineStore(
         (state) => state.beginTextStyleEdit,
       );
@@ -74,6 +75,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
             onRequestPreviewFullscreen={onRequestPreviewFullscreen}
           />
           <div
+            data-canvas-size={JSON.stringify(canvasSize)}
             data-clip-count={clips.length}
             data-current-time={currentTimeUs}
             data-first-duration={firstClip?.durationUs ?? ''}
@@ -850,7 +852,7 @@ describe('VideoTimelineEditor', () => {
     );
   });
 
-  it('contains a square video after metadata is resolved and exports that transform', async () => {
+  it('uses a square video as the original canvas after metadata is resolved', async () => {
     const user = userEvent.setup();
     const onExport = vi
       .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
@@ -877,20 +879,94 @@ describe('VideoTimelineEditor', () => {
     await waitFor(() =>
       expect(screen.getByTestId('timeline-state')).toHaveAttribute(
         'data-first-transform',
-        JSON.stringify({ height: 720, width: 720, x: 280, y: 0 }),
+        JSON.stringify({ height: 1080, width: 1080, x: 0, y: 0 }),
       ),
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-canvas-size',
+      JSON.stringify({ height: 1080, width: 1080 }),
     );
     await user.click(screen.getByRole('button', { name: '导出视频' }));
 
     await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
+    expect(onExport.mock.calls[0][0].payload.Canvas).toEqual({
+      Height: 1080,
+      Width: 1080,
+    });
     expect(onExport.mock.calls[0][0].payload.Track.flat()[0]?.Extra).toContainEqual(
       {
-        Height: 720,
-        PosX: 280,
+        Height: 1080,
+        PosX: 0,
         PosY: 0,
         Type: 'transform',
-        Width: 720,
+        Width: 1080,
       },
+    );
+  });
+
+  it('keeps source-list order when video metadata resolves out of order', async () => {
+    const firstMetadata = createDeferred<{
+      durationUs: number;
+      height: number;
+      width: number;
+    }>();
+    const secondMetadata = createDeferred<{
+      durationUs: number;
+      height: number;
+      width: number;
+    }>();
+    const firstSource: VideoTimelineSource = {
+      fileName: 'first.mp4',
+      id: 'first-video',
+      src: '/first.mp4',
+      type: 'video',
+    };
+    const secondSource: VideoTimelineSource = {
+      fileName: 'second.mp4',
+      id: 'second-video',
+      src: '/second.mp4',
+      type: 'video',
+    };
+    const loadMetadata = vi.fn((source: VideoTimelineSource) =>
+      source.id === firstSource.id
+        ? firstMetadata.promise
+        : secondMetadata.promise,
+    );
+    render(
+      <VideoTimelineEditor
+        mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
+        sources={[firstSource, secondSource]}
+      />,
+    );
+
+    await act(async () => {
+      secondMetadata.resolve({
+        durationUs: secondsToMicroseconds(4),
+        height: 900,
+        width: 1600,
+      });
+      await secondMetadata.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+        'data-canvas-size',
+        JSON.stringify({ height: 900, width: 1600 }),
+      ),
+    );
+
+    await act(async () => {
+      firstMetadata.resolve({
+        durationUs: secondsToMicroseconds(5),
+        height: 1920,
+        width: 1080,
+      });
+      await firstMetadata.promise;
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+        'data-canvas-size',
+        JSON.stringify({ height: 1920, width: 1080 }),
+      ),
     );
   });
 

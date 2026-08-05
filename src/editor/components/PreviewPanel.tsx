@@ -51,6 +51,7 @@ import {
   seekPreviewMediaToTimelineTime,
 } from '../media/preview-playback-controller';
 import { FloatingInspector } from './FloatingInspector';
+import { CanvasRatioPanel } from './CanvasRatioPanel';
 
 const PREVIEW_HANDLE_SIZE = 12;
 const PREVIEW_HANDLE_HIT_PADDING = 8;
@@ -1758,6 +1759,7 @@ export function PreviewPanel({
           </div>
         </div>
       </div>
+      <CanvasRatioPanel />
       {selectedClipId !== null && (
         <FloatingInspector
           key={selectedClipId}

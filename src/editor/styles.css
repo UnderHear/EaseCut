@@ -339,6 +339,11 @@
   pointer-events: none;
 }
 
+.ec-floating-inspector[data-side='left'] {
+  right: auto;
+  left: 8px;
+}
+
 .ec-floating-inspector[data-panel-open='false'] {
   width: var(--ec-floating-inspector-rail-width);
 }
@@ -369,6 +374,13 @@
   flex-direction: column;
   overflow: hidden;
   border-radius: 10px;
+}
+
+.ec-floating-inspector[data-side='left'] .ec-floating-inspector__panel {
+  right: auto;
+  left: calc(
+    var(--ec-floating-inspector-rail-width) + var(--ec-floating-inspector-gap)
+  );
 }
 
 .ec-floating-inspector__panel[hidden] {
@@ -573,6 +585,11 @@
   border-radius: 10px;
 }
 
+.ec-floating-inspector[data-side='left'] .ec-floating-inspector__rail {
+  right: auto;
+  left: 0;
+}
+
 .ec-floating-inspector__rail-item {
   display: flex;
   height: 60px;
@@ -602,6 +619,64 @@
 .ec-floating-inspector__rail-item.ec-is-active {
   color: var(--ec-text);
   background: #3a3a3a;
+}
+
+.ec-canvas-ratio-inspector__body {
+  padding-bottom: 7px;
+}
+
+.ec-canvas-ratio-inspector__body > [role='group'] {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 0;
+}
+
+.ec-canvas-ratio-inspector__option {
+  display: grid;
+  min-height: 50px;
+  grid-template-columns: 25px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  color: #d4d4d4;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.ec-canvas-ratio-inspector__option:hover,
+.ec-canvas-ratio-inspector__option:focus-visible {
+  color: var(--ec-text);
+  background: var(--ec-panel-hover);
+}
+
+.ec-canvas-ratio-inspector__option:focus-visible {
+  outline: 2px solid var(--ec-accent);
+  outline-offset: -2px;
+}
+
+.ec-canvas-ratio-inspector__option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #a3a3a3;
+}
+
+.ec-canvas-ratio-inspector__option.ec-is-active,
+.ec-canvas-ratio-inspector__option.ec-is-active
+  .ec-canvas-ratio-inspector__option-icon {
+  color: var(--ec-text);
+}
+
+.ec-canvas-ratio-inspector__check {
+  color: var(--ec-accent);
 }
 
 .ec-timeline-panel {

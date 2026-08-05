@@ -1678,13 +1678,16 @@ describe('PreviewPanel', () => {
     act(() => testTimelineStore.getState().selectClip('clip-main'));
 
     expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
+    const inspector = screen.getByRole('complementary', {
+      name: '基础属性面板',
+    });
 
     fireEvent.click(screen.getByRole('button', { name: '关闭属性面板' }));
 
     expect(testTimelineStore.getState().selectedClipId).toBe('clip-main');
     expect(screen.getByRole('navigation', { name: '属性分类' })).toBeVisible();
     expect(
-      document.querySelector('.ec-floating-inspector__panel'),
+      inspector.querySelector('.ec-floating-inspector__panel'),
     ).not.toBeVisible();
 
     act(() => testTimelineStore.getState().selectClip('clip-overlay'));

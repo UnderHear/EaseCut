@@ -1,6 +1,14 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import { createCompositionSnapshot } from '../core/composition';
+import {
+  areCanvasSizesEqual,
+  DEFAULT_COMPOSITION_CANVAS_SIZE,
+  findCanvasSelection,
+  findOriginalCanvasSize,
+  getCanvasSizeForSelection,
+  resizeClipsForCanvas,
+} from '../core/canvas-size';
 import { createCompositionExportPayload } from '../core/export-schema';
 import {
   addTextClip,
@@ -42,6 +50,13 @@ import {
   MAIN_VIDEO_TRACK_ID,
   normalizeTimelineTracks,
 } from '../core/timeline-tracks';
+export {
+  COMPOSITION_CANVAS_PRESETS,
+  DEFAULT_COMPOSITION_CANVAS_SIZE,
+  getOriginalCanvasSize,
+  type CompositionCanvasPreset,
+  type CompositionCanvasSelection,
+} from '../core/canvas-size';
 export {
   AUDIO_SOURCE_TRACK_ID_PREFIX,
   AUDIO_TRACK_ID_PREFIX,
@@ -87,13 +102,10 @@ import {
   isTimelineMediaClip,
   isTimelineTextClip,
   isTimelineTimedMediaClip,
+  type TimelineCanvasSelection,
 } from '../core/model';
 
 export const VIDEO_TIMELINE_DRAFT_SCHEMA_VERSION = 12;
-export const DEFAULT_COMPOSITION_CANVAS_SIZE: TimelineCanvasSize = {
-  height: 720,
-  width: 1280,
-};
 export const DEFAULT_VIDEO_SOURCE_DURATION_US = secondsToMicroseconds(5);
 export const MIN_SPLIT_CLIP_DURATION_US = MIN_CLIP_DURATION_US;
 
@@ -138,6 +150,7 @@ export type ResetTimelineParams = {
 
 export type TimelineState = {
   canvasSnappingEnabled: boolean;
+  canvasSelection: TimelineCanvasSelection | null;
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
   continuousEdit: TimelineContinuousEdit | null;
@@ -146,6 +159,7 @@ export type TimelineState = {
   future: TimelineSnapshot[];
   isPlaying: boolean;
   layoutRevision: number;
+  originalCanvasSize: TimelineCanvasSize | null;
   past: TimelineSnapshot[];
   pixelsPerSecond: number;
   playheadFollowEnabled: boolean;
@@ -163,6 +177,7 @@ export type TimelineActions = {
   addTextClip: (params: AddTextClipCommand) => void;
   beginTextStyleEdit: (clipId: string) => number | null;
   cancelTextStyleEdit: (clipId: string, token?: number) => void;
+  commitCanvasSize: (selection: TimelineCanvasSelection) => void;
   commitClipDrop: (params: CommitClipDropParams) => void;
   commitClipPosition: (params: CommitClipPositionParams) => void;
   commitClipSpeed: (params: CommitClipSpeedParams) => void;
@@ -242,24 +257,6 @@ const getSourceDurationUs = (source: VideoTimelineSource) => {
     throw new RangeError(`素材 ${source.id} 的 durationUs 必须是正安全整数`);
   }
   return source.durationUs;
-};
-
-const getCanvasSize = (sources: readonly VideoTimelineSource[]) => {
-  const source = sources
-    .filter(
-      (candidate) =>
-        candidate.type === 'video' &&
-        hasSourceDimensions(candidate) &&
-        candidate.width / candidate.height === 16 / 9,
-    )
-    .sort(
-      (left, right) =>
-        (right.width ?? 0) * (right.height ?? 0) -
-        (left.width ?? 0) * (left.height ?? 0),
-    )[0];
-  return source && hasSourceDimensions(source)
-    ? { height: source.height, width: source.width }
-    : { ...DEFAULT_COMPOSITION_CANVAS_SIZE };
 };
 
 const createSourceTransform = (
@@ -347,11 +344,14 @@ const createTracksFromSources = (
 };
 
 const createBaseState = (
+  canvasSelection: TimelineCanvasSelection | null,
   canvasSize: TimelineCanvasSize,
   clips: TimelineClip[],
+  originalCanvasSize: TimelineCanvasSize | null,
   tracks: TimelineTrack[],
 ): TimelineState => ({
   canvasSnappingEnabled: true,
+  canvasSelection,
   canvasSize,
   clips,
   continuousEdit: null,
@@ -360,6 +360,7 @@ const createBaseState = (
   future: [],
   isPlaying: false,
   layoutRevision: 0,
+  originalCanvasSize,
   past: [],
   pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND,
   playheadFollowEnabled: true,
@@ -382,9 +383,12 @@ const createInitialState = (params?: ResetTimelineParams): TimelineState => {
       }
       throw new TypeError('草稿结构无效，无法打开项目', { cause: error });
     }
+    const originalCanvasSize = findOriginalCanvasSize(params.sources ?? []);
     const state = createBaseState(
+      findCanvasSelection(snapshot.canvasSize, originalCanvasSize),
       { ...snapshot.canvasSize },
       normalizeTimelineClips(cloneClips(snapshot.clips)),
+      originalCanvasSize,
       removeEmptyTimelineTracks(
         cloneTracks(snapshot.tracks),
         cloneClips(snapshot.clips),
@@ -410,11 +414,17 @@ const createInitialState = (params?: ResetTimelineParams): TimelineState => {
   }
 
   const sources = params?.sources ?? [];
-  const canvasSize = getCanvasSize(sources);
+  const originalCanvasSize = findOriginalCanvasSize(sources);
+  const canvasSize =
+    originalCanvasSize ?? { ...DEFAULT_COMPOSITION_CANVAS_SIZE };
   return createBaseState(
+    'original',
     canvasSize,
     normalizeTimelineClips(createTimelineClipsFromSources(sources, canvasSize)),
-    sources.length > 0 ? createTracksFromSources(sources) : cloneTracks(defaultTracks),
+    originalCanvasSize,
+    sources.length > 0
+      ? createTracksFromSources(sources)
+      : cloneTracks(defaultTracks),
   );
 };
 
@@ -428,10 +438,51 @@ export const createVideoTimelineDraft = (
 });
 
 const createSnapshot = (state: TimelineState): TimelineSnapshot => ({
+  canvasSelection: state.canvasSelection,
+  canvasSize: { ...state.canvasSize },
   clips: cloneClips(state.clips),
   selectedClipId: state.selectedClipId,
   tracks: cloneTracks(state.tracks),
 });
+
+const resizeOriginalCanvasSnapshot = (
+  snapshot: TimelineSnapshot,
+  originalCanvasSize: TimelineCanvasSize | null,
+): TimelineSnapshot => {
+  const canvasSelection =
+    snapshot.canvasSelection ??
+    findCanvasSelection(snapshot.canvasSize, originalCanvasSize);
+  if (canvasSelection !== 'original') return snapshot;
+  const canvasSize = getCanvasSizeForSelection(
+    canvasSelection,
+    originalCanvasSize,
+  );
+  if (
+    snapshot.canvasSelection === canvasSelection &&
+    areCanvasSizesEqual(snapshot.canvasSize, canvasSize)
+  ) {
+    return snapshot;
+  }
+
+  return {
+    ...snapshot,
+    canvasSelection,
+    canvasSize: { ...canvasSize },
+    clips: resizeClipsForCanvas(
+      snapshot.clips,
+      snapshot.canvasSize,
+      canvasSize,
+    ),
+  };
+};
+
+const areOptionalCanvasSizesEqual = (
+  left: TimelineCanvasSize | null,
+  right: TimelineCanvasSize | null,
+) =>
+  left === null
+    ? right === null
+    : right !== null && areCanvasSizesEqual(left, right);
 
 const asEdit = (state: TimelineState): TimelineEdit => ({
   clips: state.clips,
@@ -702,6 +753,40 @@ export const createTimelineStore = (
         }
       },
 
+      commitCanvasSize: (canvasSelection) => {
+        const state = get();
+        const resolvedCanvasSize = getCanvasSizeForSelection(
+          canvasSelection,
+          state.originalCanvasSize,
+        );
+        const canvasSizeChanged = !areCanvasSizesEqual(
+          state.canvasSize,
+          resolvedCanvasSize,
+        );
+        if (!canvasSizeChanged && state.canvasSelection === canvasSelection) {
+          return;
+        }
+
+        const nextCanvasSize = { ...resolvedCanvasSize };
+        set({
+          canvasSelection,
+          ...(canvasSizeChanged
+            ? {
+                canvasSize: nextCanvasSize,
+                clips: resizeClipsForCanvas(
+                  state.clips,
+                  state.canvasSize,
+                  nextCanvasSize,
+                ),
+                layoutRevision: state.layoutRevision + 1,
+              }
+            : {}),
+          continuousEdit: null,
+          future: [],
+          past: [...state.past, createSnapshot(state)],
+        });
+      },
+
       commitClipDrop: (command) => commit(moveClip(asEdit(get()), command)),
 
       commitClipPosition: (command) =>
@@ -832,6 +917,8 @@ export const createTimelineStore = (
         const next = state.future[0];
         if (!next) return;
         set({
+          canvasSelection: next.canvasSelection,
+          canvasSize: { ...next.canvasSize },
           clips: cloneClips(next.clips),
           future: state.future.slice(1),
           layoutRevision: state.layoutRevision + 1,
@@ -978,13 +1065,78 @@ export const createTimelineStore = (
             .filter((source) => !knownSourceIds.has(source.id))
             .map((source) => source.id),
         );
-        const result = mergeSources(state, sources, newSourceIds);
+        const originalCanvasSize = findOriginalCanvasSize(sources);
+        const originalCanvasSizeChanged = !areOptionalCanvasSizesEqual(
+          state.originalCanvasSize,
+          originalCanvasSize,
+        );
+        const canvasSelection =
+          state.canvasSelection ??
+          findCanvasSelection(state.canvasSize, originalCanvasSize);
+        const canvasSelectionChanged =
+          canvasSelection !== state.canvasSelection;
+        const resolvedCanvasSize =
+          canvasSelection === 'original'
+            ? getCanvasSizeForSelection(
+                canvasSelection,
+                originalCanvasSize,
+              )
+            : state.canvasSize;
+        const canvasSizeChanged = !areCanvasSizesEqual(
+          state.canvasSize,
+          resolvedCanvasSize,
+        );
+        const nextCanvasSize = canvasSizeChanged
+          ? { ...resolvedCanvasSize }
+          : state.canvasSize;
+        const resizedClips = canvasSizeChanged
+          ? resizeClipsForCanvas(
+              state.clips,
+              state.canvasSize,
+              nextCanvasSize,
+            )
+          : state.clips;
+        const result = mergeSources(
+          canvasSizeChanged
+            ? {
+                ...state,
+                canvasSize: nextCanvasSize,
+                clips: resizedClips,
+              }
+            : state,
+          sources,
+          newSourceIds,
+        );
         for (const source of sources) knownSourceIds.add(source.id);
-        if (!result.changed) return;
+        if (
+          !result.changed &&
+          !canvasSizeChanged &&
+          !canvasSelectionChanged &&
+          !originalCanvasSizeChanged
+        ) {
+          return;
+        }
         set({
-          clips: result.clips,
-          layoutRevision: state.layoutRevision + 1,
-          tracks: result.tracks,
+          ...(canvasSelectionChanged ? { canvasSelection } : {}),
+          ...(result.changed || canvasSizeChanged
+            ? {
+                canvasSize: nextCanvasSize,
+                clips: result.changed ? result.clips : resizedClips,
+                layoutRevision: state.layoutRevision + 1,
+                tracks: result.changed ? result.tracks : state.tracks,
+              }
+            : {}),
+          ...(originalCanvasSizeChanged
+            ? {
+                future: state.future.map((snapshot) =>
+                  resizeOriginalCanvasSnapshot(snapshot, originalCanvasSize),
+                ),
+                past: state.past.map((snapshot) =>
+                  resizeOriginalCanvasSnapshot(snapshot, originalCanvasSize),
+                ),
+              }
+            : {}),
+          originalCanvasSize,
         });
       },
 
@@ -1021,6 +1173,8 @@ export const createTimelineStore = (
         const previous = state.past.at(-1);
         if (!previous) return;
         set({
+          canvasSelection: previous.canvasSelection,
+          canvasSize: { ...previous.canvasSize },
           clips: cloneClips(previous.clips),
           future: [createSnapshot(state), ...state.future],
           layoutRevision: state.layoutRevision + 1,

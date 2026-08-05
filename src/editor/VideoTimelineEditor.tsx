@@ -264,6 +264,19 @@ function VideoTimelineEditorView({
   useEffect(() => {
     let cancelled = false;
     const activeSourceIds = new Set(sources.map((source) => source.id));
+    const resolvedSourcesById = new Map(
+      sources
+        .filter(hasCompleteSourceMetadata)
+        .map((source) => [source.id, source] as const),
+    );
+    const syncResolvedSources = () => {
+      syncSources(
+        sources.flatMap((source) => {
+          const resolvedSource = resolvedSourcesById.get(source.id);
+          return resolvedSource ? [resolvedSource] : [];
+        }),
+      );
+    };
     for (const sourceId of notifiedMetadataFailureSourceIdsRef.current) {
       if (!activeSourceIds.has(sourceId)) {
         notifiedMetadataFailureSourceIdsRef.current.delete(sourceId);
@@ -290,11 +303,9 @@ function VideoTimelineEditorView({
       );
     };
 
+    syncResolvedSources();
     for (const source of sources) {
-      if (hasCompleteSourceMetadata(source)) {
-        syncSources([source]);
-        continue;
-      }
+      if (hasCompleteSourceMetadata(source)) continue;
 
       void runtime.getMetadata(source).then(
         (metadata) => {
@@ -322,7 +333,8 @@ function VideoTimelineEditorView({
             reportMetadataFailure(source);
             return;
           }
-          syncSources([resolvedSource]);
+          resolvedSourcesById.set(source.id, resolvedSource);
+          syncResolvedSources();
         },
         (error: unknown) => reportMetadataFailure(source, error),
       );

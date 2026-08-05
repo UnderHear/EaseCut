@@ -130,6 +130,16 @@ export type TimelineCanvasSize = {
   width: number;
 };
 
+export type TimelineCanvasPreset =
+  | '16:9'
+  | '4:3'
+  | '2:1'
+  | '9:16'
+  | '1:1'
+  | '3:4';
+
+export type TimelineCanvasSelection = 'original' | TimelineCanvasPreset;
+
 export type TimelineProject = {
   canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
@@ -139,6 +149,8 @@ export type TimelineProject = {
 };
 
 export type TimelineSnapshot = {
+  canvasSelection: TimelineCanvasSelection | null;
+  canvasSize: TimelineCanvasSize;
   clips: TimelineClip[];
   selectedClipId: string | null;
   tracks: TimelineTrack[];

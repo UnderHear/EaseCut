@@ -908,6 +908,45 @@ describe('timelineStore video track layout', () => {
     ).toEqual({ height: 240, width: 360, x: 120, y: 80 });
   });
 
+  it('changes the canvas as one undoable edit and recenters visual clips', () => {
+    const state = timelineStore.getState();
+
+    state.commitCanvasSize('9:16');
+
+    expect(timelineStore.getState().canvasSize).toEqual({
+      height: 1280,
+      width: 720,
+    });
+    expect(timelineStore.getState().canvasSelection).toBe('9:16');
+    expect(
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
+    ).toEqual({ height: 720, width: 1280, x: -280, y: 280 });
+    expect(timelineStore.getState().past).toHaveLength(1);
+
+    state.undo();
+    expect(timelineStore.getState().canvasSize).toEqual({
+      height: 720,
+      width: 1280,
+    });
+    expect(timelineStore.getState().canvasSelection).toBe('original');
+    expect(
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
+    ).toEqual(defaultClipTransform);
+
+    state.redo();
+    expect(timelineStore.getState().canvasSize).toEqual({
+      height: 1280,
+      width: 720,
+    });
+    expect(timelineStore.getState().canvasSelection).toBe('9:16');
+    expect(
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
+    ).toEqual({ height: 720, width: 1280, x: -280, y: 280 });
+  });
+
   it('does not increment layout revision for non-layout actions', () => {
     const state = timelineStore.getState();
     const revision = state.layoutRevision;
@@ -1029,7 +1068,7 @@ describe('timelineStore video track layout', () => {
     ]);
   });
 
-  it('initializes the timeline from real video sources and exports the largest 16:9 canvas size', () => {
+  it('uses the first sized video as the original canvas', () => {
     const sources: VideoTimelineSource[] = [
       {
         durationUs: secondsToMicroseconds(4),
@@ -1076,8 +1115,8 @@ describe('timelineStore video track layout', () => {
         0,
         secondsToMicroseconds(4),
         {
-          height: 1080,
-          width: 1920,
+          height: 720,
+          width: 1280,
           x: 0,
           y: 0,
         },
@@ -1092,8 +1131,8 @@ describe('timelineStore video track layout', () => {
         0,
         secondsToMicroseconds(6.25),
         {
-          height: 1080,
-          width: 1920,
+          height: 720,
+          width: 1280,
           x: 0,
           y: 0,
         },
@@ -1101,7 +1140,7 @@ describe('timelineStore video track layout', () => {
     ]);
 
     expect(timelineStore.getState().createExportPayload()).toEqual({
-      Canvas: { Height: 1080, Width: 1920 },
+      Canvas: { Height: 720, Width: 1280 },
       Duration: 10_250,
       Track: [
         [
@@ -1110,11 +1149,11 @@ describe('timelineStore video track layout', () => {
               { EndTime: 4000, StartTime: 0, Type: 'trim' },
               defaultExportSpeed,
               {
-                Height: 1080,
+                Height: 720,
                 PosX: 0,
                 PosY: 0,
                 Type: 'transform',
-                Width: 1920,
+                Width: 1280,
               },
               defaultExportVolume,
             ],
@@ -1127,11 +1166,11 @@ describe('timelineStore video track layout', () => {
               { EndTime: 6250, StartTime: 0, Type: 'trim' },
               defaultExportSpeed,
               {
-                Height: 1080,
+                Height: 720,
                 PosX: 0,
                 PosY: 0,
                 Type: 'transform',
-                Width: 1920,
+                Width: 1280,
               },
               defaultExportVolume,
             ],
@@ -1144,7 +1183,7 @@ describe('timelineStore video track layout', () => {
     });
   });
 
-  it('keeps the composition canvas at 16:9 and contains square video sources', () => {
+  it('uses a square first video as a square original canvas', () => {
     timelineStore.getState().resetTimeline({
       sources: [
         {
@@ -1160,17 +1199,17 @@ describe('timelineStore video track layout', () => {
     });
 
     expect(timelineStore.getState().canvasSize).toEqual({
-      height: 720,
-      width: 1280,
+      height: 1080,
+      width: 1080,
     });
     expect(getMainVideoClips()[0]?.transform).toEqual({
-      height: 720,
-      width: 720,
-      x: 280,
+      height: 1080,
+      width: 1080,
+      x: 0,
       y: 0,
     });
     expect(timelineStore.getState().createExportPayload()).toEqual({
-      Canvas: { Height: 720, Width: 1280 },
+      Canvas: { Height: 1080, Width: 1080 },
       Duration: 4_000,
       Track: [
         [
@@ -1179,11 +1218,11 @@ describe('timelineStore video track layout', () => {
               { EndTime: 4000, StartTime: 0, Type: 'trim' },
               defaultExportSpeed,
               {
-                Height: 720,
-                PosX: 280,
+                Height: 1080,
+                PosX: 0,
                 PosY: 0,
                 Type: 'transform',
-                Width: 720,
+                Width: 1080,
               },
               defaultExportVolume,
             ],
@@ -2832,6 +2871,75 @@ describe('createTimelineStore source syncing', () => {
     ]);
     expect(store.getState().past).toEqual([]);
     expect(store.getState().future).toEqual([]);
+  });
+
+  it('follows the first ordered video when its metadata arrives later', () => {
+    const store = createTimelineStore();
+    const laterVideo: VideoTimelineSource = {
+      ...source,
+      fileName: 'later-video.mp4',
+      height: 720,
+      id: 'later-video',
+      src: 'https://example.com/later-video.mp4',
+      width: 1280,
+    };
+    const firstVideo: VideoTimelineSource = {
+      ...source,
+      fileName: 'first-video.mp4',
+      height: 1920,
+      id: 'first-video',
+      src: 'https://example.com/first-video.mp4',
+      width: 1080,
+    };
+
+    store.getState().syncSources([laterVideo]);
+    expect(store.getState().originalCanvasSize).toEqual({
+      height: 720,
+      width: 1280,
+    });
+
+    store.getState().syncSources([firstVideo, laterVideo]);
+
+    expect(store.getState().canvasSelection).toBe('original');
+    expect(store.getState().originalCanvasSize).toEqual({
+      height: 1920,
+      width: 1080,
+    });
+    expect(store.getState().canvasSize).toEqual({
+      height: 1920,
+      width: 1080,
+    });
+    expect(
+      getMediaClipById(store.getState().clips, 'clip-first-video').transform,
+    ).toEqual({ height: 1920, width: 1080, x: 0, y: 0 });
+    expect(store.getState().past).toEqual([]);
+  });
+
+  it('keeps an explicit preset when the original video size changes', () => {
+    const store = createTimelineStore({ sources: [source] });
+    const firstVideo: VideoTimelineSource = {
+      ...source,
+      fileName: 'portrait.mp4',
+      height: 1920,
+      src: 'https://example.com/portrait.mp4',
+      width: 1080,
+    };
+
+    store.getState().commitCanvasSize('16:9');
+    store.getState().syncSources([firstVideo]);
+
+    expect(store.getState().canvasSelection).toBe('16:9');
+    expect(store.getState().canvasSize).toEqual({
+      height: 720,
+      width: 1280,
+    });
+
+    store.getState().undo();
+    expect(store.getState().canvasSelection).toBe('original');
+    expect(store.getState().canvasSize).toEqual({
+      height: 1920,
+      width: 1080,
+    });
   });
 
   it('does not duplicate media already referenced by an opened or reset draft', () => {
