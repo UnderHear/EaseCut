@@ -48,7 +48,7 @@ export const findOriginalCanvasSize = (
 ): TimelineCanvasSize | null => {
   const source = sources.find(
     (candidate) =>
-      candidate.type === 'video' &&
+      (candidate.type === 'video' || candidate.type === 'image') &&
       hasPositiveDimension(candidate.height) &&
       hasPositiveDimension(candidate.width),
   );

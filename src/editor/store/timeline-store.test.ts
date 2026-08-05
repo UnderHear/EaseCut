@@ -1287,6 +1287,36 @@ describe('timelineStore video track layout', () => {
     });
   });
 
+  it('uses a sized image as the original canvas', () => {
+    timelineStore.getState().resetTimeline({
+      sources: [
+        {
+          durationUs: secondsToMicroseconds(5),
+          fileName: 'portrait.png',
+          height: 1600,
+          id: 'image-source-1',
+          src: 'http://localhost/portrait.png',
+          type: 'image',
+          width: 1200,
+        },
+      ],
+    });
+
+    expect(timelineStore.getState().originalCanvasSize).toEqual({
+      height: 1600,
+      width: 1200,
+    });
+    expect(timelineStore.getState().canvasSize).toEqual({
+      height: 1600,
+      width: 1200,
+    });
+    expect(
+      timelineStore.getState().clips.find((clip) => clip.type === 'image'),
+    ).toMatchObject({
+      transform: { height: 1600, width: 1200, x: 0, y: 0 },
+    });
+  });
+
   it('repairs a default full-canvas draft transform when square source metadata arrives', () => {
     const source: VideoTimelineSource = {
       durationUs: secondsToMicroseconds(4),

@@ -8,7 +8,7 @@ import {
 } from './canvas-size';
 
 describe('canvas size', () => {
-  it('uses the first video with dimensions as the original canvas', () => {
+  it('uses the first visual source with dimensions as the original canvas', () => {
     expect(
       getOriginalCanvasSize([
         { height: 1600, type: 'image', width: 1200 },
@@ -16,13 +16,13 @@ describe('canvas size', () => {
         { height: 1920, type: 'video', width: 1080 },
         { height: 1080, type: 'video', width: 1920 },
       ]),
-    ).toEqual({ height: 1920, width: 1080 });
+    ).toEqual({ height: 1600, width: 1200 });
   });
 
-  it('falls back to the default landscape canvas without a sized video', () => {
+  it('falls back to the default landscape canvas without a sized visual source', () => {
     expect(
       getOriginalCanvasSize([
-        { height: 1600, type: 'image', width: 1200 },
+        { type: 'image' },
         { type: 'audio' },
       ]),
     ).toEqual(DEFAULT_COMPOSITION_CANVAS_SIZE);
