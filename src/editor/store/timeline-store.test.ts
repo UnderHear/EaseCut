@@ -908,7 +908,7 @@ describe('timelineStore video track layout', () => {
     ).toEqual({ height: 240, width: 360, x: 120, y: 80 });
   });
 
-  it('changes the canvas as one undoable edit and recenters visual clips', () => {
+  it('changes the canvas as one undoable edit and keeps visual clips visible', () => {
     const state = timelineStore.getState();
 
     state.commitCanvasSize('9:16');
@@ -921,7 +921,7 @@ describe('timelineStore video track layout', () => {
     expect(
       getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
         .transform,
-    ).toEqual({ height: 720, width: 1280, x: -280, y: 280 });
+    ).toEqual({ height: 405, width: 720, x: 0, y: 437.5 });
     expect(timelineStore.getState().past).toHaveLength(1);
 
     state.undo();
@@ -944,7 +944,59 @@ describe('timelineStore video track layout', () => {
     expect(
       getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
         .transform,
-    ).toEqual({ height: 720, width: 1280, x: -280, y: 280 });
+    ).toEqual({ height: 405, width: 720, x: 0, y: 437.5 });
+  });
+
+  it('keeps visual clip size stable across repeated ratio changes', () => {
+    const state = timelineStore.getState();
+    const portraitTransform = {
+      height: 405,
+      width: 720,
+      x: 0,
+      y: 437.5,
+    };
+
+    for (let index = 0; index < 4; index += 1) {
+      state.commitCanvasSize('9:16');
+      expect(
+        getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+          .transform,
+      ).toEqual(portraitTransform);
+
+      state.commitCanvasSize('original');
+      expect(
+        getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+          .transform,
+      ).toEqual(defaultClipTransform);
+    }
+  });
+
+  it('uses the latest spatial edit as the stable canvas reference', () => {
+    const state = timelineStore.getState();
+    const portraitTransform = {
+      height: 640,
+      width: 360,
+      x: 180,
+      y: 320,
+    };
+
+    state.commitCanvasSize('9:16');
+    state.commitMediaClipTransform({
+      clipId: 'clip-video-1',
+      transform: portraitTransform,
+    });
+    state.commitCanvasSize('original');
+
+    expect(
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
+    ).toEqual({ height: 360, width: 202.5, x: 538.75, y: 180 });
+
+    state.commitCanvasSize('9:16');
+    expect(
+      getMediaClipById(timelineStore.getState().clips, 'clip-video-1')
+        .transform,
+    ).toEqual(portraitTransform);
   });
 
   it('does not increment layout revision for non-layout actions', () => {

@@ -28,7 +28,7 @@ describe('canvas size', () => {
     ).toEqual(DEFAULT_COMPOSITION_CANVAS_SIZE);
   });
 
-  it('rescales visual content around the canvas center and leaves audio unchanged', () => {
+  it('fits visual content within the next canvas and leaves audio unchanged', () => {
     const videoClip: TimelineClip = {
       durationUs: 5_000_000,
       hidden: false,
@@ -79,30 +79,58 @@ describe('canvas size', () => {
     const resized = resizeClipsForCanvas(
       [videoClip, audioClip, textClip],
       { height: 1080, width: 1920 },
+      { height: 1080, width: 1920 },
       { height: 1280, width: 720 },
     );
 
     expect(resized[0]).toEqual(
       expect.objectContaining({
-        transform: { height: 720, width: 1280, x: -280, y: 280 },
+        transform: { height: 405, width: 720, x: 0, y: 437.5 },
       }),
     );
     expect(resized[1]).toBe(audioClip);
     expect(resized[2]).toEqual(
       expect.objectContaining({
-        fontSize: 80,
-        layoutSize: { height: 80, width: 400 },
-        position: { x: 160, y: 600 },
+        fontSize: 45,
+        layoutSize: { height: 45, width: 225 },
+        position: { x: 247.5, y: 617.5 },
       }),
     );
+  });
 
-    const restored = resizeClipsForCanvas(
-      resized,
+  it('keeps text layout values valid when the canvas scale is fractional', () => {
+    const clip: TimelineClip = {
+      bold: false,
+      durationUs: 5_000_000,
+      fontColor: '#FFFFFFFF',
+      fontSize: 101,
+      fontType: 'SY_Black',
+      hidden: false,
+      id: 'text-clip',
+      italic: false,
+      layoutSize: { height: 101, width: 501 },
+      position: { x: 390, y: 310 },
+      startUs: 0,
+      text: '标题',
+      trackId: 'text-track',
+      type: 'text',
+      underline: false,
+      zIndex: 0,
+    };
+
+    const [resized] = resizeClipsForCanvas(
+      [clip],
+      { height: 720, width: 1280 },
+      { height: 720, width: 1280 },
       { height: 1280, width: 720 },
-      { height: 1080, width: 1920 },
     );
-    expect(restored[0]).toEqual(videoClip);
-    expect(restored[2]).toEqual(textClip);
+
+    expect(resized).toEqual(
+      expect.objectContaining({
+        fontSize: 57,
+        layoutSize: { height: 57, width: 282 },
+      }),
+    );
   });
 
   it('keeps minimum-sized visual content proportional and reversible', () => {
@@ -125,6 +153,7 @@ describe('canvas size', () => {
     const resized = resizeClipsForCanvas(
       [clip],
       originalCanvas,
+      originalCanvas,
       smallerCanvas,
     );
     const resizedClip = resized[0];
@@ -135,11 +164,57 @@ describe('canvas size', () => {
 
     const restored = resizeClipsForCanvas(
       resized,
+      originalCanvas,
       smallerCanvas,
       originalCanvas,
     )[0];
     expect(restored?.type).toBe('image');
     if (!restored || restored.type !== 'image') return;
     expect(restored.transform).toEqual(clip.transform);
+  });
+
+  it('does not compound scaling across repeated aspect-ratio changes', () => {
+    const clip: TimelineClip = {
+      durationUs: 5_000_000,
+      hidden: false,
+      id: 'video-clip',
+      name: 'video.mp4',
+      sourceDurationUs: 5_000_000,
+      sourceId: 'video-source',
+      speed: 1,
+      src: '/video.mp4',
+      startUs: 0,
+      trackId: 'video-track',
+      transform: { height: 720, width: 1280, x: 0, y: 0 },
+      trimEndUs: 5_000_000,
+      trimStartUs: 0,
+      type: 'video',
+      volume: 1,
+      zIndex: 0,
+    };
+    const landscapeCanvas = { height: 720, width: 1280 };
+    const portraitCanvas = { height: 1280, width: 720 };
+
+    const portrait = resizeClipsForCanvas(
+      [clip],
+      landscapeCanvas,
+      landscapeCanvas,
+      portraitCanvas,
+    );
+    const restored = resizeClipsForCanvas(
+      portrait,
+      landscapeCanvas,
+      portraitCanvas,
+      landscapeCanvas,
+    );
+    const portraitAgain = resizeClipsForCanvas(
+      restored,
+      landscapeCanvas,
+      landscapeCanvas,
+      portraitCanvas,
+    );
+
+    expect(restored[0]).toEqual(clip);
+    expect(portraitAgain).toEqual(portrait);
   });
 });

@@ -94,26 +94,54 @@ export const findCanvasSelection = (
   );
 };
 
+type CanvasProjection = {
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+};
+
+const getCanvasProjection = (
+  referenceSize: TimelineCanvasSize,
+  targetSize: TimelineCanvasSize,
+): CanvasProjection => {
+  const scale = Math.min(
+    targetSize.width / referenceSize.width,
+    targetSize.height / referenceSize.height,
+  );
+  return {
+    offsetX: (targetSize.width - referenceSize.width * scale) / 2,
+    offsetY: (targetSize.height - referenceSize.height * scale) / 2,
+    scale,
+  };
+};
+
 const resizeTransform = (
   transform: TimelineClipTransform,
-  currentSize: TimelineCanvasSize,
-  nextSize: TimelineCanvasSize,
-  scale: number,
-): TimelineClipTransform => ({
-  height: transform.height * scale,
-  width: transform.width * scale,
-  x: nextSize.width / 2 + (transform.x - currentSize.width / 2) * scale,
-  y: nextSize.height / 2 + (transform.y - currentSize.height / 2) * scale,
-});
+  currentProjection: CanvasProjection,
+  nextProjection: CanvasProjection,
+): TimelineClipTransform => {
+  const scale = nextProjection.scale / currentProjection.scale;
+  return {
+    height: transform.height * scale,
+    width: transform.width * scale,
+    x:
+      nextProjection.offsetX +
+      (transform.x - currentProjection.offsetX) * scale,
+    y:
+      nextProjection.offsetY +
+      (transform.y - currentProjection.offsetY) * scale,
+  };
+};
 
 export const resizeClipsForCanvas = (
   clips: readonly TimelineClip[],
+  referenceSize: TimelineCanvasSize,
   currentSize: TimelineCanvasSize,
   nextSize: TimelineCanvasSize,
 ): TimelineClip[] => {
-  const scale =
-    Math.min(nextSize.width, nextSize.height) /
-    Math.min(currentSize.width, currentSize.height);
+  const currentProjection = getCanvasProjection(referenceSize, currentSize);
+  const nextProjection = getCanvasProjection(referenceSize, nextSize);
+  const scale = nextProjection.scale / currentProjection.scale;
 
   return clips.map((clip) => {
     if (isTimelineVisualMediaClip(clip)) {
@@ -121,9 +149,8 @@ export const resizeClipsForCanvas = (
         ...clip,
         transform: resizeTransform(
           clip.transform,
-          currentSize,
-          nextSize,
-          scale,
+          currentProjection,
+          nextProjection,
         ),
       };
     }
@@ -136,16 +163,15 @@ export const resizeClipsForCanvas = (
         x: clip.position.x,
         y: clip.position.y,
       },
-      currentSize,
-      nextSize,
-      scale,
+      currentProjection,
+      nextProjection,
     );
     return {
       ...clip,
-      fontSize: clip.fontSize * scale,
+      fontSize: Math.max(1, Math.round(clip.fontSize * scale)),
       layoutSize: {
-        height: transform.height,
-        width: transform.width,
+        height: Math.max(1, Math.round(transform.height)),
+        width: Math.max(1, Math.round(transform.width)),
       },
       position: { x: transform.x, y: transform.y },
     };
