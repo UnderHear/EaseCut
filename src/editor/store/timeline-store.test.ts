@@ -1583,7 +1583,7 @@ describe('timelineStore video track layout', () => {
     state.copySelectedClip();
     state.pasteCopiedClip();
 
-    state.syncSources([
+    state.refreshSources([
       {
         ...sourceWithoutDuration,
         durationUs: secondsToMicroseconds(12.75),
@@ -2842,7 +2842,7 @@ describe('timelineStore clip copy and paste', () => {
   });
 });
 
-describe('createTimelineStore source syncing', () => {
+describe('createTimelineStore source refreshing', () => {
   const source: VideoTimelineSource = {
     durationUs: secondsToMicroseconds(4),
     fileName: 'source.mp4',
@@ -2853,7 +2853,7 @@ describe('createTimelineStore source syncing', () => {
     width: 1280,
   };
 
-  it('appends each newly observed source once and does not write history', () => {
+  it('refreshes referenced sources without creating clips or writing history', () => {
     const store = createTimelineStore({ sources: [source] });
     const addedSource: VideoTimelineSource = {
       ...source,
@@ -2862,12 +2862,11 @@ describe('createTimelineStore source syncing', () => {
       src: 'https://example.com/source-2.mp4',
     };
 
-    store.getState().syncSources([source, addedSource]);
-    store.getState().syncSources([source, addedSource]);
+    store.getState().refreshSources([source, addedSource]);
+    store.getState().refreshSources([source, addedSource]);
 
     expect(getMediaClips(store.getState().clips).map((clip) => clip.sourceId)).toEqual([
       'source-1',
-      'source-2',
     ]);
     expect(store.getState().past).toEqual([]);
     expect(store.getState().future).toEqual([]);
@@ -2891,14 +2890,23 @@ describe('createTimelineStore source syncing', () => {
       src: 'https://example.com/first-video.mp4',
       width: 1080,
     };
+    const unresolvedFirstVideo: VideoTimelineSource = {
+      ...firstVideo,
+      height: undefined,
+      width: undefined,
+    };
 
-    store.getState().syncSources([laterVideo]);
+    store.getState().addMediaClip({ source: laterVideo, startUs: 0 });
+    store.setState({ future: [], past: [] });
+    store.getState().refreshSources([laterVideo]);
     expect(store.getState().originalCanvasSize).toEqual({
       height: 720,
       width: 1280,
     });
 
-    store.getState().syncSources([firstVideo, laterVideo]);
+    store.getState().addMediaClip({ source: unresolvedFirstVideo, startUs: 0 });
+    store.setState({ future: [], past: [] });
+    store.getState().refreshSources([firstVideo, laterVideo]);
 
     expect(store.getState().canvasSelection).toBe('original');
     expect(store.getState().originalCanvasSize).toEqual({
@@ -2926,7 +2934,7 @@ describe('createTimelineStore source syncing', () => {
     };
 
     store.getState().commitCanvasSize('16:9');
-    store.getState().syncSources([firstVideo]);
+    store.getState().refreshSources([firstVideo]);
 
     expect(store.getState().canvasSelection).toBe('16:9');
     expect(store.getState().canvasSize).toEqual({
@@ -2970,29 +2978,29 @@ describe('createTimelineStore source syncing', () => {
       );
     };
 
-    store.getState().syncSources([refreshedSource]);
+    store.getState().refreshSources([refreshedSource]);
     expectSingleRefreshedClip();
 
     store.getState().resetTimeline({ draft });
-    store.getState().syncSources([refreshedSource]);
+    store.getState().refreshSources([refreshedSource]);
     expectSingleRefreshedClip();
   });
 
   it('keeps removed-source clips and does not resurrect a deleted clip', () => {
     const store = createTimelineStore({ sources: [source] });
 
-    store.getState().syncSources([]);
+    store.getState().refreshSources([]);
     expect(store.getState().clips).toHaveLength(1);
 
     store.getState().selectClip('clip-source-1');
     store.getState().deleteSelectedClip();
     expect(store.getState().clips).toHaveLength(0);
 
-    store.getState().syncSources([{ ...source, durationUs: secondsToMicroseconds(8) }]);
+    store.getState().refreshSources([{ ...source, durationUs: secondsToMicroseconds(8) }]);
     expect(store.getState().clips).toHaveLength(0);
   });
 
-  it('refreshes current source identity without rewriting edit history', () => {
+  it('refreshes source identity across current state, history, and clipboard', () => {
     const store = createTimelineStore({
       sources: [{ ...source, waveformSrc: 'https://example.com/old-waveform' }],
     });
@@ -3010,6 +3018,7 @@ describe('createTimelineStore source syncing', () => {
       transform: { ...initialTransform, x: 20 },
     });
     store.getState().undo();
+    store.getState().copySelectedClip();
 
     const refreshedSource: VideoTimelineSource = {
       ...source,
@@ -3017,7 +3026,7 @@ describe('createTimelineStore source syncing', () => {
       src: 'https://example.com/refreshed-source.mp4',
       waveformSrc: 'https://example.com/new-waveform',
     };
-    store.getState().syncSources([refreshedSource]);
+    store.getState().refreshSources([refreshedSource]);
 
     const expectedIdentity = {
       name: refreshedSource.fileName,
@@ -3029,10 +3038,47 @@ describe('createTimelineStore source syncing', () => {
     );
     expect(
       getMediaClips(store.getState().past[0]?.clips ?? [])[0]?.src,
-    ).toBe(source.src);
+    ).toBe(refreshedSource.src);
     expect(
       getMediaClips(store.getState().future[0]?.clips ?? [])[0]?.src,
-    ).toBe(source.src);
+    ).toBe(refreshedSource.src);
+    expect(store.getState().copiedClip).toEqual(
+      expect.objectContaining(expectedIdentity),
+    );
+  });
+
+  it('discards removed source references from history and the clipboard', () => {
+    const store = createTimelineStore({ sources: [source] });
+    const clipId = 'clip-source-1';
+
+    store.getState().selectClip(clipId);
+    store.getState().copySelectedClip();
+    store.getState().removeClip(clipId);
+    expect(
+      store.getState().past.some((snapshot) =>
+        getMediaClips(snapshot.clips).some(
+          (clip) => clip.sourceId === source.id,
+        ),
+      ),
+    ).toBe(true);
+
+    store.getState().discardSourceFromHistory(source.id);
+
+    expect(store.getState().copiedClip).toBeNull();
+    expect(
+      [...store.getState().past, ...store.getState().future].every(
+        (snapshot) =>
+          getMediaClips(snapshot.clips).every(
+            (clip) => clip.sourceId !== source.id,
+          ),
+      ),
+    ).toBe(true);
+    store.getState().undo();
+    expect(
+      getMediaClips(store.getState().clips).some(
+        (clip) => clip.sourceId === source.id,
+      ),
+    ).toBe(false);
   });
 
   it('creates image clips on the main video track without timed-media fields', () => {

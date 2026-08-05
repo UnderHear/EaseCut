@@ -6,6 +6,31 @@ export type TimelineClipTrimEdge = 'start' | 'end';
 export type TimelineClipSpeed = number;
 export type TimelineClipVolume = number;
 
+type TimelineSourceBase = {
+  fileName: string;
+  id: string;
+  src: string;
+};
+
+type TimelineTimedMediaSource = TimelineSourceBase & {
+  durationUs?: number;
+  height?: number;
+  type: TimelineTimedMediaType;
+  waveformSrc?: string;
+  width?: number;
+};
+
+type TimelineImageSource = TimelineSourceBase & {
+  durationUs?: number;
+  height?: number;
+  type: 'image';
+  width?: number;
+};
+
+export type TimelineSource =
+  | TimelineTimedMediaSource
+  | TimelineImageSource;
+
 export type TimelineTrack = {
   id: string;
   muted: boolean;

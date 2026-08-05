@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-打开 Vite 输出的地址，通过顶部的“添加本地素材”选择浏览器支持的本地视频或音频文件即可体验。
+打开 Vite 输出的地址即可体验内置示例素材、在线素材导入和时间线编辑。
 
 常用命令：
 
@@ -44,7 +44,7 @@ import {
 } from 'easecut-react';
 import 'easecut-react/styles.css';
 
-const sources: VideoTimelineSource[] = [
+const initialSources: VideoTimelineSource[] = [
   {
     id: 'video-1',
     type: 'video',
@@ -77,7 +77,7 @@ export function Editor() {
           // 将 payload 交给自己的服务端视频渲染服务。
           await submitRenderTask({ draft, payload });
         }}
-        sources={sources}
+        initialSources={initialSources}
         title='我的视频工程'
       />
     </div>
@@ -85,7 +85,7 @@ export function Editor() {
 }
 ```
 
-`initialDraft` 只在组件实例创建时读取。切换工程时请为组件设置新的 React `key`。`onDraftChange` 只响应可持久化的轨道、片段和画布变化，不会因播放时间、缩放或选中状态触发。
+`initialSources` 和 `initialDraft` 只在组件实例创建时读取。切换工程时请为组件设置新的 React `key`。后续素材和片段通过 `VideoTimelineEditorHandle` 实例 API 增删改查；`onDraftChange` 只响应可持久化的轨道、片段和画布变化，不会因播放时间、缩放或选中状态触发。
 
 新建项目的“原纵横比”取素材列表中第一个具有有效宽高的视频原始尺寸；没有符合条件的视频时使用 `1280 × 720`。预览区左侧的纵横比面板还提供 `16:9`（`1280 × 720`）、`4:3`（`960 × 720`）、`2:1`（`1440 × 720`）、`9:16`（`720 × 1280`）、`1:1`（`720 × 720`）和 `3:4`（`720 × 960`）项目预设。切换画布时会围绕画布中心等比调整现有视觉内容，并形成一个可撤销、可重做的编辑记录。
 
@@ -99,7 +99,7 @@ export function Editor() {
 
 视频源建议提供时长、宽度和高度；音频源建议提供时长；图片源建议提供宽度和高度。如果缺失，编辑器会通过对应的浏览器媒体元素异步读取。
 
-配置 `onImportMedia` 后，在线素材弹窗会根据 URL 路径中的文件后缀自动识别视频、音频或图片，无需用户选择类型；查询参数和签名不会影响识别。图片仅接受 PNG、JPEG 和 JPG，加载时还会校验实际文件签名，不支持 WebP、GIF 或 SVG。
+工具栏的在线素材弹窗会根据 URL 路径中的文件后缀自动识别视频、音频或图片，注册 source 后直接创建 clip；查询参数和签名不会影响识别。图片仅接受 PNG、JPEG 和 JPG，加载时还会校验实际文件签名，不支持 WebP、GIF 或 SVG。
 
 ```ts
 type VideoTimelineSourceBase = {
@@ -125,7 +125,25 @@ type VideoTimelineSource =
     });
 ```
 
-后续向 `sources` 加入新 ID 会将素材追加到当前时间线。移除 source 不会自动删除已编辑片段，避免宿主数据刷新导致工程内容丢失。
+后续先调用 `editor.source.add(...)` 注册素材，再调用 `editor.clip.add({ sourceId })` 创建片段。source 和 clip 相互独立；仍被 clip 引用的 source 不能删除。
+
+```tsx
+import { useRef } from 'react';
+import type { VideoTimelineEditorHandle } from 'easecut-react';
+
+const editorRef = useRef<VideoTimelineEditorHandle>(null);
+
+const addOpening = async () => {
+  const source = await editorRef.current?.source.add(
+    'https://example.com/example.mp4',
+  );
+  if (source) {
+    await editorRef.current?.clip.add({ sourceId: source.id });
+  }
+};
+
+<VideoTimelineEditor ref={editorRef} />;
+```
 
 项目草稿只接受 `schemaVersion: 12`，旧 schema 会被明确拒绝且不会自动迁移。草稿中的
 `startUs`、`durationUs`、`sourceDurationUs`、`trimStartUs` 和 `trimEndUs`
@@ -168,7 +186,6 @@ clip 的已保存音量。
       return response.blob();
     },
   }}
-  sources={sources}
 />
 ```
 

@@ -1,8 +1,5 @@
-import { useState } from 'react';
-
 import {
   VideoTimelineEditor,
-  type VideoTimelineImportRequest,
   type VideoTimelineSource,
 } from '../index';
 
@@ -21,53 +18,11 @@ const BUILT_IN_SOURCES: VideoTimelineSource[] = [
   },
 ];
 
-const createSourceId = (fileName: string) => {
-  const suffix =
-    typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2);
-
-  return `${fileName}-${suffix}`;
-};
-
-const getSourceFileName = (
-  url: string,
-  type: VideoTimelineImportRequest['type'],
-) => {
-  const pathSegments = new URL(url).pathname.split('/').filter(Boolean);
-  const lastPathSegment = pathSegments.at(-1);
-  if (lastPathSegment) return decodeURIComponent(lastPathSegment);
-
-  return type === 'audio'
-    ? '在线音频'
-    : type === 'image'
-      ? '在线图片'
-      : '在线视频';
-};
-
 export function DemoApp() {
-  const [sources, setSources] =
-    useState<VideoTimelineSource[]>(BUILT_IN_SOURCES);
-  const handleImportMedia = ({
-    type,
-    url,
-  }: VideoTimelineImportRequest) => {
-    const fileName = getSourceFileName(url, type);
-    const source: VideoTimelineSource = {
-      fileName,
-      id: createSourceId(fileName),
-      src: url,
-      type,
-    };
-
-    setSources((current) => [...current, source]);
-  };
-
   return (
     <main className='ec-demo'>
       <VideoTimelineEditor
-        onImportMedia={handleImportMedia}
-        sources={sources}
+        initialSources={BUILT_IN_SOURCES}
         title='EaseCut 视频编辑器'
       />
     </main>

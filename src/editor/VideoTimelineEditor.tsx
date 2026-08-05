@@ -1,4 +1,5 @@
 import {
+  forwardRef,
   useEffect,
   useId,
   useRef,
@@ -8,7 +9,24 @@ import {
 } from 'react';
 import * as Toast from '@radix-ui/react-toast';
 import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
+import { useStore } from 'zustand';
 
+import {
+  VideoTimelineEditorApiProvider,
+  useVideoTimelineEditorApi,
+} from './api/editor-api-context';
+import {
+  hasCompleteSourceMetadata,
+  mergeSourceMetadata,
+} from './api/source-input';
+import {
+  createVideoTimelineSourceStore,
+  getSourceSnapshot,
+  getSourceSnapshots,
+  updateSourceSnapshot,
+  type VideoTimelineSourceStoreApi,
+} from './api/source-store';
+import type { VideoTimelineEditorHandle } from './api';
 import { PreviewPanel } from './components/PreviewPanel';
 import { FormDialog } from './components/FormDialog';
 import { IconButton } from './components/ui/IconButton';
@@ -18,6 +36,7 @@ import {
   DEFAULT_TIMELINE_TEXT_FONT_SIZE,
   DEFAULT_TIMELINE_TEXT_FONT_TYPE,
 } from './core/text-fonts';
+import { MAIN_VIDEO_TRACK_ID } from './core/timeline-tracks';
 import { millisecondsToMicroseconds } from './core/time';
 import {
   MediaRuntimeProvider,
@@ -40,70 +59,11 @@ import type {
   TimelineClipTimingPreview,
   VideoTimelineDraft,
   VideoTimelineEditorProps,
-  VideoTimelineMediaType,
   VideoTimelineSource,
 } from './types';
 import { TimelinePanel } from './timeline/TimelinePanel';
 
-const isPositiveNumber = (value: number | undefined) =>
-  typeof value === 'number' && Number.isFinite(value) && value > 0;
-
-const hasCompleteSourceMetadata = (source: VideoTimelineSource) =>
-  source.type === 'audio'
-    ? isPositiveNumber(source.durationUs)
-    : source.type === 'image'
-      ? isPositiveNumber(source.height) && isPositiveNumber(source.width)
-      : isPositiveNumber(source.durationUs) &&
-        isPositiveNumber(source.height) &&
-        isPositiveNumber(source.width);
-
-const VIDEO_FILE_EXTENSIONS = new Set([
-  '3g2',
-  '3gp',
-  'avi',
-  'm2ts',
-  'm4v',
-  'mkv',
-  'mov',
-  'mp4',
-  'mpeg',
-  'mpg',
-  'm3u8',
-  'ogv',
-  'ts',
-  'webm',
-]);
-
-const AUDIO_FILE_EXTENSIONS = new Set([
-  'aac',
-  'aif',
-  'aiff',
-  'flac',
-  'm4a',
-  'mp3',
-  'oga',
-  'ogg',
-  'opus',
-  'wav',
-  'weba',
-  'wma',
-]);
-
-const IMAGE_FILE_EXTENSIONS = new Set(['jpeg', 'jpg', 'png']);
-
-const detectOnlineMediaType = (url: URL): VideoTimelineMediaType => {
-  const fileName = url.pathname.split('/').at(-1)?.toLowerCase() ?? '';
-  const extension = fileName.match(/\.([a-z0-9]+)$/)?.[1];
-
-  if (!extension) {
-    throw new Error('无法从 URL 文件后缀识别素材类型。');
-  }
-  if (VIDEO_FILE_EXTENSIONS.has(extension)) return 'video';
-  if (AUDIO_FILE_EXTENSIONS.has(extension)) return 'audio';
-  if (IMAGE_FILE_EXTENSIONS.has(extension)) return 'image';
-
-  throw new Error(`不支持的素材文件后缀：.${extension}。`);
-};
+const EMPTY_SOURCES: VideoTimelineSource[] = [];
 
 const shouldIgnoreShortcutTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -136,32 +96,84 @@ const downloadJson = (fileName: string, payload: unknown) => {
   );
 };
 
-export function VideoTimelineEditor({
-  sources,
-  initialDraft,
-  mediaLoader,
-  ...props
-}: VideoTimelineEditorProps) {
+export const VideoTimelineEditor = forwardRef<
+  VideoTimelineEditorHandle,
+  VideoTimelineEditorProps
+>(function VideoTimelineEditor(
+  {
+    initialSources = EMPTY_SOURCES,
+    initialDraft,
+    mediaLoader,
+    onSourcesChange,
+    ...props
+  },
+  ref,
+) {
+  const [sourceStore] = useState(() =>
+    createVideoTimelineSourceStore(initialSources),
+  );
+  const sources = useStore(sourceStore, (state) => state.sources);
   const [store] = useState(() =>
     createTimelineStore({
       draft: initialDraft,
-      sources: sources.filter(hasCompleteSourceMetadata),
+      sources: initialSources.filter(hasCompleteSourceMetadata),
     }),
+  );
+  const [pendingInitialSourceIds] = useState(
+    () =>
+      new Set(
+        initialSources
+          .filter((source) => !hasCompleteSourceMetadata(source))
+          .filter(
+            (source) =>
+              !initialDraft?.clips.some(
+                (clip) =>
+                  isTimelineMediaClip(clip) && clip.sourceId === source.id,
+              ),
+          )
+          .map((source) => source.id),
+      ),
+  );
+  const onSourcesChangeRef = useRef(onSourcesChange);
+
+  useEffect(() => {
+    onSourcesChangeRef.current = onSourcesChange;
+  }, [onSourcesChange]);
+
+  useEffect(
+    () =>
+      sourceStore.subscribe((state) => {
+        onSourcesChangeRef.current?.(
+          state.sources.map((source) => ({ ...source })),
+        );
+      }),
+    [sourceStore],
   );
 
   return (
     <TimelineStoreProvider store={store}>
       <MediaRuntimeProvider mediaLoader={mediaLoader} sources={sources}>
-        <VideoTimelineEditorView {...props} sources={sources} />
+        <VideoTimelineEditorApiProvider apiRef={ref} sourceStore={sourceStore}>
+          <VideoTimelineEditorView
+            {...props}
+            pendingInitialSourceIds={pendingInitialSourceIds}
+            sources={sources}
+            sourceStore={sourceStore}
+          />
+        </VideoTimelineEditorApiProvider>
       </MediaRuntimeProvider>
     </TimelineStoreProvider>
   );
-}
+});
 
 type VideoTimelineEditorViewProps = Omit<
   VideoTimelineEditorProps,
-  'initialDraft' | 'mediaLoader'
->;
+  'initialDraft' | 'initialSources' | 'mediaLoader' | 'onSourcesChange'
+> & {
+  pendingInitialSourceIds: Set<string>;
+  sources: VideoTimelineSource[];
+  sourceStore: VideoTimelineSourceStoreApi;
+};
 
 function VideoTimelineEditorView({
   className = '',
@@ -169,16 +181,17 @@ function VideoTimelineEditorView({
   onClose,
   onDraftChange,
   onExport,
-  onImportMedia,
+  pendingInitialSourceIds,
   sources,
+  sourceStore,
   style,
   title = '视频合成',
 }: VideoTimelineEditorViewProps) {
   const titleId = useId();
   const store = useTimelineStoreApi();
   const runtime = useMediaRuntime();
+  const api = useVideoTimelineEditorApi();
   const isPlaying = useTimelineStore((state) => state.isPlaying);
-  const syncSources = useTimelineStore((state) => state.syncSources);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importUrl, setImportUrl] = useState('');
@@ -264,19 +277,6 @@ function VideoTimelineEditorView({
   useEffect(() => {
     let cancelled = false;
     const activeSourceIds = new Set(sources.map((source) => source.id));
-    const resolvedSourcesById = new Map(
-      sources
-        .filter(hasCompleteSourceMetadata)
-        .map((source) => [source.id, source] as const),
-    );
-    const syncResolvedSources = () => {
-      syncSources(
-        sources.flatMap((source) => {
-          const resolvedSource = resolvedSourcesById.get(source.id);
-          return resolvedSource ? [resolvedSource] : [];
-        }),
-      );
-    };
     for (const sourceId of notifiedMetadataFailureSourceIdsRef.current) {
       if (!activeSourceIds.has(sourceId)) {
         notifiedMetadataFailureSourceIdsRef.current.delete(sourceId);
@@ -303,7 +303,9 @@ function VideoTimelineEditorView({
       );
     };
 
-    syncResolvedSources();
+    store
+      .getState()
+      .refreshSources(sources.filter(hasCompleteSourceMetadata));
     for (const source of sources) {
       if (hasCompleteSourceMetadata(source)) continue;
 
@@ -314,27 +316,31 @@ function VideoTimelineEditorView({
             reportMetadataFailure(source);
             return;
           }
-          const resolvedSource = {
-            ...source,
-            ...(!isPositiveNumber(source.durationUs) &&
-            isPositiveNumber(metadata.durationUs)
-              ? { durationUs: metadata.durationUs }
-              : {}),
-            ...(!isPositiveNumber(source.height) &&
-            isPositiveNumber(metadata.height)
-              ? { height: metadata.height }
-              : {}),
-            ...(!isPositiveNumber(source.width) &&
-            isPositiveNumber(metadata.width)
-              ? { width: metadata.width }
-              : {}),
-          };
+          const resolvedSource = mergeSourceMetadata(source, metadata);
           if (!hasCompleteSourceMetadata(resolvedSource)) {
             reportMetadataFailure(source);
             return;
           }
-          resolvedSourcesById.set(source.id, resolvedSource);
-          syncResolvedSources();
+          const current = getSourceSnapshot(sourceStore, source.id);
+          if (!current || current.src !== source.src) return;
+          updateSourceSnapshot(sourceStore, resolvedSource);
+          const state = store.getState();
+          if (pendingInitialSourceIds.delete(source.id)) {
+            const startUs =
+              source.type === 'audio'
+                ? 0
+                : state.clips
+                    .filter((clip) => clip.trackId === MAIN_VIDEO_TRACK_ID)
+                    .reduce(
+                      (endUs, clip) =>
+                        Math.max(endUs, clip.startUs + clip.durationUs),
+                      0,
+                    );
+            state.addMediaClip({ source: resolvedSource, startUs });
+          }
+          store
+            .getState()
+            .refreshSources(getSourceSnapshots(sourceStore));
         },
         (error: unknown) => reportMetadataFailure(source, error),
       );
@@ -343,7 +349,7 @@ function VideoTimelineEditorView({
     return () => {
       cancelled = true;
     };
-  }, [runtime, sources, syncSources]);
+  }, [pendingInitialSourceIds, runtime, sourceStore, sources, store]);
 
   useEffect(() => {
     if (!isPlaying) return undefined;
@@ -468,7 +474,7 @@ function VideoTimelineEditorView({
 
   const submitMediaImport = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!onImportMedia || isImporting) return;
+    if (isImporting) return;
 
     const url = importUrl.trim();
     let parsedUrl: URL;
@@ -482,24 +488,22 @@ function VideoTimelineEditorView({
       return;
     }
 
-    let type: VideoTimelineMediaType;
-    try {
-      type = detectOnlineMediaType(parsedUrl);
-    } catch (error) {
-      setImportError(
-        error instanceof Error ? error.message : '无法识别素材类型。',
-      );
-      return;
-    }
-
     setImportError(null);
     setIsImporting(true);
+    let sourceId: string | null = null;
     try {
-      await onImportMedia({ type, url });
+      const source = await api.source.add(parsedUrl.href);
+      sourceId = source.id;
+      await api.clip.add({ sourceId });
       setIsImportDialogOpen(false);
       resetImportForm();
-    } catch {
-      setImportError('该素材上传失败');
+    } catch (error) {
+      if (sourceId) {
+        api.source.remove(sourceId);
+      }
+      setImportError(
+        error instanceof Error ? error.message : '该素材上传失败',
+      );
     } finally {
       setIsImporting(false);
     }
@@ -707,7 +711,7 @@ function VideoTimelineEditorView({
           onClipTimingPreviewChange={setClipTimingPreview}
           onDownloadClip={downloadOriginalClip}
           onRequestAddTitle={openTitleDialog}
-          onRequestImport={onImportMedia ? openImportDialog : undefined}
+          onRequestImport={openImportDialog}
           onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
         />
       </main>

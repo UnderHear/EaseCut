@@ -1,5 +1,18 @@
 export { VideoTimelineEditor } from './editor/VideoTimelineEditor';
 export {
+  VideoTimelineEditorApiError,
+  type VideoTimelineClipApi,
+  type VideoTimelineClipInput,
+  type VideoTimelineClipPatch,
+  type VideoTimelineEditorApiErrorCode,
+  type VideoTimelineEditorHandle,
+  type VideoTimelineMediaClipInput,
+  type VideoTimelineSourceApi,
+  type VideoTimelineSourceInput,
+  type VideoTimelineSourcePatch,
+  type VideoTimelineTextClipInput,
+} from './editor/api';
+export {
   frameIndexToTimeUs,
   microsecondsToMilliseconds,
   microsecondsToSeconds,
@@ -52,7 +65,6 @@ export type {
   VideoTimelineDraft,
   VideoTimelineEditorProps,
   VideoTimelineExportRequest,
-  VideoTimelineImportRequest,
   VideoTimelineMediaLoader,
   VideoTimelineMediaMetadata,
   VideoTimelineMediaType,

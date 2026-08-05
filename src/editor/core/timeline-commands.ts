@@ -21,6 +21,7 @@ import type {
   TimelineTextClip,
   TimelineTextLayoutSize,
   TimelineTrack,
+  TimelineSource,
 } from './model';
 import {
   getTimelineTrackTypeForClipType,
@@ -45,6 +46,7 @@ import { isValidTimeUs, secondsToMicroseconds } from './time';
 export const MIN_CLIP_DURATION_US = secondsToMicroseconds(0.6);
 export const MIN_CLIP_TRANSFORM_SIZE = 40;
 export const DEFAULT_TEXT_CLIP_DURATION_US = secondsToMicroseconds(5);
+export const DEFAULT_MEDIA_CLIP_DURATION_US = secondsToMicroseconds(5);
 
 export const normalizeClipVolume = (volume: number): TimelineClipVolume =>
   Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
@@ -105,6 +107,11 @@ export type ChangeClipSpeedParams = {
   speed: TimelineClipSpeed;
 };
 
+export type ChangeClipVolumeParams = {
+  clipId: string;
+  volume: TimelineClipVolume;
+};
+
 export type ChangeClipHiddenParams = {
   clipId: string;
   hidden: boolean;
@@ -115,6 +122,13 @@ export type AddTextClipParams = {
   layoutSize: TimelineTextLayoutSize;
   startUs: number;
   text: string;
+};
+
+export type AddMediaClipParams = {
+  canvasSize: { height: number; width: number };
+  source: TimelineSource;
+  startUs: number;
+  trackId?: string;
 };
 
 export type ChangeTextClipPropertiesParams = {
@@ -216,6 +230,139 @@ const findAvailableTextTrack = (
         ignoredClipId,
       ),
   );
+
+const getMediaSourceDurationUs = (source: TimelineSource) => {
+  const durationUs = source.durationUs ?? DEFAULT_MEDIA_CLIP_DURATION_US;
+  return isValidTimeUs(durationUs) && durationUs > 0 ? durationUs : null;
+};
+
+const createSourceTransform = (
+  source: TimelineSource,
+  canvasSize: { height: number; width: number },
+) => {
+  if (
+    source.type === 'audio' ||
+    !Number.isFinite(source.width) ||
+    !Number.isFinite(source.height) ||
+    !source.width ||
+    !source.height ||
+    source.width <= 0 ||
+    source.height <= 0
+  ) {
+    return createDefaultClipTransform(canvasSize);
+  }
+  const scale = Math.min(
+    canvasSize.width / source.width,
+    canvasSize.height / source.height,
+  );
+  const width = source.width * scale;
+  const height = source.height * scale;
+  return normalizeClipTransform({
+    height,
+    width,
+    x: (canvasSize.width - width) / 2,
+    y: (canvasSize.height - height) / 2,
+  });
+};
+
+export const addMediaClip = (
+  edit: TimelineEdit,
+  params: AddMediaClipParams,
+): TimelineEditResult => {
+  const durationUs = getMediaSourceDurationUs(params.source);
+  if (
+    durationUs === null ||
+    !isValidTimeUs(params.startUs) ||
+    !Number.isFinite(params.canvasSize.height) ||
+    !Number.isFinite(params.canvasSize.width) ||
+    params.canvasSize.height <= 0 ||
+    params.canvasSize.width <= 0
+  ) {
+    return unchanged;
+  }
+
+  const trackType = getTimelineTrackTypeForClipType(params.source.type);
+  let tracks = edit.tracks;
+  let track = params.trackId
+    ? tracks.find(
+        (candidate) =>
+          candidate.id === params.trackId && candidate.type === trackType,
+      )
+    : undefined;
+  if (!track && params.trackId) return unchanged;
+  if (!track && trackType === 'video') {
+    track = tracks.find((candidate) => candidate.id === MAIN_VIDEO_TRACK_ID);
+  }
+  if (!track && trackType === 'audio') {
+    track = tracks.find(
+      (candidate) =>
+        candidate.type === 'audio' &&
+        trackAcceptsRange(
+          edit.clips,
+          candidate.id,
+          params.startUs,
+          params.startUs + durationUs,
+        ),
+    );
+  }
+  if (!track) {
+    const insertion = insertTimelineTrack(tracks, {
+      index: tracks.length,
+      type: trackType,
+    });
+    tracks = insertion.tracks;
+    track = insertion.track;
+  }
+
+  const base = {
+    durationUs,
+    hidden: false,
+    id: derivedId(edit.clips, `clip-${params.source.id}`),
+    name: params.source.fileName,
+    sourceId: params.source.id,
+    src: params.source.src,
+    startUs: params.startUs,
+    trackId: track.id,
+    transform: createSourceTransform(params.source, params.canvasSize),
+    zIndex: 0,
+  };
+  const clip: TimelineClip =
+    params.source.type === 'image'
+      ? { ...base, type: 'image' }
+      : {
+          ...base,
+          sourceDurationUs: durationUs,
+          speed: 1,
+          trimEndUs: durationUs,
+          trimStartUs: 0,
+          type: params.source.type,
+          volume: 1,
+          ...(params.source.waveformSrc
+            ? { waveformSrc: params.source.waveformSrc }
+            : {}),
+        };
+  const targetClips = getTrackClips(edit.clips, track.id);
+  const insertionIndex = targetClips.findIndex(
+    (candidate) => candidate.startUs > params.startUs,
+  );
+  const layout = planClipInsertion(
+    targetClips,
+    clip,
+    insertionIndex < 0 ? targetClips.length : insertionIndex,
+    params.startUs,
+    track.id === MAIN_VIDEO_TRACK_ID,
+  );
+  const laidOutIds = new Set(layout.clips.map((candidate) => candidate.id));
+  return changedEdit(
+    edit,
+    [
+      ...edit.clips.filter((candidate) => !laidOutIds.has(candidate.id)),
+      ...layout.clips,
+    ],
+    clip.id,
+    tracks,
+  );
+};
 
 export const addTextClip = (
   edit: TimelineEdit,
@@ -843,6 +990,27 @@ export const changeClipSpeed = (
   return changedEdit(edit, clips, clip.id);
 };
 
+export const changeClipVolume = (
+  edit: TimelineEdit,
+  params: ChangeClipVolumeParams,
+): TimelineEditResult => {
+  const clip = edit.clips.find((candidate) => candidate.id === params.clipId);
+  if (!clip || !isTimelineTimedMediaClip(clip)) return unchanged;
+  const volume = normalizeClipVolume(params.volume);
+  if (!Number.isFinite(params.volume) || volume === clip.volume) {
+    return unchanged;
+  }
+  return changedEdit(
+    edit,
+    edit.clips.map((candidate) =>
+      candidate.id === clip.id && isTimelineTimedMediaClip(candidate)
+        ? { ...candidate, volume }
+        : candidate,
+    ),
+    clip.id,
+  );
+};
+
 export const changeClipHidden = (
   edit: TimelineEdit,
   params: ChangeClipHiddenParams,
@@ -1116,6 +1284,183 @@ export const splitClip = (
     ),
     rightId,
   );
+};
+
+export type UpdateTimelineClipParams = {
+  bold?: boolean;
+  clipId: string;
+  endUs?: number;
+  fontColor?: string;
+  fontSize?: number;
+  fontType?: string;
+  hidden?: boolean;
+  italic?: boolean;
+  layoutSize?: TimelineTextLayoutSize;
+  position?: TimelineClipPosition;
+  speed?: TimelineClipSpeed;
+  startUs?: number;
+  text?: string;
+  trackId?: string;
+  transform?: TimelineClipTransform;
+  trimEndUs?: number;
+  trimStartUs?: number;
+  underline?: boolean;
+  volume?: TimelineClipVolume;
+};
+
+export const updateTimelineClip = (
+  edit: TimelineEdit,
+  params: UpdateTimelineClipParams,
+): TimelineEditResult => {
+  if (!edit.clips.some((clip) => clip.id === params.clipId)) return unchanged;
+  let nextEdit = edit;
+  let changed = false;
+  const apply = (result: TimelineEditResult) => {
+    if (!result.changed) return;
+    nextEdit = result;
+    changed = true;
+  };
+  const getCurrent = () =>
+    nextEdit.clips.find((clip) => clip.id === params.clipId);
+
+  if (params.startUs !== undefined || params.trackId !== undefined) {
+    const clip = getCurrent();
+    const startUs = params.startUs ?? clip?.startUs;
+    const trackId = params.trackId ?? clip?.trackId;
+    const track = nextEdit.tracks.find((candidate) => candidate.id === trackId);
+    if (clip && startUs !== undefined && track) {
+      const trackClips = getTrackClips(nextEdit.clips, track.id).filter(
+        (candidate) => candidate.id !== clip.id,
+      );
+      const insertionIndex = trackClips.findIndex(
+        (candidate) => candidate.startUs > startUs,
+      );
+      apply(
+        moveClip(nextEdit, {
+          clipId: clip.id,
+          freeStartUs: startUs,
+          insertionIndex:
+            insertionIndex < 0 ? trackClips.length : insertionIndex,
+          target: { kind: 'existing', trackId: track.id },
+        }),
+      );
+    }
+  }
+
+  if (params.speed !== undefined) {
+    apply(
+      changeClipSpeed(nextEdit, {
+        clipId: params.clipId,
+        speed: params.speed,
+      }),
+    );
+  }
+  if (params.trimStartUs !== undefined) {
+    const clip = getCurrent();
+    if (clip && isTimelineTimedMediaClip(clip)) {
+      apply(
+        trimClip(nextEdit, {
+          clipId: clip.id,
+          edge: 'start',
+          trimEndUs: params.trimEndUs ?? clip.trimEndUs,
+          trimStartUs: params.trimStartUs,
+        }),
+      );
+    }
+  }
+  if (params.trimEndUs !== undefined) {
+    const clip = getCurrent();
+    if (clip && isTimelineTimedMediaClip(clip)) {
+      apply(
+        trimClip(nextEdit, {
+          clipId: clip.id,
+          edge: 'end',
+          trimEndUs: params.trimEndUs,
+          trimStartUs: clip.trimStartUs,
+        }),
+      );
+    }
+  }
+  if (params.endUs !== undefined) {
+    apply(
+      trimClip(nextEdit, {
+        clipId: params.clipId,
+        edge: 'end',
+        timeUs: params.endUs,
+      }),
+    );
+  }
+  if (params.volume !== undefined) {
+    apply(
+      changeClipVolume(nextEdit, {
+        clipId: params.clipId,
+        volume: params.volume,
+      }),
+    );
+  }
+  if (params.transform !== undefined) {
+    apply(
+      transformMediaClip(
+        nextEdit,
+        params.clipId,
+        normalizeClipTransform(params.transform),
+      ),
+    );
+  }
+  if (params.position !== undefined) {
+    apply(
+      moveClipPosition(nextEdit, {
+        clipId: params.clipId,
+        position: params.position,
+      }),
+    );
+  }
+  if (
+    params.bold !== undefined ||
+    params.fontColor !== undefined ||
+    params.fontSize !== undefined ||
+    params.fontType !== undefined ||
+    params.italic !== undefined ||
+    params.text !== undefined ||
+    params.underline !== undefined
+  ) {
+    apply(
+      changeTextClipProperties(nextEdit, {
+        ...(params.bold !== undefined ? { bold: params.bold } : {}),
+        clipId: params.clipId,
+        ...(params.fontColor !== undefined
+          ? { fontColor: params.fontColor }
+          : {}),
+        ...(params.fontSize !== undefined ? { fontSize: params.fontSize } : {}),
+        ...(params.fontType !== undefined ? { fontType: params.fontType } : {}),
+        ...(params.italic !== undefined ? { italic: params.italic } : {}),
+        ...(params.layoutSize !== undefined
+          ? { layoutSize: params.layoutSize }
+          : {}),
+        ...(params.text !== undefined ? { text: params.text } : {}),
+        ...(params.underline !== undefined
+          ? { underline: params.underline }
+          : {}),
+      }),
+    );
+  }
+  if (params.hidden !== undefined) {
+    apply(
+      changeClipHidden(nextEdit, {
+        clipId: params.clipId,
+        hidden: params.hidden,
+      }),
+    );
+  }
+
+  return changed
+    ? {
+        changed: true,
+        clips: nextEdit.clips,
+        selectedClipId: nextEdit.selectedClipId,
+        tracks: nextEdit.tracks,
+      }
+    : unchanged;
 };
 
 export const getEditDurationUs = (edit: TimelineEdit) =>

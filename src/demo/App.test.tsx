@@ -1,37 +1,20 @@
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../index', () => ({
   VideoTimelineEditor: ({
-    onImportMedia,
-    sources,
+    initialSources,
   }: {
-    onImportMedia: (request: { type: 'video' | 'audio'; url: string }) => void;
-    sources: Array<{ fileName: string; src: string; type: string }>;
+    initialSources: Array<{ fileName: string; src: string; type: string }>;
   }) => (
-    <>
-      <button
-        onClick={() =>
-          onImportMedia({
-            type: 'audio',
-            url: 'https://cdn.example.com/music.mp3?signature=1',
-          })
-        }
-        type='button'
-      >
-        测试导入在线素材
-      </button>
-      <output data-testid='sources'>{JSON.stringify(sources)}</output>
-    </>
+    <output data-testid='sources'>{JSON.stringify(initialSources)}</output>
   ),
 }));
 
 import { DemoApp } from './App';
 
 describe('DemoApp', () => {
-  it('starts with built-in media and adds online sources through the editor callback', async () => {
-    const user = userEvent.setup();
+  it('starts the editor with built-in media', () => {
     const { container } = render(<DemoApp />);
 
     expect(container.querySelector('input[type="file"]')).not.toBeInTheDocument();
@@ -53,17 +36,5 @@ describe('DemoApp', () => {
       }),
     ]);
 
-    await user.click(screen.getByRole('button', { name: '测试导入在线素材' }));
-
-    const sources = JSON.parse(screen.getByTestId('sources').textContent ?? '[]');
-    expect(sources).toEqual([
-      ...initialSources,
-      expect.objectContaining({
-        fileName: 'music.mp3',
-        src: 'https://cdn.example.com/music.mp3?signature=1',
-        type: 'audio',
-      }),
-    ]);
-    expect(sources.at(-1).id).toEqual(expect.any(String));
   });
 });

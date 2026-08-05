@@ -10,6 +10,7 @@ import type {
   TimelineProject,
   TimelineTrack,
   TimelineClipVolume,
+  TimelineSource,
 } from './core/model';
 
 export type {
@@ -52,30 +53,7 @@ export type VideoTimelineClip = TimelineClip;
 export type VideoTimelineClipDraft = TimelineClip;
 export type VideoTimelineCanvasSize = TimelineCanvasSize;
 
-type VideoTimelineSourceBase = {
-  fileName: string;
-  id: string;
-  src: string;
-};
-
-type VideoTimelineTimedMediaSource = VideoTimelineSourceBase & {
-  durationUs?: number;
-  height?: number;
-  type: Exclude<VideoTimelineMediaType, 'image'>;
-  waveformSrc?: string;
-  width?: number;
-};
-
-type VideoTimelineImageSource = VideoTimelineSourceBase & {
-  durationUs?: number;
-  height?: number;
-  type: 'image';
-  width?: number;
-};
-
-export type VideoTimelineSource =
-  | VideoTimelineTimedMediaSource
-  | VideoTimelineImageSource;
+export type VideoTimelineSource = TimelineSource;
 
 export type VideoTimelineDraft = TimelineProject;
 
@@ -118,24 +96,17 @@ export type VideoTimelineExportRequest = {
   payload: CompositionExportPayload;
 };
 
-export type VideoTimelineImportRequest = {
-  type: VideoTimelineMediaType;
-  url: string;
-};
-
 export type VideoTimelineEditorProps = {
-  sources: VideoTimelineSource[];
+  initialSources?: VideoTimelineSource[];
   initialDraft?: VideoTimelineDraft;
   title?: string;
   className?: string;
   style?: CSSProperties;
   jsonFileName?: string;
   mediaLoader?: VideoTimelineMediaLoader;
+  onSourcesChange?: (sources: VideoTimelineSource[]) => void;
   onDraftChange?: (draft: VideoTimelineDraft) => void;
   onExport?: (request: VideoTimelineExportRequest) => void | Promise<void>;
-  onImportMedia?: (
-    request: VideoTimelineImportRequest,
-  ) => void | Promise<void>;
   onClose?: () => void;
 };
 

@@ -1,3 +1,4 @@
+import { createRef } from 'react';
 import {
   act,
   fireEvent,
@@ -10,11 +11,15 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { secondsToMicroseconds } from './core/time';
+import {
+  VideoTimelineEditorApiError,
+  type VideoTimelineEditorHandle,
+} from './api';
 import type {
   TimelineClip,
   VideoTimelineDraft,
   VideoTimelineExportRequest,
-  VideoTimelineImportRequest,
+  VideoTimelineMediaMetadata,
   VideoTimelineSource,
 } from './types';
 
@@ -310,12 +315,19 @@ describe('VideoTimelineEditor', () => {
     }
   });
 
+  it('renders with an omitted source catalog', () => {
+    render(<VideoTimelineEditor />);
+
+    expect(screen.getByRole('heading', { name: '视频合成' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '导出 JSON' })).toBeVisible();
+  });
+
   it('always shows JSON export and only renders optional export and close actions', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onExport = vi.fn();
     const { rerender } = render(
-      <VideoTimelineEditor sources={[videoSource]} title='剪辑项目' />,
+      <VideoTimelineEditor initialSources={[videoSource]} title='剪辑项目' />,
     );
 
     expect(screen.getByRole('heading', { name: '剪辑项目' })).toBeVisible();
@@ -331,7 +343,7 @@ describe('VideoTimelineEditor', () => {
       <VideoTimelineEditor
         onClose={onClose}
         onExport={onExport}
-        sources={[videoSource]}
+        initialSources={[videoSource]}
       />,
     );
 
@@ -342,21 +354,9 @@ describe('VideoTimelineEditor', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('opens the online import dialog only when onImportMedia is configured', async () => {
+  it('always exposes the instance-backed online import dialog', async () => {
     const user = userEvent.setup();
-    const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
-    const { rerender } = render(<VideoTimelineEditor sources={[videoSource]} />);
-
-    expect(
-      screen.queryByRole('button', { name: '导入素材' }),
-    ).not.toBeInTheDocument();
-
-    rerender(
-      <VideoTimelineEditor
-        onImportMedia={onImportMedia}
-        sources={[videoSource]}
-      />,
-    );
+    render(<VideoTimelineEditor initialSources={[videoSource]} />);
     await user.click(screen.getByRole('button', { name: '导入素材' }));
 
     expect(screen.getByRole('dialog', { name: '导入在线素材' })).toBeVisible();
@@ -371,11 +371,11 @@ describe('VideoTimelineEditor', () => {
 
   it('adds a five-second text title from the always-available title dialog', async () => {
     const user = userEvent.setup();
-    render(<VideoTimelineEditor sources={[videoSource]} />);
+    render(<VideoTimelineEditor initialSources={[videoSource]} />);
 
     const addTitleButton = screen.getByRole('button', { name: '添加标题' });
     expect(addTitleButton).toBeVisible();
-    expect(screen.queryByRole('button', { name: '导入素材' })).toBeNull();
+    expect(screen.getByRole('button', { name: '导入素材' })).toBeVisible();
 
     await user.click(addTitleButton);
     expect(
@@ -429,7 +429,7 @@ describe('VideoTimelineEditor', () => {
         load: vi.fn(() => Promise.reject(new Error('font unavailable'))),
       },
     });
-    render(<VideoTimelineEditor sources={[videoSource]} />);
+    render(<VideoTimelineEditor initialSources={[videoSource]} />);
 
     await user.click(screen.getByRole('button', { name: '添加标题' }));
     await user.type(screen.getByLabelText('标题内容'), '无法测量的标题');
@@ -448,13 +448,15 @@ describe('VideoTimelineEditor', () => {
     );
   });
 
-  it('detects the media type from the URL suffix and closes after import', async () => {
+  it('detects the media type, registers the source, and adds its clip', async () => {
     const user = userEvent.setup();
-    const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
+    const loadMetadata = vi.fn().mockResolvedValue({
+      durationUs: secondsToMicroseconds(8),
+    });
     render(
       <VideoTimelineEditor
-        onImportMedia={onImportMedia}
-        sources={[videoSource]}
+        initialSources={[videoSource]}
+        mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
       />,
     );
     await user.click(screen.getByRole('button', { name: '导入素材' }));
@@ -466,21 +468,26 @@ describe('VideoTimelineEditor', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       '请输入有效的 http 或 https 素材地址。',
     );
-    expect(onImportMedia).not.toHaveBeenCalled();
+    expect(loadMetadata).not.toHaveBeenCalled();
 
     await user.clear(urlInput);
     await user.paste('https://cdn.example.com/music.mp3?signature=1');
     expect(screen.queryByText('素材类型')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '确认导入' }));
 
-    expect(onImportMedia).toHaveBeenCalledWith({
-      type: 'audio',
-      url: 'https://cdn.example.com/music.mp3?signature=1',
-    });
     await waitFor(() =>
       expect(
         screen.queryByRole('dialog', { name: '导入在线素材' }),
       ).not.toBeInTheDocument(),
+    );
+    expect(loadMetadata).toHaveBeenCalledOnce();
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '2',
+    );
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-last-type',
+      'audio',
     );
   });
 
@@ -488,13 +495,16 @@ describe('VideoTimelineEditor', () => {
     'detects .%s image URLs with uppercase suffixes and query parameters',
     async (extension) => {
       const user = userEvent.setup();
-      const onImportMedia = vi.fn<
-        (request: VideoTimelineImportRequest) => void
-      >();
       render(
         <VideoTimelineEditor
-          onImportMedia={onImportMedia}
-          sources={[videoSource]}
+          initialSources={[videoSource]}
+          mediaLoader={{
+            loadBlob: vi.fn(),
+            loadMetadata: vi.fn().mockResolvedValue({
+              height: 900,
+              width: 600,
+            }),
+          }}
         />,
       );
       await user.click(screen.getByRole('button', { name: '导入素材' }));
@@ -502,19 +512,18 @@ describe('VideoTimelineEditor', () => {
       await user.type(screen.getByLabelText('素材 URL'), url);
       await user.click(screen.getByRole('button', { name: '确认导入' }));
 
-      expect(onImportMedia).toHaveBeenCalledWith({ type: 'image', url });
+      await waitFor(() =>
+        expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+          'data-last-type',
+          'image',
+        ),
+      );
     },
   );
 
   it('rejects missing or unsupported URL file suffixes', async () => {
     const user = userEvent.setup();
-    const onImportMedia = vi.fn<(request: VideoTimelineImportRequest) => void>();
-    render(
-      <VideoTimelineEditor
-        onImportMedia={onImportMedia}
-        sources={[videoSource]}
-      />,
-    );
+    render(<VideoTimelineEditor initialSources={[videoSource]} />);
     await user.click(screen.getByRole('button', { name: '导入素材' }));
     const urlInput = screen.getByLabelText('素材 URL');
 
@@ -541,22 +550,29 @@ describe('VideoTimelineEditor', () => {
     await user.paste('https://cdn.example.com/no-extension');
     await user.click(screen.getByRole('button', { name: '确认导入' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      '无法从 URL 文件后缀识别素材类型。',
+      '无法从素材地址识别媒体类型，请显式提供 type。',
     );
-    expect(onImportMedia).not.toHaveBeenCalled();
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '1',
+    );
   });
 
-  it('prevents duplicate import submissions and displays callback failures', async () => {
+  it('prevents duplicate import submissions and displays metadata failures', async () => {
     const user = userEvent.setup();
-    const pendingImport = createDeferred<void>();
-    const onImportMedia = vi
-      .fn<(request: VideoTimelineImportRequest) => Promise<void>>()
-      .mockReturnValueOnce(pendingImport.promise)
+    const pendingMetadata = createDeferred<{
+      durationUs: number;
+      height: number;
+      width: number;
+    }>();
+    const loadMetadata = vi
+      .fn()
+      .mockReturnValueOnce(pendingMetadata.promise)
       .mockRejectedValueOnce(new Error('素材服务暂不可用'));
     render(
       <VideoTimelineEditor
-        onImportMedia={onImportMedia}
-        sources={[videoSource]}
+        initialSources={[videoSource]}
+        mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
       />,
     );
     await user.click(screen.getByRole('button', { name: '导入素材' }));
@@ -567,13 +583,13 @@ describe('VideoTimelineEditor', () => {
     expect(screen.getByRole('button', { name: '导入中…' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '取消' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: '导入中…' }));
-    expect(onImportMedia).toHaveBeenCalledOnce();
-    expect(onImportMedia).toHaveBeenCalledWith({
-      type: 'video',
-      url: 'https://cdn.example.com/video.mp4',
-    });
+    expect(loadMetadata).toHaveBeenCalledOnce();
 
-    pendingImport.resolve();
+    pendingMetadata.resolve({
+      durationUs: secondsToMicroseconds(8),
+      height: 720,
+      width: 1280,
+    });
     await waitFor(() =>
       expect(
         screen.queryByRole('dialog', { name: '导入在线素材' }),
@@ -585,7 +601,9 @@ describe('VideoTimelineEditor', () => {
     await user.paste('https://cdn.example.com/retry.mp4');
     await user.click(screen.getByRole('button', { name: '确认导入' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('该素材上传失败');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '素材服务暂不可用',
+    );
     expect(screen.getByRole('dialog', { name: '导入在线素材' })).toBeVisible();
   });
 
@@ -595,7 +613,7 @@ describe('VideoTimelineEditor', () => {
       .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
       .mockResolvedValue(undefined);
     render(
-      <VideoTimelineEditor onExport={onExport} sources={[audioSource]} />,
+      <VideoTimelineEditor onExport={onExport} initialSources={[audioSource]} />,
     );
     await flushEffects();
 
@@ -641,7 +659,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         jsonFileName='my-cut.json'
-        sources={[audioSource]}
+        initialSources={[audioSource]}
       />,
     );
     await user.click(
@@ -683,7 +701,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob }}
-        sources={[videoSource]}
+        initialSources={[videoSource]}
       />,
     );
 
@@ -730,7 +748,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob }}
-        sources={[imageSource]}
+        initialSources={[imageSource]}
       />,
     );
 
@@ -757,7 +775,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob }}
-        sources={[videoSource]}
+        initialSources={[videoSource]}
       />,
     );
 
@@ -777,7 +795,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob, loadMetadata }}
-        sources={[{ ...audioSource, durationUs: undefined }]}
+        initialSources={[{ ...audioSource, durationUs: undefined }]}
       />,
     );
 
@@ -829,7 +847,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
-        sources={[pendingSource, verifiedSource]}
+        initialSources={[pendingSource, verifiedSource]}
       />,
     );
 
@@ -872,7 +890,7 @@ describe('VideoTimelineEditor', () => {
       <VideoTimelineEditor
         mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
         onExport={onExport}
-        sources={[squareSource]}
+        initialSources={[squareSource]}
       />,
     );
 
@@ -935,7 +953,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
-        sources={[firstSource, secondSource]}
+        initialSources={[firstSource, secondSource]}
       />,
     );
 
@@ -982,7 +1000,7 @@ describe('VideoTimelineEditor', () => {
       <VideoTimelineEditor
         onClose={onClose}
         onExport={onExport}
-        sources={[videoSource]}
+        initialSources={[videoSource]}
       />,
     );
 
@@ -1020,7 +1038,7 @@ describe('VideoTimelineEditor', () => {
       .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
       .mockRejectedValue(new Error('导出服务暂不可用'));
     render(
-      <VideoTimelineEditor onExport={onExport} sources={[videoSource]} />,
+      <VideoTimelineEditor onExport={onExport} initialSources={[videoSource]} />,
     );
 
     await user.click(screen.getByRole('button', { name: '导出视频' }));
@@ -1045,7 +1063,7 @@ describe('VideoTimelineEditor', () => {
       <VideoTimelineEditor
         mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
         onDraftChange={onDraftChange}
-        sources={[{ ...audioSource, durationUs: undefined }]}
+        initialSources={[{ ...audioSource, durationUs: undefined }]}
       />,
     );
 
@@ -1070,7 +1088,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         mediaLoader={{ loadBlob: vi.fn(), loadMetadata }}
-        sources={[{ ...imageSource, height: undefined, width: undefined }]}
+        initialSources={[{ ...imageSource, height: undefined, width: undefined }]}
       />,
     );
 
@@ -1085,7 +1103,8 @@ describe('VideoTimelineEditor', () => {
     );
   });
 
-  it('keeps existing clips and tracks when an incrementally added source fails', async () => {
+  it('keeps existing clips when an instance source add fails', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
     const loadMetadata = vi
       .fn()
       .mockRejectedValue(new Error('无法读取媒体元数据'));
@@ -1096,21 +1115,18 @@ describe('VideoTimelineEditor', () => {
       id: 'failed-audio',
       src: '/failed-audio.mp3',
     };
-    const { rerender } = render(
+    render(
       <VideoTimelineEditor
         mediaLoader={mediaLoader}
-        sources={[videoSource]}
+        ref={ref}
+        initialSources={[videoSource]}
       />,
     );
 
-    rerender(
-      <VideoTimelineEditor
-        mediaLoader={mediaLoader}
-        sources={[videoSource, failedAudioSource]}
-      />,
-    );
-
-    expect(await screen.findByText('该素材上传失败')).toBeVisible();
+    await expect(
+      ref.current?.source.add(failedAudioSource),
+    ).rejects.toMatchObject({ code: 'SOURCE_INVALID' });
+    expect(ref.current?.source.get(failedAudioSource.id)).toBeUndefined();
     expect(screen.getByTestId('timeline-state')).toHaveAttribute(
       'data-clip-count',
       '1',
@@ -1120,20 +1136,18 @@ describe('VideoTimelineEditor', () => {
       '1',
     );
 
-    rerender(
-      <VideoTimelineEditor
-        mediaLoader={mediaLoader}
-        sources={[
-          videoSource,
-          { ...failedAudioSource, durationUs: secondsToMicroseconds(4) },
-        ]}
-      />,
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId('timeline-state')).toHaveAttribute(
-        'data-clip-count',
-        '2',
-      ),
+    let addedSourceId = '';
+    await act(async () => {
+      const addedSource = await ref.current?.source.add({
+        ...failedAudioSource,
+        durationUs: secondsToMicroseconds(4),
+      });
+      addedSourceId = addedSource?.id ?? '';
+      await ref.current?.clip.add({ sourceId: addedSourceId });
+    });
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '2',
     );
     expect(screen.getByTestId('timeline-state')).toHaveAttribute(
       'data-track-count',
@@ -1141,35 +1155,16 @@ describe('VideoTimelineEditor', () => {
     );
   });
 
-  it('ignores metadata that resolves after its pending source is removed', async () => {
-    const metadata = createDeferred<{ durationUs: number }>();
-    const loadMetadata = vi.fn().mockReturnValue(metadata.promise);
-    const mediaLoader = { loadBlob: vi.fn(), loadMetadata };
-    const pendingAudioSource: VideoTimelineSource = {
-      ...audioSource,
-      durationUs: undefined,
-      id: 'pending-audio',
-      src: '/pending-audio.mp3',
-    };
+  it('treats initialSources as mount-only input', async () => {
     const { rerender } = render(
-      <VideoTimelineEditor
-        mediaLoader={mediaLoader}
-        sources={[videoSource, pendingAudioSource]}
-      />,
+      <VideoTimelineEditor initialSources={[videoSource]} />,
     );
-    await waitFor(() => expect(loadMetadata).toHaveBeenCalledOnce());
 
     rerender(
       <VideoTimelineEditor
-        mediaLoader={mediaLoader}
-        sources={[videoSource]}
+        initialSources={[videoSource, audioSource]}
       />,
     );
-    await act(async () => {
-      metadata.resolve({ durationUs: secondsToMicroseconds(7) });
-      await metadata.promise;
-    });
-
     await flushEffects();
     expect(screen.getByTestId('timeline-state')).toHaveAttribute(
       'data-clip-count',
@@ -1179,7 +1174,260 @@ describe('VideoTimelineEditor', () => {
       'data-track-count',
       '1',
     );
-    expect(screen.queryByText('该素材上传失败')).not.toBeInTheDocument();
+  });
+
+  it('supports source and media clip CRUD through the instance API', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
+    const onSourcesChange = vi.fn();
+    render(
+      <VideoTimelineEditor onSourcesChange={onSourcesChange} ref={ref} />,
+    );
+
+    let sourceId = '';
+    let clipId = '';
+    await act(async () => {
+      const source = await ref.current?.source.add({
+        ...videoSource,
+        id: 'api-video',
+      });
+      sourceId = source?.id ?? '';
+    });
+    expect(ref.current?.source.get(sourceId)).toMatchObject({
+      fileName: 'video.mp4',
+      id: 'api-video',
+    });
+    expect(screen.getByTestId('timeline-state')).toHaveAttribute(
+      'data-clip-count',
+      '0',
+    );
+
+    await act(async () => {
+      const clip = await ref.current?.clip.add({
+        sourceId,
+        trackId: 'video-main',
+      });
+      clipId = clip?.id ?? '';
+    });
+    expect(ref.current?.clip.get(clipId)).toMatchObject({
+      sourceId,
+      type: 'video',
+    });
+
+    await act(async () => {
+      await ref.current?.source.update(sourceId, {
+        durationUs: secondsToMicroseconds(9),
+        fileName: 'updated.mp4',
+        height: 1080,
+        src: 'https://cdn.example.com/updated.mp4',
+        width: 1920,
+      });
+      await ref.current?.clip.update(clipId, {
+        hidden: true,
+        volume: 0.5,
+      });
+    });
+    expect(ref.current?.source.get(sourceId)).toMatchObject({
+      fileName: 'updated.mp4',
+      src: 'https://cdn.example.com/updated.mp4',
+    });
+    expect(ref.current?.clip.get(clipId)).toMatchObject({
+      hidden: true,
+      src: 'https://cdn.example.com/updated.mp4',
+      volume: 0.5,
+    });
+    expect(() => ref.current?.source.remove(sourceId)).toThrow(
+      expect.objectContaining({ code: 'SOURCE_IN_USE' }),
+    );
+
+    act(() => {
+      ref.current?.clip.remove(clipId);
+      ref.current?.source.remove(sourceId);
+    });
+    expect(ref.current?.clip.get(clipId)).toBeUndefined();
+    expect(ref.current?.source.get(sourceId)).toBeUndefined();
+    expect(onSourcesChange).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps refreshed source identity when timeline history is restored', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
+    render(<VideoTimelineEditor ref={ref} />);
+    let sourceId = '';
+    let clipId = '';
+
+    await act(async () => {
+      const source = await ref.current?.source.add({
+        ...videoSource,
+        id: 'history-video',
+      });
+      sourceId = source?.id ?? '';
+      const clip = await ref.current?.clip.add({ sourceId });
+      clipId = clip?.id ?? '';
+      await ref.current?.clip.update(clipId, { volume: 0.4 });
+      await ref.current?.source.update(sourceId, {
+        durationUs: videoSource.durationUs,
+        fileName: 'history-video-v2.mp4',
+        height: videoSource.height,
+        src: '/history-video-v2.mp4',
+        width: videoSource.width,
+      });
+    });
+
+    fireEvent.keyDown(screen.getByRole('region', { name: '视频合成' }), {
+      ctrlKey: true,
+      key: 'z',
+    });
+    expect(ref.current?.clip.get(clipId)).toEqual(
+      expect.objectContaining({
+        src: '/history-video-v2.mp4',
+        volume: 1,
+      }),
+    );
+  });
+
+  it('does not restore a dangling clip after its source is removed', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
+    render(<VideoTimelineEditor ref={ref} />);
+    let sourceId = '';
+    let clipId = '';
+
+    await act(async () => {
+      const source = await ref.current?.source.add({
+        ...videoSource,
+        id: 'removed-video',
+      });
+      sourceId = source?.id ?? '';
+      const clip = await ref.current?.clip.add({ sourceId });
+      clipId = clip?.id ?? '';
+      ref.current?.clip.remove(clipId);
+      ref.current?.source.remove(sourceId);
+    });
+
+    fireEvent.keyDown(screen.getByRole('region', { name: '视频合成' }), {
+      ctrlKey: true,
+      key: 'z',
+    });
+    expect(ref.current?.source.get(sourceId)).toBeUndefined();
+    expect(ref.current?.clip.get(clipId)).toBeUndefined();
+  });
+
+  it('rejects a stale source update after the source ID is reused', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
+    const metadata = createDeferred<VideoTimelineMediaMetadata | null>();
+    const mediaLoader = {
+      loadBlob: vi.fn().mockResolvedValue(new Blob()),
+      loadMetadata: vi.fn(() => metadata.promise),
+    };
+    render(<VideoTimelineEditor mediaLoader={mediaLoader} ref={ref} />);
+
+    await act(async () => {
+      await ref.current?.source.add({
+        ...videoSource,
+        id: 'reused-video',
+      });
+    });
+    const staleUpdate = ref.current?.source.update('reused-video', {
+      src: '/slow-video.mp4',
+    });
+    const staleUpdateResult = expect(staleUpdate).rejects.toMatchObject({
+      code: 'SOURCE_CONFLICT',
+    });
+    await act(async () => {
+      ref.current?.source.remove('reused-video');
+      await ref.current?.source.add({
+        ...videoSource,
+        fileName: 'replacement.mp4',
+        id: 'reused-video',
+        src: '/replacement.mp4',
+      });
+    });
+    metadata.resolve({
+      durationUs: videoSource.durationUs,
+      height: videoSource.height,
+      width: videoSource.width,
+    });
+
+    await staleUpdateResult;
+    expect(ref.current?.source.get('reused-video')).toEqual(
+      expect.objectContaining({
+        fileName: 'replacement.mp4',
+        src: '/replacement.mp4',
+      }),
+    );
+  });
+
+  it('rejects source durations that are not positive safe integers', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
+    render(<VideoTimelineEditor ref={ref} />);
+
+    await expect(
+      ref.current?.source.add({
+        ...imageSource,
+        durationUs: 1.5,
+        id: 'invalid-duration-image',
+      }),
+    ).rejects.toMatchObject({ code: 'SOURCE_INVALID' });
+    expect(
+      ref.current?.source.get('invalid-duration-image'),
+    ).toBeUndefined();
+  });
+
+  it('rejects non-finite clip transform dimensions', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
+    render(<VideoTimelineEditor initialSources={[videoSource]} ref={ref} />);
+    const clipId = `clip-${videoSource.id}`;
+    const originalClip = ref.current?.clip.get(clipId);
+    const originalTransform =
+      originalClip && originalClip.type !== 'text'
+        ? originalClip.transform
+        : undefined;
+
+    await expect(
+      ref.current?.clip.update(clipId, {
+        transform: {
+          height: videoSource.height ?? 720,
+          width: Number.POSITIVE_INFINITY,
+          x: 0,
+          y: 0,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'CLIP_INVALID' });
+    const currentClip = ref.current?.clip.get(clipId);
+    expect(
+      currentClip && currentClip.type !== 'text'
+        ? currentClip.transform
+        : undefined,
+    ).toEqual(originalTransform);
+  });
+
+  it('supports text clip CRUD and rejects incompatible updates', async () => {
+    const ref = createRef<VideoTimelineEditorHandle>();
+    render(<VideoTimelineEditor ref={ref} />);
+
+    let clipId = '';
+    await act(async () => {
+      const clip = await ref.current?.clip.add({
+        text: '原始标题',
+        type: 'text',
+      });
+      clipId = clip?.id ?? '';
+      await ref.current?.clip.update(clipId, {
+        endUs: secondsToMicroseconds(6),
+        fontColor: '#123456FF',
+        text: '更新标题',
+      });
+    });
+    expect(ref.current?.clip.get(clipId)).toMatchObject({
+      durationUs: secondsToMicroseconds(6),
+      fontColor: '#123456FF',
+      text: '更新标题',
+      type: 'text',
+    });
+    await expect(
+      ref.current?.clip.update(clipId, { volume: 0.5 }),
+    ).rejects.toBeInstanceOf(VideoTimelineEditorApiError);
+
+    act(() => ref.current?.clip.remove(clipId));
+    expect(ref.current?.clip.get(clipId)).toBeUndefined();
   });
 
   it('emits draft changes for persistent edits but not playback state', async () => {
@@ -1188,7 +1436,7 @@ describe('VideoTimelineEditor', () => {
     render(
       <VideoTimelineEditor
         onDraftChange={onDraftChange}
-        sources={[audioSource]}
+        initialSources={[audioSource]}
       />,
     );
     await flushEffects();
@@ -1219,7 +1467,7 @@ describe('VideoTimelineEditor', () => {
       <VideoTimelineEditor
         initialDraft={textDraft}
         onDraftChange={onDraftChange}
-        sources={[]}
+        initialSources={[]}
       />,
     );
     await flushEffects();
@@ -1250,7 +1498,7 @@ describe('VideoTimelineEditor', () => {
     const { container } = render(
       <>
         <input aria-label='编辑器外输入框' />
-        <VideoTimelineEditor sources={[videoSource]} />
+        <VideoTimelineEditor initialSources={[videoSource]} />
       </>,
     );
     const editor = container.querySelector<HTMLElement>('.ec-editor');
@@ -1275,7 +1523,7 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('moves the playhead by 0.1 seconds with Ctrl+Arrow keys', () => {
-    const { container } = render(<VideoTimelineEditor sources={[videoSource]} />);
+    const { container } = render(<VideoTimelineEditor initialSources={[videoSource]} />);
     const editor = container.querySelector<HTMLElement>('.ec-editor');
     const state = screen.getByTestId('timeline-state');
     if (!editor) throw new Error('编辑器根节点未渲染');
@@ -1295,7 +1543,7 @@ describe('VideoTimelineEditor', () => {
 
   it('ignores playback and delete shortcuts from an input inside the editor', async () => {
     const user = userEvent.setup();
-    render(<VideoTimelineEditor sources={[videoSource]} />);
+    render(<VideoTimelineEditor initialSources={[videoSource]} />);
     const state = screen.getByTestId('timeline-state');
     await user.click(
       screen.getByRole('button', { name: '测试：选择首个片段' }),
@@ -1323,8 +1571,8 @@ describe('VideoTimelineEditor', () => {
     const user = userEvent.setup();
     const { container } = render(
       <>
-        <VideoTimelineEditor sources={[videoSource]} title='编辑器 A' />
-        <VideoTimelineEditor sources={[videoSource]} title='编辑器 B' />
+        <VideoTimelineEditor initialSources={[videoSource]} title='编辑器 A' />
+        <VideoTimelineEditor initialSources={[videoSource]} title='编辑器 B' />
       </>,
     );
     const editors = Array.from(
@@ -1354,7 +1602,7 @@ describe('VideoTimelineEditor', () => {
   it('routes Ctrl+Z and Ctrl+Y to the focused editor undo history', async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <VideoTimelineEditor sources={[audioSource]} />,
+      <VideoTimelineEditor initialSources={[audioSource]} />,
     );
     const editor = container.querySelector<HTMLElement>('.ec-editor');
     const state = screen.getByTestId('timeline-state');
@@ -1372,12 +1620,41 @@ describe('VideoTimelineEditor', () => {
     expect(state).toHaveAttribute('data-first-clip-volume', '1');
   });
 
+  it('isolates source and clip APIs between editor instances', async () => {
+    const firstRef = createRef<VideoTimelineEditorHandle>();
+    const secondRef = createRef<VideoTimelineEditorHandle>();
+    render(
+      <>
+        <VideoTimelineEditor ref={firstRef} title='编辑器 A' />
+        <VideoTimelineEditor ref={secondRef} title='编辑器 B' />
+      </>,
+    );
+    const states = screen.getAllByTestId('timeline-state');
+
+    await act(async () => {
+      const source = await firstRef.current?.source.add({
+        ...videoSource,
+        id: 'shared-id',
+      });
+      await firstRef.current?.clip.add({ sourceId: source?.id ?? '' });
+      await secondRef.current?.source.add({
+        ...audioSource,
+        id: 'shared-id',
+      });
+    });
+
+    expect(firstRef.current?.source.get('shared-id')?.type).toBe('video');
+    expect(secondRef.current?.source.get('shared-id')?.type).toBe('audio');
+    expect(states[0]).toHaveAttribute('data-clip-count', '1');
+    expect(states[1]).toHaveAttribute('data-clip-count', '0');
+  });
+
   it('keeps playback state isolated between two editor instances', async () => {
     const user = userEvent.setup();
     const { container } = render(
       <>
-        <VideoTimelineEditor sources={[videoSource]} title='编辑器 A' />
-        <VideoTimelineEditor sources={[videoSource]} title='编辑器 B' />
+        <VideoTimelineEditor initialSources={[videoSource]} title='编辑器 A' />
+        <VideoTimelineEditor initialSources={[videoSource]} title='编辑器 B' />
       </>,
     );
     const editors = Array.from(

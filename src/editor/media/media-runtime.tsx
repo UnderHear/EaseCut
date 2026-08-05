@@ -325,6 +325,7 @@ export const createMediaRuntime = (
 
   const setSources = (sources: VideoTimelineSource[]) => {
     if (disposed) return;
+    sourcesBySrc.clear();
     for (const source of sources) {
       sourcesBySrc.set(source.src, source);
       if ('waveformSrc' in source && source.waveformSrc) {
@@ -620,7 +621,7 @@ export function MediaRuntimeProvider({
 }: MediaRuntimeProviderProps) {
   const runtime = useMemo(
     () => createMediaRuntime(mediaLoader, sources),
-    // sources 由下方 effect 增量同步，避免素材列表更新时清空媒体缓存。
+    // sources 由下方 effect 同步，运行时实例和媒体缓存不会因此重建。
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [mediaLoader],
   );
