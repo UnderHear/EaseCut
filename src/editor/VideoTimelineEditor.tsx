@@ -16,15 +16,7 @@ import {
   useVideoTimelineEditorApi,
 } from './api/editor-api-context';
 import {
-  hasCompleteSourceMetadata,
-  mergeSourceMetadata,
-} from './api/source-input';
-import {
   createVideoTimelineSourceStore,
-  getSourceSnapshot,
-  getSourceSnapshots,
-  updateSourceSnapshot,
-  type VideoTimelineSourceStoreApi,
 } from './api/source-store';
 import type { VideoTimelineEditorHandle } from './api';
 import { PreviewPanel } from './components/PreviewPanel';
@@ -36,7 +28,6 @@ import {
   DEFAULT_TIMELINE_TEXT_FONT_SIZE,
   DEFAULT_TIMELINE_TEXT_FONT_TYPE,
 } from './core/text-fonts';
-import { MAIN_VIDEO_TRACK_ID } from './core/timeline-tracks';
 import { millisecondsToMicroseconds } from './core/time';
 import {
   MediaRuntimeProvider,
@@ -59,11 +50,8 @@ import type {
   TimelineClipTimingPreview,
   VideoTimelineDraft,
   VideoTimelineEditorProps,
-  VideoTimelineSource,
 } from './types';
 import { TimelinePanel } from './timeline/TimelinePanel';
-
-const EMPTY_SOURCES: VideoTimelineSource[] = [];
 
 const shouldIgnoreShortcutTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -101,7 +89,6 @@ export const VideoTimelineEditor = forwardRef<
   VideoTimelineEditorProps
 >(function VideoTimelineEditor(
   {
-    initialSources = EMPTY_SOURCES,
     initialDraft,
     mediaLoader,
     onSourcesChange,
@@ -109,30 +96,12 @@ export const VideoTimelineEditor = forwardRef<
   },
   ref,
 ) {
-  const [sourceStore] = useState(() =>
-    createVideoTimelineSourceStore(initialSources),
-  );
+  const [sourceStore] = useState(() => createVideoTimelineSourceStore());
   const sources = useStore(sourceStore, (state) => state.sources);
   const [store] = useState(() =>
     createTimelineStore({
       draft: initialDraft,
-      sources: initialSources.filter(hasCompleteSourceMetadata),
     }),
-  );
-  const [pendingInitialSourceIds] = useState(
-    () =>
-      new Set(
-        initialSources
-          .filter((source) => !hasCompleteSourceMetadata(source))
-          .filter(
-            (source) =>
-              !initialDraft?.clips.some(
-                (clip) =>
-                  isTimelineMediaClip(clip) && clip.sourceId === source.id,
-              ),
-          )
-          .map((source) => source.id),
-      ),
   );
   const onSourcesChangeRef = useRef(onSourcesChange);
 
@@ -154,12 +123,7 @@ export const VideoTimelineEditor = forwardRef<
     <TimelineStoreProvider store={store}>
       <MediaRuntimeProvider mediaLoader={mediaLoader} sources={sources}>
         <VideoTimelineEditorApiProvider apiRef={ref} sourceStore={sourceStore}>
-          <VideoTimelineEditorView
-            {...props}
-            pendingInitialSourceIds={pendingInitialSourceIds}
-            sources={sources}
-            sourceStore={sourceStore}
-          />
+          <VideoTimelineEditorView {...props} />
         </VideoTimelineEditorApiProvider>
       </MediaRuntimeProvider>
     </TimelineStoreProvider>
@@ -168,12 +132,8 @@ export const VideoTimelineEditor = forwardRef<
 
 type VideoTimelineEditorViewProps = Omit<
   VideoTimelineEditorProps,
-  'initialDraft' | 'initialSources' | 'mediaLoader' | 'onSourcesChange'
-> & {
-  pendingInitialSourceIds: Set<string>;
-  sources: VideoTimelineSource[];
-  sourceStore: VideoTimelineSourceStoreApi;
-};
+  'initialDraft' | 'mediaLoader' | 'onSourcesChange'
+>;
 
 function VideoTimelineEditorView({
   className = '',
@@ -181,9 +141,6 @@ function VideoTimelineEditorView({
   onClose,
   onDraftChange,
   onExport,
-  pendingInitialSourceIds,
-  sources,
-  sourceStore,
   style,
   title = '视频合成',
 }: VideoTimelineEditorViewProps) {
@@ -213,7 +170,6 @@ function VideoTimelineEditorView({
   const titleLayoutRequestRef = useRef<AbortController | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const onDraftChangeRef = useRef(onDraftChange);
-  const notifiedMetadataFailureSourceIdsRef = useRef(new Set<string>());
   const importErrorId = useId();
   const titleTextErrorId = useId();
 
@@ -273,83 +229,6 @@ function VideoTimelineEditorView({
       onDraftChangeRef.current?.(nextDraft);
     });
   }, [store]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const activeSourceIds = new Set(sources.map((source) => source.id));
-    for (const sourceId of notifiedMetadataFailureSourceIdsRef.current) {
-      if (!activeSourceIds.has(sourceId)) {
-        notifiedMetadataFailureSourceIdsRef.current.delete(sourceId);
-      }
-    }
-
-    const reportMetadataFailure = (
-      source: VideoTimelineSource,
-      error?: unknown,
-    ) => {
-      if (
-        cancelled ||
-        notifiedMetadataFailureSourceIdsRef.current.has(source.id)
-      ) {
-        return;
-      }
-      notifiedMetadataFailureSourceIdsRef.current.add(source.id);
-      setMediaError(
-        source.type === 'image'
-          ? error instanceof Error
-            ? `图片素材加载失败：${error.message}`
-            : '图片素材尺寸无效，无法导入'
-          : '该素材上传失败',
-      );
-    };
-
-    store
-      .getState()
-      .refreshSources(sources.filter(hasCompleteSourceMetadata));
-    for (const source of sources) {
-      if (hasCompleteSourceMetadata(source)) continue;
-
-      void runtime.getMetadata(source).then(
-        (metadata) => {
-          if (cancelled) return;
-          if (!metadata) {
-            reportMetadataFailure(source);
-            return;
-          }
-          const resolvedSource = mergeSourceMetadata(source, metadata);
-          if (!hasCompleteSourceMetadata(resolvedSource)) {
-            reportMetadataFailure(source);
-            return;
-          }
-          const current = getSourceSnapshot(sourceStore, source.id);
-          if (!current || current.src !== source.src) return;
-          updateSourceSnapshot(sourceStore, resolvedSource);
-          const state = store.getState();
-          if (pendingInitialSourceIds.delete(source.id)) {
-            const startUs =
-              source.type === 'audio'
-                ? 0
-                : state.clips
-                    .filter((clip) => clip.trackId === MAIN_VIDEO_TRACK_ID)
-                    .reduce(
-                      (endUs, clip) =>
-                        Math.max(endUs, clip.startUs + clip.durationUs),
-                      0,
-                    );
-            state.addMediaClip({ source: resolvedSource, startUs });
-          }
-          store
-            .getState()
-            .refreshSources(getSourceSnapshots(sourceStore));
-        },
-        (error: unknown) => reportMetadataFailure(source, error),
-      );
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingInitialSourceIds, runtime, sourceStore, sources, store]);
 
   useEffect(() => {
     if (!isPlaying) return undefined;

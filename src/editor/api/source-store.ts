@@ -15,10 +15,10 @@ export type VideoTimelineSourceState = {
 export type VideoTimelineSourceStoreApi = StoreApi<VideoTimelineSourceState>;
 
 export const createVideoTimelineSourceStore = (
-  initialSources: readonly VideoTimelineSource[] = [],
+  sources: readonly VideoTimelineSource[] = [],
 ): VideoTimelineSourceStoreApi => {
   const ids = new Set<string>();
-  for (const source of initialSources) {
+  for (const source of sources) {
     if (ids.has(source.id)) {
       throw new TypeError(`素材 ID 重复：${source.id}`);
     }
@@ -28,9 +28,9 @@ export const createVideoTimelineSourceStore = (
   return createStore<VideoTimelineSourceState>()(() => ({
     revision: 0,
     sourceRevisions: Object.fromEntries(
-      initialSources.map((source) => [source.id, 0]),
+      sources.map((source) => [source.id, 0]),
     ),
-    sources: initialSources.map(cloneSource),
+    sources: sources.map(cloneSource),
   }));
 };
 

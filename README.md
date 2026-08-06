@@ -40,29 +40,8 @@ npm run preview
 import {
   VideoTimelineEditor,
   type VideoTimelineDraft,
-  type VideoTimelineSource,
 } from 'easecut-react';
 import 'easecut-react/styles.css';
-
-const initialSources: VideoTimelineSource[] = [
-  {
-    id: 'video-1',
-    type: 'video',
-    fileName: 'example.mp4',
-    src: 'https://example.com/example.mp4',
-    durationUs: 8_500_000,
-    width: 1920,
-    height: 1080,
-  },
-  {
-    id: 'image-1',
-    type: 'image',
-    fileName: 'cover.png',
-    src: 'https://example.com/cover.png',
-    width: 1200,
-    height: 1600,
-  },
-];
 
 export function Editor() {
   const saveDraft = (draft: VideoTimelineDraft) => {
@@ -77,7 +56,6 @@ export function Editor() {
           // 将 payload 交给自己的服务端视频渲染服务。
           await submitRenderTask({ draft, payload });
         }}
-        initialSources={initialSources}
         title='我的视频工程'
       />
     </div>
@@ -85,7 +63,7 @@ export function Editor() {
 }
 ```
 
-`initialSources` 和 `initialDraft` 只在组件实例创建时读取。切换工程时请为组件设置新的 React `key`。后续素材和片段通过 `VideoTimelineEditorHandle` 实例 API 增删改查；`onDraftChange` 只响应可持久化的轨道、片段和画布变化，不会因播放时间、缩放或选中状态触发。
+`initialDraft` 只在组件实例创建时读取。素材和片段通过 `VideoTimelineEditorHandle` 实例 API 增删改查；`onDraftChange` 只响应可持久化的轨道、片段和画布变化，不会因播放时间、缩放或选中状态触发。
 
 新建项目的“原纵横比”取素材列表中第一个具有有效宽高的视频原始尺寸；没有符合条件的视频时使用 `1280 × 720`。预览区左侧的纵横比面板还提供 `16:9`（`1280 × 720`）、`4:3`（`960 × 720`）、`2:1`（`1440 × 720`）、`9:16`（`720 × 1280`）、`1:1`（`720 × 720`）和 `3:4`（`720 × 960`）项目预设。切换画布时会围绕画布中心等比调整现有视觉内容，并形成一个可撤销、可重做的编辑记录。
 

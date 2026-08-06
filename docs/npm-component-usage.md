@@ -45,7 +45,7 @@ export function EditorPage() {
 
 必须导入 `easecut-react/styles.css`。编辑器根节点使用 `width: 100%`、`height: 100%`，并具有 `520px` 的默认最小高度，因此宿主容器应提供明确高度。
 
-不传 `initialSources` 时会创建空工程。之后可使用实例 API 添加素材和片段，不需要维护 React `sources` state。
+编辑器会创建空工程。之后使用实例 API 添加素材和片段，不需要维护 React `sources` state。
 
 ## 3. 实例 API
 
@@ -288,7 +288,6 @@ type VideoTimelineEditorApiErrorCode =
 
 ```ts
 type VideoTimelineEditorProps = {
-  initialSources?: VideoTimelineSource[];
   initialDraft?: VideoTimelineDraft;
   title?: string;
   className?: string;
@@ -306,7 +305,6 @@ type VideoTimelineEditorProps = {
 
 | Prop | 默认值 | 作用 |
 | --- | --- | --- |
-| `initialSources` | `[]` | 仅在实例创建时读取的初始素材，并为其创建初始 clip |
 | `initialDraft` | 新工程 | 仅在实例创建时读取的项目草稿 |
 | `title` | `'视频合成'` | 标题栏文字和根区域可访问名称 |
 | `className` | `''` | 追加到根节点 `ec-editor` 的类名 |
@@ -318,19 +316,18 @@ type VideoTimelineEditorProps = {
 | `onExport` | 无 | 提供后显示“导出视频”按钮 |
 | `onClose` | 无 | 提供后显示关闭按钮 |
 
-`initialSources` 和 `initialDraft` 都是挂载时初始值，组件不会观察它们的后续变化。切换工程时应更换 React `key`：
+`initialDraft` 是挂载时初始值，组件不会观察它的后续变化。切换项目草稿时应更换 React `key`：
 
 ```tsx
 <VideoTimelineEditor
   key={projectId}
   initialDraft={projectDraft}
-  initialSources={projectSources}
 />
 ```
 
-后续 source/clip 变更使用实例 API。不要用 React state 反复重传 `initialSources`。
+后续 source/clip 变更使用实例 API。项目所需的素材也通过 source API 注册，再通过 clip API 放入时间线。
 
-`onSourcesChange` 初次挂载时不会调用；source 通过实例 API 增加、更新、删除或补齐初始元数据后调用。
+`onSourcesChange` 初次挂载时不会调用；source 通过实例 API 增加、更新或删除后调用。
 
 `onDraftChange` 初次挂载时不会调用，也不会因播放时间、缩放、滚动、选择或拖动预览等瞬态状态调用。
 

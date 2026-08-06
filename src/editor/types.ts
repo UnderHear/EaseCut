@@ -97,7 +97,6 @@ export type VideoTimelineExportRequest = {
 };
 
 export type VideoTimelineEditorProps = {
-  initialSources?: VideoTimelineSource[];
   initialDraft?: VideoTimelineDraft;
   title?: string;
   className?: string;

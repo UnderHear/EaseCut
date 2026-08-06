@@ -315,7 +315,7 @@ export type MediaRuntime = {
 
 export const createMediaRuntime = (
   mediaLoader: VideoTimelineMediaLoader = defaultMediaLoader,
-  initialSources: VideoTimelineSource[] = [],
+  sources: VideoTimelineSource[] = [],
 ): MediaRuntime => {
   const blobs = new Map<string, BlobCacheEntry>();
   const metadataEntries = new Map<string, MetadataCacheEntry>();
@@ -333,7 +333,7 @@ export const createMediaRuntime = (
       }
     }
   };
-  setSources(initialSources);
+  setSources(sources);
 
   const resolveInput = (input: MediaInput) => {
     if (typeof input === 'string') {
