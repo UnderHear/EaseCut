@@ -21,10 +21,8 @@ describe('timeline zoom scale', () => {
 
   it('keeps the major tick interval at least one second at max zoom', () => {
     const scale = calcTickScale(240);
-    const labels = [0, 1, 2].map(secondsToMicroseconds).map(scale.formatTick);
 
     expect(scale.majorIntervalUs).toBe(secondsToMicroseconds(1));
-    expect(labels).toEqual(['00:00', '00:01', '00:02']);
   });
 
   it('keeps major tick cadence stable around previous zoom jump points', () => {

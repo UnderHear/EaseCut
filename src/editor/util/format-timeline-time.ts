@@ -1,3 +1,9 @@
+import { normalizeTimelineTimeUs } from '../core/timeline-math';
+import {
+  MICROSECONDS_PER_SECOND,
+  microsecondsToSeconds,
+} from '../core/time';
+
 const CENTISECONDS_PER_SECOND = 100;
 const MICROSECONDS_PER_CENTISECOND = 10_000;
 const SECONDS_PER_MINUTE = 60;
@@ -23,3 +29,24 @@ export const formatTimelineTime = (timeUs: number) => {
     remainingCentiseconds,
   )}`;
 };
+
+export const formatTimelineRulerTime = (timeUs: number) => {
+  const totalSeconds = Math.floor(
+    Math.max(0, normalizeTimelineTimeUs(timeUs)) / MICROSECONDS_PER_SECOND,
+  );
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / SECONDS_PER_MINUTE);
+  const seconds = totalSeconds % SECONDS_PER_MINUTE;
+
+  return hours > 0
+    ? `${hours}:${formatSegment(minutes)}:${formatSegment(seconds)}`
+    : `${formatSegment(minutes)}:${formatSegment(seconds)}`;
+};
+
+export const formatTimelineDateTime = (timeUs: number) =>
+  `PT${microsecondsToSeconds(timeUs)}S`;
+
+export const formatTimelineSeconds = (
+  timeUs: number,
+  fractionDigits = 2,
+) => `${microsecondsToSeconds(timeUs).toFixed(fractionDigits)} 秒`;

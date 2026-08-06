@@ -52,13 +52,11 @@ type TickScale = {
   majorIntervalUs: number;
   /** How many minor ticks to draw between two major ticks. */
   minorDivisions: number;
-  /** Time formatter suitable for the current zoom level. */
-  formatTick: (timeUs: number) => string;
 };
 
 /**
- * Choose the best major-interval / minor-division / label-format based on
- * the current pixelsPerSecond (zoom level).
+ * Choose the best major interval and minor division based on the current
+ * pixelsPerSecond (zoom level).
  */
 export const calcTickScale = (pixelsPerSecond: number): TickScale => {
   const safePixelsPerSecond = Math.max(1, pixelsPerSecond);
@@ -74,30 +72,12 @@ export const calcTickScale = (pixelsPerSecond: number): TickScale => {
     majorIntervalSeconds * safePixelsPerSecond >= DENSE_MINOR_THRESHOLD_PX
       ? DENSE_MINOR_DIVISIONS
       : DEFAULT_MINOR_DIVISIONS;
-  const formatTick = formatTickTimeUs;
 
   return {
     majorIntervalUs: majorIntervalSeconds * MICROSECONDS_PER_SECOND,
     minorDivisions,
-    formatTick,
   };
 };
 
 const getTickSpacingScore = (interval: number, pixelsPerSecond: number) =>
   Math.abs(Math.log((interval * pixelsPerSecond) / TARGET_MAJOR_TICK_PX));
-
-const formatTickTimeUs = (timeUs: number) => {
-  const totalSeconds = Math.floor(
-    Math.max(0, normalizeTimelineTimeUs(timeUs)) / MICROSECONDS_PER_SECOND,
-  );
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const secondsInMinute = totalSeconds % 60;
-  const secondsText = secondsInMinute.toString().padStart(2, '0');
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secondsText}`;
-  }
-
-  return `${minutes.toString().padStart(2, '0')}:${secondsText}`;
-};

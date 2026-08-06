@@ -1,3 +1,5 @@
+import { isRecord } from '../util/value';
+
 export const MAX_AUDIO_WAVEFORM_SAMPLE_COUNT = 16_384;
 
 export const normalizeAudioWaveformSampleCount = (value: number) =>
@@ -32,9 +34,6 @@ export type AudioWaveformWorkerResponse =
       requestId: number;
       type: 'error';
     };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
 
 const isNonNegativeInteger = (value: unknown): value is number =>
   typeof value === 'number' &&

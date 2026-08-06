@@ -1,63 +1,29 @@
 import type { VideoTimelineMediaMetadata, VideoTimelineSource } from '../types';
 import { isValidTimeUs } from '../core/time';
+import { getNextNumberedId } from '../util/id';
+import { inferMediaTypeFromUrl } from '../util/media-file-format';
+import { isPositiveFiniteNumber } from '../util/number';
+import { getUrlFileExtension, getUrlFileName, tryParseUrl } from '../util/url';
 import { VideoTimelineEditorApiError } from './errors';
 import type { VideoTimelineSourceInput } from './types';
-
-const VIDEO_FILE_EXTENSIONS = new Set([
-  '3g2',
-  '3gp',
-  'avi',
-  'm2ts',
-  'm4v',
-  'mkv',
-  'mov',
-  'mp4',
-  'mpeg',
-  'mpg',
-  'm3u8',
-  'ogv',
-  'ts',
-  'webm',
-]);
-
-const AUDIO_FILE_EXTENSIONS = new Set([
-  'aac',
-  'aif',
-  'aiff',
-  'flac',
-  'm4a',
-  'mp3',
-  'oga',
-  'ogg',
-  'opus',
-  'wav',
-  'weba',
-  'wma',
-]);
-
-const IMAGE_FILE_EXTENSIONS = new Set(['jpeg', 'jpg', 'png']);
-
-const isPositiveNumber = (value: number | undefined) =>
-  typeof value === 'number' && Number.isFinite(value) && value > 0;
 
 const isPositiveTimeUs = (value: number | undefined) =>
   typeof value === 'number' && isValidTimeUs(value) && value > 0;
 
 const parseSourceUrl = (src: string) => {
-  try {
-    return new URL(src, window.location.href);
-  } catch {
+  const url = tryParseUrl(src, window.location.href);
+  if (!url) {
     throw new VideoTimelineEditorApiError(
       'SOURCE_INVALID',
       '素材地址无效。',
     );
   }
+  return url;
 };
 
 export const detectSourceType = (src: string) => {
   const url = parseSourceUrl(src);
-  const fileName = url.pathname.split('/').at(-1)?.toLowerCase() ?? '';
-  const extension = fileName.match(/\.([a-z0-9]+)$/)?.[1];
+  const extension = getUrlFileExtension(url);
 
   if (!extension) {
     throw new VideoTimelineEditorApiError(
@@ -65,9 +31,8 @@ export const detectSourceType = (src: string) => {
       '无法从素材地址识别媒体类型，请显式提供 type。',
     );
   }
-  if (VIDEO_FILE_EXTENSIONS.has(extension)) return 'video' as const;
-  if (AUDIO_FILE_EXTENSIONS.has(extension)) return 'audio' as const;
-  if (IMAGE_FILE_EXTENSIONS.has(extension)) return 'image' as const;
+  const type = inferMediaTypeFromUrl(url);
+  if (type) return type;
 
   throw new VideoTimelineEditorApiError(
     'SOURCE_INVALID',
@@ -77,17 +42,13 @@ export const detectSourceType = (src: string) => {
 
 const getSourceFileName = (src: string, type: VideoTimelineSource['type']) => {
   const url = parseSourceUrl(src);
-  const fileName = url.pathname.split('/').filter(Boolean).at(-1);
-  if (fileName) return decodeURIComponent(fileName);
+  const fileName = getUrlFileName(url);
+  if (fileName) return fileName;
   return type === 'audio' ? '在线音频' : type === 'image' ? '在线图片' : '在线视频';
 };
 
-const getNextSourceId = (sources: readonly VideoTimelineSource[]) => {
-  const ids = new Set(sources.map((source) => source.id));
-  let index = 1;
-  while (ids.has(`source-${index}`)) index += 1;
-  return `source-${index}`;
-};
+const getNextSourceId = (sources: readonly VideoTimelineSource[]) =>
+  getNextNumberedId(sources.map((source) => source.id), 'source');
 
 export const createSourceCandidate = (
   input: VideoTimelineSourceInput,
@@ -131,11 +92,11 @@ export const hasCompleteSourceMetadata = (source: VideoTimelineSource) =>
     : source.type === 'image'
       ? (source.durationUs === undefined ||
           isPositiveTimeUs(source.durationUs)) &&
-        isPositiveNumber(source.height) &&
-        isPositiveNumber(source.width)
+        isPositiveFiniteNumber(source.height) &&
+        isPositiveFiniteNumber(source.width)
       : isPositiveTimeUs(source.durationUs) &&
-        isPositiveNumber(source.height) &&
-        isPositiveNumber(source.width);
+        isPositiveFiniteNumber(source.height) &&
+        isPositiveFiniteNumber(source.width);
 
 export const mergeSourceMetadata = (
   source: VideoTimelineSource,
@@ -148,10 +109,12 @@ export const mergeSourceMetadata = (
     isPositiveTimeUs(metadata.durationUs)
       ? { durationUs: metadata.durationUs }
       : {}),
-    ...(!isPositiveNumber(source.height) && isPositiveNumber(metadata.height)
+    ...(!isPositiveFiniteNumber(source.height) &&
+    isPositiveFiniteNumber(metadata.height)
       ? { height: metadata.height }
       : {}),
-    ...(!isPositiveNumber(source.width) && isPositiveNumber(metadata.width)
+    ...(!isPositiveFiniteNumber(source.width) &&
+    isPositiveFiniteNumber(metadata.width)
       ? { width: metadata.width }
       : {}),
   };

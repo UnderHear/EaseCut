@@ -38,8 +38,12 @@ import type {
   TimelineTextClip,
   TimelineTimedMediaClip,
 } from '../types';
+import { isJsdomEnvironment } from '../util/browser';
+import { createTextCanvasFont } from '../util/format-canvas-font';
+import { formatHexRgbaColor } from '../util/format-text-color';
+import { isNonNegativeFiniteNumber } from '../util/number';
+import { areStringRecordsEqual } from '../util/value';
 import {
-  createTextCanvasFont,
   useMediaRuntime,
   type MediaObjectUrlLease,
 } from '../media';
@@ -96,8 +100,7 @@ type PreviewPanelProps = {
 const previewResizeHandles: PreviewResizeHandle[] = ['nw', 'ne', 'sw', 'se'];
 
 const canUseMediaElement = () =>
-  typeof navigator === 'undefined' ||
-  !navigator.userAgent.toLowerCase().includes('jsdom');
+  !isJsdomEnvironment();
 
 type PreviewClipIndex = ReadonlyMap<string, readonly TimelineMediaClip[]>;
 
@@ -309,18 +312,6 @@ const hasPendingPreviewMedia = (
     );
   });
 
-const areObjectUrlRecordsEqual = (
-  left: Record<string, string>,
-  right: Record<string, string>,
-) => {
-  const leftEntries = Object.entries(left);
-  const rightEntries = Object.entries(right);
-  return (
-    leftEntries.length === rightEntries.length &&
-    leftEntries.every(([src, objectUrl]) => right[src] === objectUrl)
-  );
-};
-
 const getCanvasPoint = (
   canvas: HTMLCanvasElement,
   event: ReactPointerEvent<HTMLCanvasElement>,
@@ -409,14 +400,6 @@ const getVisibleClipAtPoint = (
   return null;
 };
 
-const toCanvasColor = (fontColor: string) => {
-  const red = Number.parseInt(fontColor.slice(1, 3), 16);
-  const green = Number.parseInt(fontColor.slice(3, 5), 16);
-  const blue = Number.parseInt(fontColor.slice(5, 7), 16);
-  const alpha = Number.parseInt(fontColor.slice(7, 9), 16) / 255;
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-};
-
 const drawTextClip = (
   context: CanvasRenderingContext2D,
   clip: Extract<TimelineClip, { type: 'text' }>,
@@ -431,7 +414,7 @@ const drawTextClip = (
     previewTransform.y + previewTransform.height / 2;
 
   context.save();
-  context.fillStyle = toCanvasColor(fontColor);
+  context.fillStyle = formatHexRgbaColor(fontColor);
   context.font = createTextCanvasFont(
     {
       bold: clip.bold,
@@ -451,7 +434,7 @@ const drawTextClip = (
     const measuredDescent =
       context.measureText(clip.text).actualBoundingBoxDescent;
     const glyphDescent =
-      Number.isFinite(measuredDescent) && measuredDescent >= 0
+      isNonNegativeFiniteNumber(measuredDescent)
         ? measuredDescent
         : scaledFontSize * TEXT_UNDERLINE_FALLBACK_DESCENT_RATIO;
     const offset = scaledFontSize * TEXT_UNDERLINE_OFFSET_RATIO;
@@ -1312,7 +1295,7 @@ export function PreviewPanel({
 
         const nextObjectUrls = Object.fromEntries(entries);
         setPreviewObjectUrls((current) =>
-          areObjectUrlRecordsEqual(current, nextObjectUrls)
+          areStringRecordsEqual(current, nextObjectUrls)
             ? current
             : nextObjectUrls,
         );

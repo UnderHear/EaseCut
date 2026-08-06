@@ -3,6 +3,8 @@ import {
   getTimelineTextFontPreset,
   type TimelineTextFontType,
 } from '../core/text-fonts';
+import { createTextCanvasFont } from '../util/format-canvas-font';
+import { normalizeNonNegativeFiniteNumber } from '../util/number';
 
 const DEFAULT_TEXT_LAYOUT_CACHE_SIZE = 256;
 const FALLBACK_LINE_HEIGHT_RATIO = 1.2;
@@ -65,15 +67,6 @@ const createDefaultContext = (): TextMeasurementContext | null => {
   return document.createElement('canvas').getContext('2d');
 };
 
-const getFiniteNonNegativeMetric = (value: number) =>
-  Number.isFinite(value) && value >= 0 ? value : 0;
-
-export const createTextCanvasFont = (
-  request: Pick<TextLayoutRequest, 'bold' | 'fontSize' | 'italic'>,
-  fontFamily: string,
-) =>
-  `${request.italic ? 'italic ' : ''}${request.bold ? '700 ' : ''}${request.fontSize}px "${fontFamily}", sans-serif`;
-
 const measureLayoutSize = (
   context: TextMeasurementContext,
   request: TextLayoutRequest,
@@ -84,17 +77,17 @@ const measureLayoutSize = (
   context.textBaseline = 'alphabetic';
   const metrics = context.measureText(request.text);
   const actualWidth =
-    getFiniteNonNegativeMetric(metrics.actualBoundingBoxLeft) +
-    getFiniteNonNegativeMetric(metrics.actualBoundingBoxRight);
+    normalizeNonNegativeFiniteNumber(metrics.actualBoundingBoxLeft) +
+    normalizeNonNegativeFiniteNumber(metrics.actualBoundingBoxRight);
   const width = Math.ceil(
-    Math.max(1, getFiniteNonNegativeMetric(metrics.width), actualWidth),
+    Math.max(1, normalizeNonNegativeFiniteNumber(metrics.width), actualWidth),
   );
   const fontHeight =
-    getFiniteNonNegativeMetric(metrics.fontBoundingBoxAscent) +
-    getFiniteNonNegativeMetric(metrics.fontBoundingBoxDescent);
+    normalizeNonNegativeFiniteNumber(metrics.fontBoundingBoxAscent) +
+    normalizeNonNegativeFiniteNumber(metrics.fontBoundingBoxDescent);
   const actualHeight =
-    getFiniteNonNegativeMetric(metrics.actualBoundingBoxAscent) +
-    getFiniteNonNegativeMetric(metrics.actualBoundingBoxDescent);
+    normalizeNonNegativeFiniteNumber(metrics.actualBoundingBoxAscent) +
+    normalizeNonNegativeFiniteNumber(metrics.actualBoundingBoxDescent);
   const measuredHeight =
     fontHeight > 0
       ? fontHeight

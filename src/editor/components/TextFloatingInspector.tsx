@@ -22,6 +22,10 @@ import type {
   TimelineClipTransform,
   TimelineTextClip,
 } from '../types';
+import {
+  getRgbHexColor,
+  replaceRgbHexColor,
+} from '../util/format-text-color';
 import { FloatingInspectorShell } from './FloatingInspectorShell';
 import { ColorInput } from './ui/ColorInput';
 import { IconButton } from './ui/IconButton';
@@ -40,9 +44,6 @@ type TextFloatingInspectorProps = {
 
 type PositionField = keyof TimelineClipPosition;
 
-const toRgbColor = (fontColor: string) => fontColor.slice(0, 7);
-const withFontColorAlpha = (rgbColor: string, fontColor: string) =>
-  `${rgbColor}${fontColor.slice(7)}`.toUpperCase();
 const textFontOptions = TIMELINE_TEXT_FONT_PRESETS.map((preset) => ({
   label: preset.label,
   value: preset.fontType,
@@ -118,7 +119,7 @@ export function TextFloatingInspector({
           x: clip.position.x,
           y: clip.position.y,
         };
-  const displayedRgbColor = toRgbColor(previewFontColor ?? clip.fontColor);
+  const displayedRgbColor = getRgbHexColor(previewFontColor ?? clip.fontColor);
   const endUs = displayedTiming.startUs + displayedTiming.durationUs;
 
   useEffect(
@@ -246,7 +247,7 @@ export function TextFloatingInspector({
       const token = beginColorEdit();
       if (token === null) return;
       pendingColorPreviewRef.current = {
-        fontColor: withFontColorAlpha(rgbColor, clip.fontColor),
+        fontColor: replaceRgbHexColor(clip.fontColor, rgbColor),
         token,
       };
       if (colorPreviewFrameRef.current !== null) return;
@@ -278,7 +279,7 @@ export function TextFloatingInspector({
       commitTextStyleEdit(
         clip.id,
         token,
-        withFontColorAlpha(rgbColor, clip.fontColor),
+        replaceRgbHexColor(clip.fontColor, rgbColor),
       );
       colorEditTokenRef.current = null;
     },

@@ -23,7 +23,6 @@ export {
 } from './audio-waveform';
 export {
   TextLayoutError,
-  createTextCanvasFont,
   createTextLayoutRuntime,
   type TextLayoutErrorCode,
   type TextLayoutRequest,

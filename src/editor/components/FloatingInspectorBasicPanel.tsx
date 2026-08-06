@@ -1,10 +1,11 @@
 import * as Separator from '@radix-ui/react-separator';
 import type { ReactNode } from 'react';
 
-import { microsecondsToSeconds } from '../core/time';
 import { isTimelineTimedMediaClip } from '../core/model';
 import { useTimelineStore } from '../store/timeline-store-context';
 import type { TimelineMediaClip, TimelineClipTimingPreview } from '../types';
+import { formatTimelineMediaType } from '../util/format-media-label';
+import { formatTimelineSeconds } from '../util/format-timeline-time';
 import { InputNumber } from './ui/InputNumber';
 
 type FloatingInspectorBasicPanelProps = {
@@ -46,20 +47,16 @@ export function FloatingInspectorBasicPanel({
             <div>
               <dt>类型</dt>
               <dd>
-                {clip.type === 'video'
-                  ? '视频'
-                  : clip.type === 'image'
-                    ? '图片'
-                    : '音频'}
+                {formatTimelineMediaType(clip.type)}
               </dd>
             </div>
             <div>
               <dt>开始时间</dt>
-              <dd>{microsecondsToSeconds(timing.startUs).toFixed(2)} 秒</dd>
+              <dd>{formatTimelineSeconds(timing.startUs)}</dd>
             </div>
             <div>
               <dt>时长</dt>
-              <dd>{microsecondsToSeconds(timing.durationUs).toFixed(2)} 秒</dd>
+              <dd>{formatTimelineSeconds(timing.durationUs)}</dd>
             </div>
           </dl>
         </section>

@@ -34,7 +34,6 @@ import {
   scaleTimelineOffsetToSourceUs,
 } from '../core/clip-speed';
 import {
-  getTimelineClipLabel,
   isTimelineMediaClip,
   isTimelineTimedMediaClip,
 } from '../core/model';
@@ -43,9 +42,13 @@ import {
   durationUsToWidth,
   normalizeTimelineTimeUs,
 } from '../core/timeline-math';
-import { microsecondsToSeconds } from '../core/time';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
-import { formatTimelineTime } from '../util/format-timeline-time';
+import { getTimelineClipLabel } from '../util/format-media-label';
+import {
+  formatTimelineDateTime,
+  formatTimelineTime,
+} from '../util/format-timeline-time';
+import { clampNumber } from '../util/number';
 import { AudioWaveformCanvas } from './AudioWaveformCanvas';
 
 const AUDIO_VOLUME_INSET = 8;
@@ -75,8 +78,6 @@ export type TimelineClipViewProps = {
   visibleTimeStartUs: number;
   width: number;
 };
-
-const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
 
 const useTimelineClipPresentation = (
   clip: TimelineClip,
@@ -209,7 +210,9 @@ const useTimelineClipPresentation = (
   return {
     imageUrl,
     previewStrip,
-    volume: isTimelineTimedMediaClip(clip) ? clampUnit(clip.volume) : 1,
+    volume: isTimelineTimedMediaClip(clip)
+      ? clampNumber(clip.volume, 0, 1)
+      : 1,
     waveformTiles,
     waveformSamples,
   };
@@ -312,9 +315,7 @@ function TimelineClipVisual({
         </span>
         <time
           className='ec-timeline-clip__duration'
-          dateTime={`PT${microsecondsToSeconds(
-            Math.max(0, clip.durationUs),
-          )}S`}
+          dateTime={formatTimelineDateTime(Math.max(0, clip.durationUs))}
         >
           {formatTimelineTime(clip.durationUs)}
         </time>

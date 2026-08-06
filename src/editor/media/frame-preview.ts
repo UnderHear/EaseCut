@@ -7,6 +7,11 @@ import {
   createMediabunnyFramePreviewSource,
   type MediabunnyFramePreviewSourceFactory,
 } from './mediabunny-frame-preview';
+import {
+  createAbortError as createDomAbortError,
+  isAbortError,
+} from '../util/abort-error';
+import { isJsdomEnvironment } from '../util/browser';
 
 export const FRAME_PREVIEW_CHUNK_DURATION_US = 5 * MICROSECONDS_PER_SECOND;
 
@@ -62,8 +67,7 @@ const EMPTY_FRAME_PREVIEW_STRIP: FramePreviewStrip = {
 export const canGenerateFramePreviews = () =>
   typeof document !== 'undefined' &&
   canUseMediabunnyFramePreviewWorker() &&
-  (typeof navigator === 'undefined' ||
-    !navigator.userAgent.toLowerCase().includes('jsdom'));
+  !isJsdomEnvironment();
 
 const normalizeRequest = (
   request: FramePreviewRequest,
@@ -91,10 +95,7 @@ const getFramePreviewCacheKey = (request: FramePreviewRequest) =>
   [request.src, request.sourceDurationUs, request.pixelsPerSecond].join('\n');
 
 const createAbortError = () =>
-  new DOMException('预览帧任务已取消', 'AbortError');
-
-const isAbortError = (error: unknown) =>
-  error instanceof DOMException && error.name === 'AbortError';
+  createDomAbortError('预览帧任务已取消');
 
 const throwIfAborted = (signal: AbortSignal) => {
   if (signal.aborted) throw createAbortError();
@@ -267,7 +268,7 @@ export const createFramePreviewCache = (
   ) => {
     throwIfAborted(signal);
     if (isDisposed()) {
-      throw new DOMException('媒体运行时已销毁', 'AbortError');
+      throw createDomAbortError('媒体运行时已销毁');
     }
     if (entry.subscribers.size === 0) return;
     const blob = await getBlob(entry.src);

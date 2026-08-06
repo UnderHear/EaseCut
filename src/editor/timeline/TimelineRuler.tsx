@@ -6,8 +6,11 @@ import {
   durationUsToWidth,
   timeUsToX,
 } from '../core/timeline-math';
-import { microsecondsToSeconds } from '../core/time';
 import type { CompositionVideoGap } from '../core/composition';
+import {
+  formatTimelineDateTime,
+  formatTimelineRulerTime,
+} from '../util/format-timeline-time';
 
 type TimelineRulerProps = {
   currentTimeUs: number;
@@ -28,8 +31,7 @@ export function TimelineRuler({
   visibleTimeEndUs,
   visibleTimeStartUs,
 }: TimelineRulerProps) {
-  const { majorIntervalUs, minorDivisions, formatTick } =
-    calcTickScale(pixelsPerSecond);
+  const { majorIntervalUs, minorDivisions } = calcTickScale(pixelsPerSecond);
   const minorIntervalUs = majorIntervalUs / minorDivisions;
   const bufferedStartUs = Math.max(0, visibleTimeStartUs - majorIntervalUs);
   const bufferedEndUs = Math.min(
@@ -104,7 +106,7 @@ export function TimelineRuler({
             className={`ec-timeline-ruler__label${
               tick.isGap ? ' ec-timeline-ruler__label--gap' : ''
             }`}
-            dateTime={`PT${microsecondsToSeconds(tick.timeUs)}S`}
+            dateTime={formatTimelineDateTime(tick.timeUs)}
             key={tick.timeUs}
             style={{
               left:
@@ -112,7 +114,7 @@ export function TimelineRuler({
                 timeUsToX(tick.timeUs, pixelsPerSecond),
             }}
           >
-            {formatTick(tick.timeUs)}
+            {formatTimelineRulerTime(tick.timeUs)}
           </time>
         ))}
     </div>

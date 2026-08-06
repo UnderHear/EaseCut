@@ -3,6 +3,10 @@ import {
   MAX_AUDIO_WAVEFORM_SAMPLE_COUNT,
   normalizeAudioWaveformSampleCount,
 } from '../workers/audio-waveform-protocol';
+import {
+  createAbortError as createDomAbortError,
+  isAbortError,
+} from '../util/abort-error';
 
 const DEFAULT_AUDIO_WAVEFORM_SAMPLE_COUNT = 512;
 export const HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT =
@@ -27,18 +31,8 @@ const getAudioContextConstructor = () =>
     }
   ).webkitAudioContext;
 
-export const isAbortError = (error: unknown) =>
-  error instanceof DOMException
-    ? error.name === 'AbortError'
-    : Boolean(
-        error &&
-          typeof error === 'object' &&
-          'name' in error &&
-          error.name === 'AbortError',
-      );
-
 const createAbortError = () =>
-  new DOMException('媒体运行时已销毁', 'AbortError');
+  createDomAbortError('媒体运行时已销毁');
 
 export const sampleAudioBuffer = (
   audioBuffer: Pick<

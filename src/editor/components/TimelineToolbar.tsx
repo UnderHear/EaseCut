@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 
 import { getTimelineDuration } from '../core/collision';
-import { microsecondsToSeconds } from '../core/time';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -29,7 +28,10 @@ import {
 } from '../core/timeline-math';
 import { canSplitClipAtTime } from '../core/timeline-commands';
 import { useTimelineStore } from '../store/timeline-store-context';
-import { formatTimelineTime } from '../util/format-timeline-time';
+import {
+  formatTimelineDateTime,
+  formatTimelineTime,
+} from '../util/format-timeline-time';
 import { IconButton } from './ui/IconButton';
 
 type TimelineToolbarProps = {
@@ -191,7 +193,7 @@ export function TimelineToolbar({
       <div className='ec-timeline-toolbar__transport'>
         <time
           className='ec-timeline-toolbar__time'
-          dateTime={`PT${microsecondsToSeconds(currentTimeUs)}S`}
+          dateTime={formatTimelineDateTime(currentTimeUs)}
         >
           {formatTimelineTime(currentTimeUs)}
         </time>
@@ -204,7 +206,7 @@ export function TimelineToolbar({
         </IconButton>
         <time
           className='ec-timeline-toolbar__time ec-timeline-toolbar__time--muted'
-          dateTime={`PT${microsecondsToSeconds(duration)}S`}
+          dateTime={formatTimelineDateTime(duration)}
         >
           {formatTimelineTime(duration)}
         </time>

@@ -143,9 +143,6 @@ export const getTimelineClipTransform = (
       }
     : clip.transform;
 
-export const getTimelineClipLabel = (clip: TimelineClip) =>
-  clip.type === 'text' ? clip.text : clip.name;
-
 export const getTimelineTrackTypeForClipType = (
   type: TimelineClipType,
 ): TimelineTrackType => (type === 'image' ? 'video' : type);

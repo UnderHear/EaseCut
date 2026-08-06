@@ -1,4 +1,5 @@
 import { isValidTimeUs } from '../core/time';
+import { isRecord } from '../util/value';
 
 export type FramePreviewWorkerFrame = {
   index: number;
@@ -41,9 +42,6 @@ export type FramePreviewWorkerResponse =
       message: string;
       type: 'error';
     };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
 
 const isFrameIndex = (value: unknown): value is number =>
   typeof value === 'number' &&

@@ -16,7 +16,14 @@ import type {
 } from '../types';
 import type { TimelineMediaType } from '../core/model';
 import { isValidTimeUs, secondsToMicroseconds } from '../core/time';
-import { createAudioWaveformCache, isAbortError } from './audio-waveform';
+import {
+  createAbortError as createDomAbortError,
+  isAbortError,
+} from '../util/abort-error';
+import { isJsdomEnvironment } from '../util/browser';
+import { detectImageFileFormat } from '../util/media-file-format';
+import { isPositiveFiniteNumber as hasPositiveNumber } from '../util/number';
+import { createAudioWaveformCache } from './audio-waveform';
 import {
   createFramePreviewCache,
   type FramePreviewRequest,
@@ -64,10 +71,7 @@ type MetadataCacheEntry =
     };
 
 const createAbortError = () =>
-  new DOMException('媒体运行时已销毁', 'AbortError');
-
-const hasPositiveNumber = (value: number | undefined): value is number =>
-  typeof value === 'number' && Number.isFinite(value) && value > 0;
+  createDomAbortError('媒体运行时已销毁');
 
 const hasPositiveTimeUs = (value: number | undefined): value is number =>
   typeof value === 'number' && isValidTimeUs(value) && value > 0;
@@ -135,9 +139,7 @@ const isMetadataComplete = (
   );
 
 const canReadMediaMetadata = () =>
-  typeof document !== 'undefined' &&
-  (typeof navigator === 'undefined' ||
-    !navigator.userAgent.toLowerCase().includes('jsdom'));
+  typeof document !== 'undefined' && !isJsdomEnvironment();
 
 const defaultMediaLoader: VideoTimelineMediaLoader = {
   async loadBlob(url, { signal }) {
@@ -269,17 +271,7 @@ const validateImageBlob = async (blob: Blob) => {
         })
   );
   const signature = new Uint8Array(arrayBuffer);
-  const isPng =
-    signature.length >= 8 &&
-    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
-      (byte, index) => signature[index] === byte,
-    );
-  const isJpeg =
-    signature.length >= 3 &&
-    signature[0] === 0xff &&
-    signature[1] === 0xd8 &&
-    signature[2] === 0xff;
-  if (!isPng && !isJpeg) {
+  if (!detectImageFileFormat(signature)) {
     throw new TypeError('图片素材仅支持 PNG、JPEG 或 JPG 格式');
   }
   return blob;

@@ -52,17 +52,8 @@ import type {
   VideoTimelineEditorProps,
 } from './types';
 import { TimelinePanel } from './timeline/TimelinePanel';
-
-const shouldIgnoreShortcutTarget = (target: EventTarget | null) => {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-
-  return Boolean(
-    target.closest(
-      'input, textarea, select, button, a[href], summary, [role="button"], [contenteditable="true"]',
-    ),
-  );
-};
+import { shouldIgnoreShortcutTarget } from './util/browser';
+import { isHttpUrl, tryParseUrl } from './util/url';
 
 const downloadBlob = (fileName: string, blob: Blob) => {
   const url = URL.createObjectURL(blob);
@@ -356,13 +347,8 @@ function VideoTimelineEditorView({
     if (isImporting) return;
 
     const url = importUrl.trim();
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-        throw new TypeError('Unsupported protocol');
-      }
-    } catch {
+    const parsedUrl = tryParseUrl(url);
+    if (!parsedUrl || !isHttpUrl(parsedUrl)) {
       setImportError('请输入有效的 http 或 https 素材地址。');
       return;
     }

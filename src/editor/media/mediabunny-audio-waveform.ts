@@ -3,6 +3,7 @@ import {
   normalizeAudioWaveformSampleCount,
   type AudioWaveformWorkerRequest,
 } from '../workers/audio-waveform-protocol';
+import { createAbortError as createDomAbortError } from '../util/abort-error';
 
 type PendingExtraction = {
   abortListener: () => void;
@@ -24,7 +25,7 @@ export type AudioWaveformExtractor = {
 export type AudioWaveformWorkerFactory = () => Worker;
 
 const createAbortError = () =>
-  new DOMException('音频波形任务已取消', 'AbortError');
+  createDomAbortError('音频波形任务已取消');
 
 export const canUseMediabunnyAudioWaveform = () =>
   typeof Worker !== 'undefined';

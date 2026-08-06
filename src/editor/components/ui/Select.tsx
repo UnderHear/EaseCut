@@ -7,18 +7,12 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react';
+import {
+  supportsAnchorPositioning,
+  supportsPopover,
+} from '../../util/browser';
 
 import './Select.css';
-
-const supportsPopover = () =>
-  typeof HTMLElement !== 'undefined' &&
-  typeof HTMLElement.prototype.showPopover === 'function';
-
-const supportsAnchorPositioning = () =>
-  typeof CSS !== 'undefined' &&
-  CSS.supports('position-anchor', '--ec-select-anchor') &&
-  CSS.supports('top', 'anchor(bottom)') &&
-  CSS.supports('width', 'anchor-size(width)');
 
 export type SelectOption<Value extends string> = Readonly<{
   label: string;

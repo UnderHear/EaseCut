@@ -3,6 +3,7 @@ import {
   type FramePreviewWorkerFrame,
   type FramePreviewWorkerRequest,
 } from '../workers/frame-preview-protocol';
+import { createAbortError as createDomAbortError } from '../util/abort-error';
 
 export type FramePreviewExtractionFrame = FramePreviewWorkerFrame;
 
@@ -34,7 +35,7 @@ type PendingExtraction = {
 };
 
 const createAbortError = () =>
-  new DOMException('预览帧任务已取消', 'AbortError');
+  createDomAbortError('预览帧任务已取消');
 
 const defaultWorkerFactory: FramePreviewWorkerFactory = () =>
   new Worker(

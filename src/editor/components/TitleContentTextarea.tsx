@@ -1,4 +1,5 @@
 import type { ChangeEvent, KeyboardEvent } from 'react';
+import { replaceLineBreaksWithSpaces } from '../util/text';
 
 import './TitleContentTextarea.css';
 
@@ -8,15 +9,13 @@ export type TitleContentTextareaProps = {
   value: string;
 };
 
-const removeLineBreaks = (value: string) => value.replace(/[\r\n]+/g, ' ');
-
 export function TitleContentTextarea({
   onChange,
   onCommit,
   value,
 }: TitleContentTextareaProps) {
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    onChange(removeLineBreaks(event.target.value));
+    onChange(replaceLineBreaksWithSpaces(event.target.value));
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
