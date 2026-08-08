@@ -225,6 +225,18 @@ describe('TimelineToolbar', () => {
     expect(screen.queryByText('快捷键')).not.toBeInTheDocument();
 
     const shortcutsTrigger = screen.getByRole('button', { name: '查看快捷键' });
+    const clipInfoButton = screen.getByRole('button', { name: '片段信息' });
+    expect(shortcutsTrigger.nextElementSibling).toBe(clipInfoButton);
+    expect(clipInfoButton).toHaveAttribute('aria-pressed', 'false');
+    expect(
+      clipInfoButton.querySelector('.lucide-text-align-start'),
+    ).not.toBeNull();
+
+    await user.click(clipInfoButton);
+
+    expect(testTimelineStore.getState().clipInfoHidden).toBe(true);
+    expect(clipInfoButton).toHaveAttribute('aria-pressed', 'true');
+
     await user.click(shortcutsTrigger);
 
     expect(shortcutsTrigger).toHaveAttribute('data-state', 'open');

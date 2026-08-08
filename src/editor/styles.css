@@ -744,8 +744,7 @@
 }
 
 .ec-timeline-toolbar__zoom {
-  width: min(120px, 10vw);
-  min-width: 64px;
+  width: 80px;
   margin: 0 3px;
 }
 

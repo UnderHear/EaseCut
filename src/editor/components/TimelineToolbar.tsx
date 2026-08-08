@@ -11,6 +11,7 @@ import {
   Redo2,
   ScanLine,
   SquareSplitHorizontal,
+  TextAlignStart,
   Type as TypeIcon,
   TextCursorInput,
   Trash2,
@@ -85,6 +86,7 @@ export function TimelineToolbar({
     (state) => state.canvasSnappingEnabled,
   );
   const clips = useTimelineStore((state) => state.clips);
+  const clipInfoHidden = useTimelineStore((state) => state.clipInfoHidden);
   const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
@@ -107,6 +109,7 @@ export function TimelineToolbar({
   const toggleCanvasSnapping = useTimelineStore(
     (state) => state.toggleCanvasSnapping,
   );
+  const toggleClipInfo = useTimelineStore((state) => state.toggleClipInfo);
   const togglePlayheadFollow = useTimelineStore(
     (state) => state.togglePlayheadFollow,
   );
@@ -271,6 +274,14 @@ export function TimelineToolbar({
             </Dialog.Content>
           </Dialog.Portal>
         </Dialog.Root>
+        <IconButton
+          aria-label='片段信息'
+          aria-pressed={clipInfoHidden}
+          onClick={toggleClipInfo}
+          title='片段信息'
+        >
+          <TextAlignStart aria-hidden='true' />
+        </IconButton>
         <IconButton
           aria-label='播放头跟随'
           aria-pressed={playheadFollowEnabled}

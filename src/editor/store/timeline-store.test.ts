@@ -274,6 +274,20 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().playheadFollowEnabled).toBe(true);
   });
 
+  it('toggles clip info outside history and resets it to visible', () => {
+    expect(timelineStore.getState().clipInfoHidden).toBe(false);
+
+    timelineStore.getState().toggleClipInfo();
+
+    expect(timelineStore.getState().clipInfoHidden).toBe(true);
+    expect(timelineStore.getState().past).toEqual([]);
+    expect(timelineStore.getState().future).toEqual([]);
+
+    timelineStore.getState().resetTimeline();
+
+    expect(timelineStore.getState().clipInfoHidden).toBe(false);
+  });
+
   it('requests one reveal for newly selected media and text clips', () => {
     const mediaClipId = timelineStore.getState().addMediaClip({
       source: {

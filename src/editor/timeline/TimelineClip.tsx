@@ -74,6 +74,7 @@ export type TimelineClipViewProps = {
   ) => void;
   onVolumeStart: (event: PointerEvent<HTMLElement>, clip: TimelineClip) => void;
   pixelsPerSecond: number;
+  showClipInfo: boolean;
   visibleTimeEndUs: number;
   visibleTimeStartUs: number;
   width: number;
@@ -223,6 +224,7 @@ type TimelineClipVisualProps = {
   imageUrl: string | null;
   pixelsPerSecond: number;
   previewStrip: FramePreviewStrip | null;
+  showClipInfo: boolean;
   waveformTiles: readonly AudioWaveformTile[];
   waveformSamples: readonly number[];
   volume: number;
@@ -233,6 +235,7 @@ function TimelineClipVisual({
   imageUrl,
   pixelsPerSecond,
   previewStrip,
+  showClipInfo,
   waveformTiles,
   waveformSamples,
   volume,
@@ -306,20 +309,22 @@ function TimelineClipVisual({
         )}
       </div>
 
-      <header className='ec-timeline-clip__meta'>
-        <span
-          className='ec-timeline-clip__name'
-          title={getTimelineClipLabel(clip)}
-        >
-          {getTimelineClipLabel(clip)}
-        </span>
-        <time
-          className='ec-timeline-clip__duration'
-          dateTime={formatTimelineDateTime(Math.max(0, clip.durationUs))}
-        >
-          {formatTimelineTime(clip.durationUs)}
-        </time>
-      </header>
+      {showClipInfo ? (
+        <header className='ec-timeline-clip__meta'>
+          <span
+            className='ec-timeline-clip__name'
+            title={getTimelineClipLabel(clip)}
+          >
+            {getTimelineClipLabel(clip)}
+          </span>
+          <time
+            className='ec-timeline-clip__duration'
+            dateTime={formatTimelineDateTime(Math.max(0, clip.durationUs))}
+          >
+            {formatTimelineTime(clip.durationUs)}
+          </time>
+        </header>
+      ) : null}
     </>
   );
 }
@@ -341,6 +346,7 @@ export function TimelineClipView({
   onTrimStart,
   onVolumeStart,
   pixelsPerSecond,
+  showClipInfo,
   visibleTimeEndUs,
   visibleTimeStartUs,
   width,
@@ -419,6 +425,7 @@ export function TimelineClipView({
             imageUrl={imageUrl}
             pixelsPerSecond={pixelsPerSecond}
             previewStrip={previewStrip}
+            showClipInfo={showClipInfo}
             waveformTiles={waveformTiles}
             waveformSamples={waveformSamples}
             volume={volume}
@@ -526,6 +533,7 @@ type TimelineClipDragOverlayProps = {
   height: number;
   left: number;
   pixelsPerSecond: number;
+  showClipInfo: boolean;
   timelineStartUs: number;
   top: number;
   visibleTimeEndUs: number;
@@ -538,6 +546,7 @@ export function TimelineClipDragOverlay({
   height,
   left,
   pixelsPerSecond,
+  showClipInfo,
   timelineStartUs,
   top,
   visibleTimeEndUs,
@@ -583,6 +592,7 @@ export function TimelineClipDragOverlay({
         imageUrl={imageUrl}
         pixelsPerSecond={pixelsPerSecond}
         previewStrip={previewStrip}
+        showClipInfo={showClipInfo}
         waveformTiles={waveformTiles}
         waveformSamples={waveformSamples}
         volume={volume}

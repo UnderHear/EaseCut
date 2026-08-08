@@ -526,6 +526,23 @@ describe('TimelineViewport DOM interactions', () => {
     ).toHaveTextContent('00:03:00');
   });
 
+  it('renders clip metadata only when the clip info toggle is off', () => {
+    renderTimeline();
+    const videoArticle = screen.getByRole('article', {
+      name: 'video clip: opening.mp4',
+    });
+
+    expect(videoArticle.querySelector('.ec-timeline-clip__meta')).not.toBeNull();
+
+    act(() => testTimelineStore.getState().toggleClipInfo());
+
+    expect(videoArticle.querySelector('.ec-timeline-clip__meta')).toBeNull();
+
+    act(() => testTimelineStore.getState().toggleClipInfo());
+
+    expect(videoArticle.querySelector('.ec-timeline-clip__meta')).not.toBeNull();
+  });
+
   it('keeps source-frame geometry and extraction request stable during a start trim', () => {
     renderTimeline();
     const clip = screen.getByRole('article', {
