@@ -17,13 +17,24 @@ describe('CanvasRatioPanel', () => {
     });
   });
 
-  it('mirrors the property inspector on the left with all ratio choices', () => {
+  it('opens from the left rail and shows all ratio choices', async () => {
+    const user = userEvent.setup();
     renderWithEditorProviders(<CanvasRatioPanel />);
 
     const panel = screen.getByRole('complementary', {
       name: '画布比例面板',
     });
     expect(panel).toHaveAttribute('data-side', 'left');
+    expect(panel).toHaveAttribute('data-panel-open', 'false');
+    expect(screen.queryByRole('heading', { name: '纵横比' })).toBeNull();
+    expect(
+      within(screen.getByRole('navigation', { name: '画布设置' }))
+        .getByRole('button', { name: '纵横比' }),
+    ).not.toHaveAttribute('aria-current');
+
+    await user.click(screen.getByRole('button', { name: '纵横比' }));
+
+    expect(panel).toHaveAttribute('data-panel-open', 'true');
     expect(screen.getByRole('heading', { name: '纵横比' })).toBeVisible();
     expect(
       within(screen.getByRole('navigation', { name: '画布设置' }))
@@ -52,6 +63,7 @@ describe('CanvasRatioPanel', () => {
     const user = userEvent.setup();
     renderWithEditorProviders(<CanvasRatioPanel />);
 
+    await user.click(screen.getByRole('button', { name: '纵横比' }));
     await user.click(screen.getByRole('button', { name: '9:16' }));
     expect(testTimelineStore.getState().canvasSize).toEqual({
       height: 1280,
@@ -94,6 +106,7 @@ describe('CanvasRatioPanel', () => {
     });
     renderWithEditorProviders(<CanvasRatioPanel />);
 
+    await user.click(screen.getByRole('button', { name: '纵横比' }));
     await user.click(screen.getByRole('button', { name: '16:9' }));
 
     expect(testTimelineStore.getState().canvasSize).toEqual({
@@ -113,13 +126,10 @@ describe('CanvasRatioPanel', () => {
     expect(testTimelineStore.getState().canvasSelection).toBe('original');
   });
 
-  it('closes the panel and reopens it from the ratio rail item', async () => {
+  it('starts closed and opens from the ratio rail item', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(<CanvasRatioPanel />);
 
-    await user.click(
-      screen.getByRole('button', { name: '关闭画布比例面板' }),
-    );
     expect(screen.queryByRole('heading', { name: '纵横比' })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: '纵横比' }));

@@ -47,7 +47,7 @@ const createPresetOption = (
 });
 
 export function CanvasRatioPanel() {
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const canvasSelection = useTimelineStore((state) => state.canvasSelection);
   const commitCanvasSize = useTimelineStore((state) => state.commitCanvasSize);
   const originalCanvasSize = useTimelineStore(
