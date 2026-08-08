@@ -86,7 +86,7 @@ export function TimelineToolbar({
     (state) => state.canvasSnappingEnabled,
   );
   const clips = useTimelineStore((state) => state.clips);
-  const clipInfoHidden = useTimelineStore((state) => state.clipInfoHidden);
+  const clipInfoVisible = useTimelineStore((state) => state.clipInfoVisible);
   const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
@@ -109,7 +109,9 @@ export function TimelineToolbar({
   const toggleCanvasSnapping = useTimelineStore(
     (state) => state.toggleCanvasSnapping,
   );
-  const toggleClipInfo = useTimelineStore((state) => state.toggleClipInfo);
+  const toggleClipInfoVisibility = useTimelineStore(
+    (state) => state.toggleClipInfoVisibility,
+  );
   const togglePlayheadFollow = useTimelineStore(
     (state) => state.togglePlayheadFollow,
   );
@@ -276,8 +278,8 @@ export function TimelineToolbar({
         </Dialog.Root>
         <IconButton
           aria-label='片段信息'
-          aria-pressed={clipInfoHidden}
-          onClick={toggleClipInfo}
+          aria-pressed={clipInfoVisible}
+          onClick={toggleClipInfoVisibility}
           title='片段信息'
         >
           <TextAlignStart aria-hidden='true' />

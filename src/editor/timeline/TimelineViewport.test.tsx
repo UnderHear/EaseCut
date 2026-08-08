@@ -526,7 +526,7 @@ describe('TimelineViewport DOM interactions', () => {
     ).toHaveTextContent('00:03:00');
   });
 
-  it('renders clip metadata only when the clip info toggle is off', () => {
+  it('renders clip metadata only when the clip info toggle is on', () => {
     renderTimeline();
     const videoArticle = screen.getByRole('article', {
       name: 'video clip: opening.mp4',
@@ -534,11 +534,11 @@ describe('TimelineViewport DOM interactions', () => {
 
     expect(videoArticle.querySelector('.ec-timeline-clip__meta')).not.toBeNull();
 
-    act(() => testTimelineStore.getState().toggleClipInfo());
+    act(() => testTimelineStore.getState().toggleClipInfoVisibility());
 
     expect(videoArticle.querySelector('.ec-timeline-clip__meta')).toBeNull();
 
-    act(() => testTimelineStore.getState().toggleClipInfo());
+    act(() => testTimelineStore.getState().toggleClipInfoVisibility());
 
     expect(videoArticle.querySelector('.ec-timeline-clip__meta')).not.toBeNull();
   });

@@ -164,7 +164,7 @@ export type TimelineState = {
   canvasSnappingEnabled: boolean;
   canvasSelection: TimelineCanvasSelection | null;
   canvasSize: TimelineCanvasSize;
-  clipInfoHidden: boolean;
+  clipInfoVisible: boolean;
   clips: TimelineClip[];
   continuousEdit: TimelineContinuousEdit | null;
   copiedClip: TimelineClip | null;
@@ -238,7 +238,7 @@ export type TimelineActions = {
   splitClipAtTime: (clipId: string, timeUs: number) => void;
   suspendTextStyleEdit: (clipId: string, token: number) => void;
   toggleCanvasSnapping: () => void;
-  toggleClipInfo: () => void;
+  toggleClipInfoVisibility: () => void;
   togglePlayheadFollow: () => void;
   toggleSnapping: () => void;
   toggleTrackMute: (trackId: string) => void;
@@ -374,7 +374,7 @@ const createBaseState = (
   canvasSnappingEnabled: true,
   canvasSelection,
   canvasSize,
-  clipInfoHidden: false,
+  clipInfoVisible: true,
   clips,
   continuousEdit: null,
   copiedClip: null,
@@ -1422,8 +1422,8 @@ export const createTimelineStore = (
           canvasSnappingEnabled: !state.canvasSnappingEnabled,
         })),
 
-      toggleClipInfo: () =>
-        set((state) => ({ clipInfoHidden: !state.clipInfoHidden })),
+      toggleClipInfoVisibility: () =>
+        set((state) => ({ clipInfoVisible: !state.clipInfoVisible })),
 
       setClipHidden: (clipId, hidden) =>
         commit(changeClipHidden(asEdit(get()), { clipId, hidden })),

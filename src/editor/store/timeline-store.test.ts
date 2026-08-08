@@ -275,17 +275,17 @@ describe('timelineStore video track layout', () => {
   });
 
   it('toggles clip info outside history and resets it to visible', () => {
-    expect(timelineStore.getState().clipInfoHidden).toBe(false);
+    expect(timelineStore.getState().clipInfoVisible).toBe(true);
 
-    timelineStore.getState().toggleClipInfo();
+    timelineStore.getState().toggleClipInfoVisibility();
 
-    expect(timelineStore.getState().clipInfoHidden).toBe(true);
+    expect(timelineStore.getState().clipInfoVisible).toBe(false);
     expect(timelineStore.getState().past).toEqual([]);
     expect(timelineStore.getState().future).toEqual([]);
 
     timelineStore.getState().resetTimeline();
 
-    expect(timelineStore.getState().clipInfoHidden).toBe(false);
+    expect(timelineStore.getState().clipInfoVisible).toBe(true);
   });
 
   it('requests one reveal for newly selected media and text clips', () => {

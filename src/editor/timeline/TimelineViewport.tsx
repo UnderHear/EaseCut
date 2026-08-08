@@ -68,7 +68,7 @@ export function TimelineViewport({
   onDownloadClip,
 }: TimelineViewportProps) {
   const canvasSize = useTimelineStore((state) => state.canvasSize);
-  const clipInfoHidden = useTimelineStore((state) => state.clipInfoHidden);
+  const clipInfoVisible = useTimelineStore((state) => state.clipInfoVisible);
   const clips = useTimelineStore((state) => state.clips);
   const copiedClip = useTimelineStore((state) => state.copiedClip);
   const currentTimeUs = useTimelineStore((state) => state.currentTimeUs);
@@ -604,7 +604,7 @@ export function TimelineViewport({
                         onTrimStart={controller.beginTrim}
                         onVolumeStart={controller.beginVolume}
                         pixelsPerSecond={pixelsPerSecond}
-                        showClipInfo={!clipInfoHidden}
+                        showClipInfo={clipInfoVisible}
                         visibleTimeEndUs={visibleTimeEndUs}
                         visibleTimeStartUs={visibleTimeStartUs}
                         width={durationUsToWidth(
@@ -649,7 +649,7 @@ export function TimelineViewport({
                 timeUsToX(dropPreview.rawStartUs, pixelsPerSecond)
               }
               pixelsPerSecond={pixelsPerSecond}
-              showClipInfo={!clipInfoHidden}
+              showClipInfo={clipInfoVisible}
               timelineStartUs={dropPreview.rawStartUs}
               top={dropPreview.dragTop - TIMELINE_RULER_HEIGHT}
               visibleTimeEndUs={visibleTimeEndUs}
