@@ -408,7 +408,7 @@ describe('VideoTimelineEditor', () => {
     ).toBeVisible();
     await waitFor(() => expect(screen.getByLabelText('标题内容')).toHaveFocus());
 
-    await user.type(screen.getByLabelText('标题内容'), '未提交标题');
+    await user.paste('未提交标题');
     await user.keyboard('{Escape}');
     await waitFor(() => expect(addTitleButton).toHaveFocus());
 
@@ -417,7 +417,8 @@ describe('VideoTimelineEditor', () => {
     await user.click(screen.getByRole('button', { name: '确认添加' }));
     expect(screen.getByRole('alert')).toHaveTextContent('请输入标题内容');
 
-    await user.type(screen.getByLabelText('标题内容'), '我们的精彩旅程');
+    await user.click(screen.getByLabelText('标题内容'));
+    await user.paste('我们的精彩旅程');
     await user.click(screen.getByRole('button', { name: '确认添加' }));
 
     await waitFor(() => {
@@ -457,7 +458,8 @@ describe('VideoTimelineEditor', () => {
     await renderEditor({}, [videoSource]);
 
     await user.click(screen.getByRole('button', { name: '添加标题' }));
-    await user.type(screen.getByLabelText('标题内容'), '无法测量的标题');
+    await user.click(screen.getByLabelText('标题内容'));
+    await user.paste('无法测量的标题');
     await user.click(screen.getByRole('button', { name: '确认添加' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -532,7 +534,8 @@ describe('VideoTimelineEditor', () => {
       );
       await user.click(screen.getByRole('button', { name: '导入素材' }));
       const url = `https://cdn.example.com/still.${extension.toUpperCase()}?signature=1`;
-      await user.type(screen.getByLabelText('素材 URL'), url);
+      await user.click(screen.getByLabelText('素材 URL'));
+      await user.paste(url);
       await user.click(screen.getByRole('button', { name: '确认导入' }));
 
       await waitFor(() =>
@@ -559,10 +562,8 @@ describe('VideoTimelineEditor', () => {
 
     for (const extension of ['webp', 'gif', 'svg']) {
       await user.clear(urlInput);
-      await user.type(
-        urlInput,
-        `https://cdn.example.com/still.${extension}`,
-      );
+      await user.click(urlInput);
+      await user.paste(`https://cdn.example.com/still.${extension}`);
       await user.click(screen.getByRole('button', { name: '确认导入' }));
       expect(await screen.findByRole('alert')).toHaveTextContent(
         `不支持的素材文件后缀：.${extension}。`,

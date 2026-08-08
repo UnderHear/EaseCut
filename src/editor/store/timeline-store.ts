@@ -173,6 +173,7 @@ export type TimelineState = {
   layoutRevision: number;
   originalCanvasSize: TimelineCanvasSize | null;
   past: TimelineHistorySnapshot[];
+  pendingClipRevealId: string | null;
   pixelsPerSecond: number;
   playheadFollowEnabled: boolean;
   selectedClipId: string | null;
@@ -186,6 +187,7 @@ export type TimelineDraftSource = Pick<
 >;
 
 export type TimelineActions = {
+  acknowledgeClipReveal: (clipId: string) => void;
   addMediaClip: (params: AddMediaClipCommand) => string | null;
   addTextClip: (params: AddTextClipCommand) => string | null;
   beginTextStyleEdit: (clipId: string) => number | null;
@@ -379,6 +381,7 @@ const createBaseState = (
   layoutRevision: 0,
   originalCanvasSize,
   past: [],
+  pendingClipRevealId: null,
   pixelsPerSecond: DEFAULT_PIXELS_PER_SECOND,
   playheadFollowEnabled: true,
   selectedClipId: null,
@@ -848,14 +851,35 @@ export const createTimelineStore = (
       result: TimelineEditResult,
       rebaseCanvasLayout = false,
     ) => {
-      const next = applyEdit(get(), result, rebaseCanvasLayout);
+      if (!result.changed) return false;
+      const state = get();
+      const next = applyEdit(state, result, rebaseCanvasLayout);
       if (!next) return false;
-      set(next);
+      const newlyCreatedSelectedClipId =
+        result.selectedClipId !== null &&
+        !state.clips.some((clip) => clip.id === result.selectedClipId)
+          ? result.selectedClipId
+          : null;
+      set({
+        ...next,
+        pendingClipRevealId:
+          newlyCreatedSelectedClipId ??
+          (state.pendingClipRevealId === result.selectedClipId
+            ? state.pendingClipRevealId
+            : null),
+      });
       return true;
     };
 
     return {
       ...initialState,
+
+      acknowledgeClipReveal: (clipId) =>
+        set((state) =>
+          state.pendingClipRevealId === clipId
+            ? { pendingClipRevealId: null }
+            : state,
+        ),
 
       addMediaClip: ({ source, startUs, trackId }) => {
         const state = get();
@@ -1119,6 +1143,7 @@ export const createTimelineStore = (
           future: state.future.slice(1),
           layoutRevision: state.layoutRevision + 1,
           past: [...state.past, createSnapshot(state)],
+          pendingClipRevealId: null,
           selectedClipId: next.selectedClipId,
           continuousEdit: null,
           tracks: cloneTracks(next.tracks),
@@ -1301,6 +1326,10 @@ export const createTimelineStore = (
 
       selectClip: (selectedClipId) =>
         set((state) => ({
+          pendingClipRevealId:
+            state.pendingClipRevealId === selectedClipId
+              ? state.pendingClipRevealId
+              : null,
           selectedClipId,
           continuousEdit:
             state.continuousEdit?.clipId === selectedClipId
@@ -1427,6 +1456,7 @@ export const createTimelineStore = (
           future: [createSnapshot(state), ...state.future],
           layoutRevision: state.layoutRevision + 1,
           past: state.past.slice(0, -1),
+          pendingClipRevealId: null,
           selectedClipId: previous.selectedClipId,
           continuousEdit: null,
           tracks: cloneTracks(previous.tracks),

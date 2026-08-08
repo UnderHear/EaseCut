@@ -1279,7 +1279,7 @@
 .ec-timeline-clip {
   z-index: 2;
   overflow: hidden;
-  border: 2px solid rgb(255 255 255 / 20%);
+  border: 2px solid #262626;
   color: #ffffffde;
   cursor: grab;
   touch-action: none;
@@ -1483,7 +1483,6 @@
 
 .ec-timeline-clip__volume {
   position: absolute;
-  z-index: 3;
   right: 0;
   left: 0;
   top: calc(var(--ec-timeline-clip-volume-y) - 6px);

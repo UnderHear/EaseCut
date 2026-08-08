@@ -21,6 +21,10 @@ import {
   testTimelineStore,
 } from '../components/test-helpers';
 import { TimelineViewport } from './TimelineViewport';
+import {
+  getClipRevealScrollPosition,
+  type ClipRevealGeometry,
+} from './clip-reveal';
 
 const editorStyles = readFileSync('src/editor/styles.css', 'utf8');
 
@@ -189,6 +193,80 @@ const renderTimeline = (
   };
 };
 
+const setViewportScrollSize = (
+  viewport: HTMLElement,
+  { height, width }: { height: number; width: number },
+) => {
+  Object.defineProperty(viewport, 'scrollHeight', {
+    configurable: true,
+    value: height,
+  });
+  Object.defineProperty(viewport, 'scrollWidth', {
+    configurable: true,
+    value: width,
+  });
+};
+
+const mockRevealElementRects = ({
+  clipId,
+  clipRect,
+  trackId,
+  trackRect,
+}: {
+  clipId: string;
+  clipRect: DOMRect;
+  trackId: string;
+  trackRect: DOMRect;
+}) => {
+  const getBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function (this: HTMLElement) {
+      if (this.dataset.clipId === clipId) return clipRect;
+      if (this.dataset.trackId === trackId) return trackRect;
+      return getBoundingClientRect.call(this);
+    },
+  );
+};
+
+const addRevealAudioClip = (sourceId: string) => {
+  testTimelineStore.getState().addMediaClip({
+    source: {
+      durationUs: secondsToMicroseconds(2),
+      fileName: `${sourceId}.mp3`,
+      id: sourceId,
+      src: `/${sourceId}.mp3`,
+      type: 'audio',
+    },
+    startUs: secondsToMicroseconds(6),
+  });
+};
+
+const createRevealGeometry = (
+  patch: Partial<ClipRevealGeometry> = {},
+): ClipRevealGeometry => ({
+  clip: {
+    bottom: 140,
+    left: 200,
+    right: 300,
+    top: 100,
+  },
+  track: {
+    bottom: 148,
+    top: 92,
+  },
+  viewport: {
+    height: 208,
+    left: 96,
+    scrollHeight: 800,
+    scrollLeft: 80,
+    scrollTop: 50,
+    scrollWidth: 2_000,
+    top: 32,
+    width: 704,
+  },
+  ...patch,
+});
+
 const doubleClickClip = (
   clip: Element,
   { clientX, clientY, pointerId }: { clientX: number; clientY: number; pointerId: number },
@@ -198,6 +276,102 @@ const doubleClickClip = (
   fireEvent.pointerDown(clip, { button: 0, clientX, clientY, pointerId });
   fireEvent.pointerUp(window, { clientX, clientY, pointerId });
 };
+
+describe('getClipRevealScrollPosition', () => {
+  it('keeps both axes when the clip has any visible overlap', () => {
+    expect(
+      getClipRevealScrollPosition(
+        createRevealGeometry({
+          clip: {
+            bottom: 260,
+            left: 70,
+            right: 150,
+            top: 220,
+          },
+        }),
+      ),
+    ).toEqual({ left: 80, top: 50 });
+  });
+
+  it('centers the clip start and track when both axes are outside', () => {
+    expect(
+      getClipRevealScrollPosition(
+        createRevealGeometry({
+          clip: {
+            bottom: 340,
+            left: 900,
+            right: 1_020,
+            top: 300,
+          },
+          track: { bottom: 330, top: 290 },
+          viewport: {
+            ...createRevealGeometry().viewport,
+            scrollLeft: 100,
+            scrollTop: 20,
+          },
+        }),
+      ),
+    ).toEqual({ left: 552, top: 194 });
+  });
+
+  it('adjusts only the axis without a visible intersection', () => {
+    expect(
+      getClipRevealScrollPosition(
+        createRevealGeometry({
+          clip: {
+            bottom: 340,
+            left: 200,
+            right: 300,
+            top: 300,
+          },
+          track: { bottom: 336, top: 280 },
+          viewport: {
+            ...createRevealGeometry().viewport,
+            scrollTop: 10,
+          },
+        }),
+      ),
+    ).toEqual({ left: 80, top: 182 });
+  });
+
+  it('treats touching edges as hidden and clamps to scroll bounds', () => {
+    expect(
+      getClipRevealScrollPosition(
+        createRevealGeometry({
+          clip: {
+            bottom: 140,
+            left: 16,
+            right: 96,
+            top: 100,
+          },
+          viewport: {
+            ...createRevealGeometry().viewport,
+            scrollLeft: 120,
+          },
+        }),
+      ),
+    ).toEqual({ left: 0, top: 50 });
+
+    expect(
+      getClipRevealScrollPosition(
+        createRevealGeometry({
+          clip: {
+            bottom: 800,
+            left: 1_600,
+            right: 1_720,
+            top: 760,
+          },
+          track: { bottom: 800, top: 760 },
+          viewport: {
+            ...createRevealGeometry().viewport,
+            scrollLeft: 1_500,
+            scrollTop: 580,
+          },
+        }),
+      ),
+    ).toEqual({ left: 1_296, top: 592 });
+  });
+});
 
 describe('TimelineViewport DOM interactions', () => {
   beforeEach(() => {
@@ -933,6 +1107,41 @@ describe('TimelineViewport DOM interactions', () => {
     expect(playhead).toHaveStyle({ left: '-36px' });
     expect((playhead?.parentElement as HTMLElement).style.height).toBe('');
     expect((playhead?.parentElement as HTMLElement).style.width).toBe('');
+  });
+
+  it('centers a new clip start and track when both axes are outside', () => {
+    const { controlsViewport, rulerCanvas, viewport } = renderTimeline();
+    const clipId = 'clip-reveal-both';
+    setViewportScrollSize(viewport, { height: 800, width: 2_000 });
+    mockRevealElementRects({
+      clipId,
+      clipRect: createRect({ height: 40, left: 900, top: 300, width: 120 }),
+      trackId: audioTrack.id,
+      trackRect: createRect({ height: 40, left: 96, top: 290, width: 2_000 }),
+    });
+    viewport.scrollLeft = 100;
+    viewport.scrollTop = 20;
+    fireEvent.scroll(viewport);
+
+    act(() => addRevealAudioClip('reveal-both'));
+
+    expect(viewport.scrollLeft).toBe(552);
+    expect(viewport.scrollTop).toBe(194);
+    expect(rulerCanvas).toHaveStyle({
+      transform: 'translate3d(-552px, 0, 0)',
+    });
+    expect(controlsViewport.firstElementChild).toHaveStyle({
+      transform: 'translate3d(0, -194px, 0)',
+    });
+    expect(document.querySelector('.ec-timeline-playhead')).toHaveStyle({
+      left: '-540px',
+    });
+    expect(testTimelineStore.getState().pendingClipRevealId).toBeNull();
+
+    viewport.scrollLeft = 0;
+    fireEvent.scroll(viewport);
+    act(() => testTimelineStore.getState().setCurrentTimeUs(1));
+    expect(viewport.scrollLeft).toBe(0);
   });
 
   it('forwards wheel scrolling from the fixed controls to the tracks viewport', () => {

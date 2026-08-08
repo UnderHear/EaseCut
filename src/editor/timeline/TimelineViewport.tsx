@@ -50,6 +50,7 @@ import {
 } from './TimelineClip';
 import { TimelineDragGhost } from './TimelineDragGhost';
 import { TimelineRuler } from './TimelineRuler';
+import { getClipRevealScrollPosition } from './clip-reveal';
 import { getTimelineContentDurationUs } from './timeline-interaction';
 import { useTimelineController } from './useTimelineController';
 
@@ -74,6 +75,9 @@ export function TimelineViewport({
   const pixelsPerSecond = useTimelineStore((state) => state.pixelsPerSecond);
   const playheadFollowEnabled = useTimelineStore(
     (state) => state.playheadFollowEnabled,
+  );
+  const pendingClipRevealId = useTimelineStore(
+    (state) => state.pendingClipRevealId,
   );
   const selectedClipId = useTimelineStore((state) => state.selectedClipId);
   const tracks = useTimelineStore((state) => state.tracks);
@@ -220,6 +224,57 @@ export function TimelineViewport({
     setScrollLeft(viewport.scrollLeft);
     syncScrollLayers();
   }, [syncScrollLayers]);
+
+  useLayoutEffect(() => {
+    if (!pendingClipRevealId) return;
+
+    const acknowledge = () => {
+      store.getState().acknowledgeClipReveal(pendingClipRevealId);
+    };
+    if (selectedClipId !== pendingClipRevealId) {
+      acknowledge();
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    const clipElement = Array.from(
+      gridRef.current?.querySelectorAll<HTMLElement>('[data-clip-id]') ?? [],
+    ).find((element) => element.dataset.clipId === pendingClipRevealId);
+    const trackElement = clipElement?.closest<HTMLElement>('[data-track-id]');
+    if (!viewport || !clipElement || !trackElement) {
+      acknowledge();
+      return;
+    }
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const clipRect = clipElement.getBoundingClientRect();
+    const trackRect = trackElement.getBoundingClientRect();
+    const nextScroll = getClipRevealScrollPosition({
+      clip: clipRect,
+      track: trackRect,
+      viewport: {
+        height: viewport.clientHeight,
+        left: viewportRect.left,
+        scrollHeight: viewport.scrollHeight,
+        scrollLeft: viewport.scrollLeft,
+        scrollTop: viewport.scrollTop,
+        scrollWidth: viewport.scrollWidth,
+        top: viewportRect.top,
+        width: viewport.clientWidth,
+      },
+    });
+
+    viewport.scrollLeft = nextScroll.left;
+    viewport.scrollTop = nextScroll.top;
+    setScrollLeft(viewport.scrollLeft);
+    syncScrollLayers();
+    acknowledge();
+  }, [
+    pendingClipRevealId,
+    selectedClipId,
+    store,
+    syncScrollLayers,
+  ]);
 
   useLayoutEffect(() => {
     const element = viewportRef.current;

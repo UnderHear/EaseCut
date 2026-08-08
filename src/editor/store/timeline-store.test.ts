@@ -274,6 +274,100 @@ describe('timelineStore video track layout', () => {
     expect(timelineStore.getState().playheadFollowEnabled).toBe(true);
   });
 
+  it('requests one reveal for newly selected media and text clips', () => {
+    const mediaClipId = timelineStore.getState().addMediaClip({
+      source: {
+        durationUs: secondsToMicroseconds(2),
+        fileName: 'inserted.mp4',
+        height: 720,
+        id: 'inserted-video',
+        src: 'http://localhost/inserted.mp4',
+        type: 'video',
+        width: 1280,
+      },
+      startUs: secondsToMicroseconds(20),
+    });
+
+    expect(mediaClipId).toBe('clip-inserted-video');
+    expect(timelineStore.getState().pendingClipRevealId).toBe(mediaClipId);
+
+    timelineStore.getState().acknowledgeClipReveal('another-clip');
+    expect(timelineStore.getState().pendingClipRevealId).toBe(mediaClipId);
+
+    timelineStore.getState().acknowledgeClipReveal(mediaClipId ?? '');
+    expect(timelineStore.getState().pendingClipRevealId).toBeNull();
+
+    const textClipId = timelineStore.getState().addTextClip({
+      layoutSize: { height: 80, width: 320 },
+      startUs: secondsToMicroseconds(20),
+      text: '新增标题',
+    });
+
+    expect(textClipId).toBe('text-clip-1');
+    expect(timelineStore.getState().pendingClipRevealId).toBe(textClipId);
+  });
+
+  it('requests reveals for newly selected split and pasted clips', () => {
+    timelineStore
+      .getState()
+      .splitClipAtTime('clip-video-2', secondsToMicroseconds(6));
+
+    expect(timelineStore.getState().selectedClipId).toBe(
+      'clip-video-2-split',
+    );
+    expect(timelineStore.getState().pendingClipRevealId).toBe(
+      'clip-video-2-split',
+    );
+
+    resetStore();
+    timelineStore.getState().selectClip('clip-video-1');
+    timelineStore.getState().copySelectedClip();
+    timelineStore.getState().pasteCopiedClip();
+
+    expect(timelineStore.getState().selectedClipId).toBe(
+      'clip-video-1-copy',
+    );
+    expect(timelineStore.getState().pendingClipRevealId).toBe(
+      'clip-video-1-copy',
+    );
+  });
+
+  it('does not request reveals for selection, failed edits, undo, or redo', () => {
+    timelineStore.getState().selectClip('clip-video-2');
+    expect(timelineStore.getState().pendingClipRevealId).toBeNull();
+
+    expect(
+      timelineStore.getState().addMediaClip({
+        source: {
+          durationUs: 0,
+          fileName: 'invalid.mp4',
+          id: 'invalid-video',
+          src: 'http://localhost/invalid.mp4',
+          type: 'video',
+        },
+        startUs: 0,
+      }),
+    ).toBeNull();
+    expect(timelineStore.getState().pendingClipRevealId).toBeNull();
+
+    const mediaClipId = timelineStore.getState().addMediaClip({
+      source: {
+        durationUs: secondsToMicroseconds(2),
+        fileName: 'history.mp4',
+        id: 'history-video',
+        src: 'http://localhost/history.mp4',
+        type: 'video',
+      },
+      startUs: secondsToMicroseconds(20),
+    });
+    timelineStore.getState().acknowledgeClipReveal(mediaClipId ?? '');
+    timelineStore.getState().undo();
+    expect(timelineStore.getState().pendingClipRevealId).toBeNull();
+
+    timelineStore.getState().redo();
+    expect(timelineStore.getState().pendingClipRevealId).toBeNull();
+  });
+
   it('keeps fixture video clips on the main video track', () => {
     const clips = getMainVideoClips();
 
