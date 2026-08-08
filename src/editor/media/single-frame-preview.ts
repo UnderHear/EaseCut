@@ -8,7 +8,7 @@ import {
   type MediabunnyFramePreviewSourceFactory,
 } from './mediabunny-frame-preview';
 
-export const TRIM_FRAME_PREVIEW_HEIGHT = 90;
+export const TRIM_FRAME_PREVIEW_HEIGHT = 104;
 export const SINGLE_FRAME_PREVIEW_CACHE_LIMIT = 32;
 
 export type SingleFramePreviewRequest = {
