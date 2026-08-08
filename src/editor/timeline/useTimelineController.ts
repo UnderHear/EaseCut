@@ -41,6 +41,7 @@ import {
   planClipTrim,
   type ClipDropPreview,
   type TimelineGesture,
+  type TrimGesture,
   type TrimPreview,
   type VolumeGesture,
 } from './timeline-interaction';
@@ -338,7 +339,7 @@ export function useTimelineController({
     store.getState().setIsPlaying(false);
     store.getState().selectClip(clip.id);
     gridRef.current?.setPointerCapture?.(event.pointerId);
-    setGesture({
+    const trimGesture: TrimGesture = {
       clip,
       clips,
       edge,
@@ -351,7 +352,19 @@ export function useTimelineController({
         currentTimeUs,
       ],
       snappingEnabled,
+    };
+    const initialPreview = planClipTrim(
+      trimGesture,
+      trimGesture.initialPointerTimeUs,
+    );
+    trimPreviewRef.current = initialPreview;
+    setTrimPreview(initialPreview);
+    onClipTimingPreviewChange?.({
+      clipId: initialPreview.clipId,
+      durationUs: initialPreview.durationUs,
+      startUs: initialPreview.startUs,
     });
+    setGesture(trimGesture);
   };
 
   const beginScrub = (

@@ -9,6 +9,7 @@ export type FramePreviewWorkerFrame = {
 export type FramePreviewWorkerRequest =
   | {
       blob: Blob;
+      outputHeight: number;
       type: 'open';
     }
   | {
@@ -48,6 +49,9 @@ const isFrameIndex = (value: unknown): value is number =>
   Number.isSafeInteger(value) &&
   value >= 0;
 
+const isOutputHeight = (value: unknown): value is number =>
+  isFrameIndex(value) && value > 0 && value <= 256;
+
 const isFrame = (value: unknown): value is FramePreviewWorkerFrame =>
   isRecord(value) &&
   isFrameIndex(value.index) &&
@@ -59,7 +63,9 @@ export const isFramePreviewWorkerRequest = (
 ): value is FramePreviewWorkerRequest => {
   if (!isRecord(value)) return false;
   if (value.type === 'dispose') return true;
-  if (value.type === 'open') return value.blob instanceof Blob;
+  if (value.type === 'open') {
+    return value.blob instanceof Blob && isOutputHeight(value.outputHeight);
+  }
   return (
     value.type === 'extract' &&
     Array.isArray(value.frames) &&

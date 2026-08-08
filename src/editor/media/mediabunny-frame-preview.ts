@@ -11,6 +11,21 @@ export type ExtractedFramePreview = FramePreviewExtractionFrame & {
   blob: Blob;
 };
 
+export type FramePreviewDecodeErrorCode =
+  | 'decode'
+  | 'invalid-media'
+  | 'unsupported';
+
+export class FramePreviewDecodeError extends Error {
+  readonly code: FramePreviewDecodeErrorCode;
+
+  constructor(code: FramePreviewDecodeErrorCode, message: string) {
+    super(message);
+    this.name = 'FramePreviewDecodeError';
+    this.code = code;
+  }
+}
+
 export type MediabunnyFramePreviewSource = {
   dispose(): void;
   extract(
@@ -24,6 +39,7 @@ export type MediabunnyFramePreviewSource = {
 export type MediabunnyFramePreviewSourceFactory = (
   blob: Blob,
   signal: AbortSignal,
+  outputHeight?: number,
 ) => Promise<MediabunnyFramePreviewSource>;
 
 export type FramePreviewWorkerFactory = () => Worker;
@@ -51,6 +67,7 @@ export const canUseMediabunnyFramePreviewWorker = () =>
 export const createMediabunnyFramePreviewSource = (
   blob: Blob,
   signal: AbortSignal,
+  outputHeight = 48,
   workerFactory: FramePreviewWorkerFactory = defaultWorkerFactory,
 ): Promise<MediabunnyFramePreviewSource> => {
   if (signal.aborted) return Promise.reject(createAbortError());
@@ -154,7 +171,10 @@ export const createMediabunnyFramePreviewSource = (
         return;
       }
 
-      const error = new Error(event.data.message);
+      const error = new FramePreviewDecodeError(
+        event.data.code,
+        event.data.message,
+      );
       if (!opened) {
         reject(error);
         disposed = true;
@@ -167,7 +187,10 @@ export const createMediabunnyFramePreviewSource = (
       }
     };
     worker.onerror = () => {
-      const error = new Error('Mediabunny 视频缩略图 Worker 运行失败');
+      const error = new FramePreviewDecodeError(
+        'decode',
+        'Mediabunny 视频缩略图 Worker 运行失败',
+      );
       rejectPending(error);
       if (!opened) reject(error);
       disposed = true;
@@ -177,6 +200,7 @@ export const createMediabunnyFramePreviewSource = (
     signal.addEventListener('abort', handleAbort, { once: true });
     const request: FramePreviewWorkerRequest = {
       blob,
+      outputHeight,
       type: 'open',
     };
     try {

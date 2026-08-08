@@ -28,8 +28,9 @@ import {
 
 const editorStyles = readFileSync('src/editor/styles.css', 'utf8');
 
-const { useFramePreviewStripMock } = vi.hoisted(() => ({
+const { useFramePreviewStripMock, useSingleFramePreviewMock } = vi.hoisted(() => ({
   useFramePreviewStripMock: vi.fn(),
+  useSingleFramePreviewMock: vi.fn(),
 }));
 
 vi.mock('../media', async (importOriginal) => {
@@ -39,6 +40,7 @@ vi.mock('../media', async (importOriginal) => {
     ...actual,
     useAudioWaveformSamples: () => [0.2, 0.8, 0.4],
     useFramePreviewStrip: useFramePreviewStripMock,
+    useSingleFramePreview: useSingleFramePreviewMock,
     useMediaObjectUrl: (
       input: string | { src: string },
       enabled: boolean,
@@ -388,6 +390,18 @@ describe('TimelineViewport DOM interactions', () => {
           }
         : null,
     );
+    useSingleFramePreviewMock.mockReset();
+    useSingleFramePreviewMock.mockImplementation((request) =>
+      request
+        ? {
+            height: 90,
+            status: 'ready',
+            timeUs: request.timeUs,
+            url: `blob:trim-frame-${request.timeUs}`,
+            width: 160,
+          }
+        : null,
+    );
     resetTestTimelineStore();
     testTimelineStore.setState({
       clips: [videoClip, audioClip],
@@ -696,6 +710,17 @@ describe('TimelineViewport DOM interactions', () => {
     expect(preview?.style.backgroundImage).toContain('blob:/still.png');
     expect(image.querySelector('.ec-timeline-clip__volume')).toBeNull();
     expect(useFramePreviewStripMock).toHaveBeenCalledWith(null);
+    fireEvent.pointerDown(
+      screen.getByRole('button', { name: 'Trim end of still.png' }),
+      { button: 0, clientX: 508, clientY: 50, pointerId: 62 },
+    );
+    expect(document.querySelector('.ec-trim-frame-preview')).toBeNull();
+    expect(
+      useSingleFramePreviewMock.mock.calls
+        .map(([request]) => request)
+        .filter(Boolean),
+    ).toHaveLength(0);
+    fireEvent.pointerCancel(window, { pointerId: 62 });
     expect(
       editorStyles.match(
         /\.ec-timeline-clip__image-preview\s*\{([^}]*)\}/,
@@ -2360,11 +2385,38 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 50,
       pointerId: 9,
     });
+    expect(
+      document.querySelector('.ec-trim-frame-preview__image'),
+    ).toHaveAttribute(
+      'src',
+      `blob:trim-frame-${secondsToMicroseconds(4) - 1}`,
+    );
+    expect(
+      useSingleFramePreviewMock.mock.calls
+        .map(([request]) => request)
+        .filter(Boolean)
+        .at(-1),
+    ).toEqual({
+      height: 90,
+      sourceDurationUs: secondsToMicroseconds(6),
+      src: '/opening.mp4',
+      timeUs: secondsToMicroseconds(4) - 1,
+    });
     fireEvent.pointerMove(window, {
       clientX: 348,
       clientY: 50,
       pointerId: 9,
     });
+    expect(
+      useSingleFramePreviewMock.mock.calls
+        .map(([request]) => request)
+        .filter(Boolean)
+        .at(-1),
+    ).toEqual(
+      expect.objectContaining({
+        timeUs: secondsToMicroseconds(3) - 1,
+      }),
+    );
     expect(clip.querySelector('.ec-timeline-clip__duration')).toHaveAttribute(
       'dateTime',
       'PT3S',
@@ -2396,6 +2448,109 @@ describe('TimelineViewport DOM interactions', () => {
     );
     expect(onClipTimingPreviewChange).toHaveBeenLastCalledWith(null);
     expect(testTimelineStore.getState().past).toHaveLength(1);
+    expect(document.querySelector('.ec-trim-frame-preview')).toBeNull();
+  });
+
+  it('maps a speed-adjusted start trim to the new first source frame', () => {
+    const fastClip = createClip({
+      durationUs: secondsToMicroseconds(2),
+      speed: 2,
+      trimEndUs: secondsToMicroseconds(4),
+    });
+    testTimelineStore.setState({ clips: [fastClip], selectedClipId: fastClip.id });
+    renderTimeline();
+    const trimHandle = screen.getByRole('button', {
+      name: 'Trim start of opening.mp4',
+    });
+
+    fireEvent.pointerDown(trimHandle, {
+      button: 0,
+      clientX: 108,
+      clientY: 50,
+      pointerId: 91,
+    });
+    fireEvent.pointerMove(window, {
+      clientX: 148,
+      clientY: 50,
+      pointerId: 91,
+    });
+
+    expect(
+      useSingleFramePreviewMock.mock.calls
+        .map(([request]) => request)
+        .filter(Boolean)
+        .at(-1),
+    ).toEqual(
+      expect.objectContaining({
+        timeUs: secondsToMicroseconds(1),
+      }),
+    );
+    fireEvent.pointerCancel(window, { pointerId: 91 });
+    expect(document.querySelector('.ec-trim-frame-preview')).toBeNull();
+    expect(testTimelineStore.getState().past).toHaveLength(0);
+  });
+
+  it.each([
+    { result: null, status: 'loading' },
+    {
+      result: { message: 'unsupported', status: 'unsupported' },
+      status: 'unsupported',
+    },
+    {
+      result: { message: 'decode failed', status: 'error' },
+      status: 'error',
+    },
+  ])('does not render an empty $status trim frame preview', ({ result }) => {
+    useSingleFramePreviewMock.mockReturnValue(result);
+    renderTimeline();
+    const trimHandle = screen.getByRole('button', {
+      name: 'Trim end of opening.mp4',
+    });
+
+    fireEvent.pointerDown(trimHandle, {
+      button: 0,
+      clientX: 428,
+      clientY: 50,
+      pointerId: 92,
+    });
+
+    expect(document.querySelector('.ec-trim-frame-preview')).toBeNull();
+    fireEvent.pointerCancel(window, { pointerId: 92 });
+    expect(document.querySelector('.ec-trim-frame-preview')).toBeNull();
+  });
+
+  it('sizes a portrait trim frame preview to its decoded dimensions', () => {
+    useSingleFramePreviewMock.mockImplementation((request) =>
+      request
+        ? {
+            height: 90,
+            status: 'ready',
+            timeUs: request.timeUs,
+            url: 'blob:portrait-trim-frame',
+            width: 51,
+          }
+        : null,
+    );
+    renderTimeline();
+    const trimHandle = screen.getByRole('button', {
+      name: 'Trim end of opening.mp4',
+    });
+
+    fireEvent.pointerDown(trimHandle, {
+      button: 0,
+      clientX: 428,
+      clientY: 50,
+      pointerId: 93,
+    });
+
+    expect(document.querySelector('.ec-trim-frame-preview')).toHaveStyle({
+      height: '90px',
+      width: '51px',
+    });
+    expect(
+      document.querySelector('.ec-trim-frame-preview__image'),
+    ).toHaveAttribute('src', 'blob:portrait-trim-frame');
+    fireEvent.pointerCancel(window, { pointerId: 93 });
   });
 
   it('snaps a video end trim to the playhead and commits one history entry', () => {
@@ -2478,6 +2633,11 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 100,
       pointerId: 42,
     });
+    expect(
+      useSingleFramePreviewMock.mock.calls
+        .map(([request]) => request)
+        .filter(Boolean),
+    ).toHaveLength(0);
 
     expect(document.querySelector('.ec-timeline-snap-line')).toHaveStyle({
       left: '332px',
@@ -2541,6 +2701,12 @@ describe('TimelineViewport DOM interactions', () => {
       clientY: 50,
       pointerId: 43,
     });
+    expect(document.querySelector('.ec-trim-frame-preview')).toBeNull();
+    expect(
+      useSingleFramePreviewMock.mock.calls
+        .map(([request]) => request)
+        .filter(Boolean),
+    ).toHaveLength(0);
     fireEvent.pointerMove(window, {
       clientX: 432,
       clientY: 50,

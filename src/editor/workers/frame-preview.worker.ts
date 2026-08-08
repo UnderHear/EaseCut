@@ -19,8 +19,6 @@ import {
   type FramePreviewWorkerResponse,
 } from './frame-preview-protocol';
 
-const FRAME_PREVIEW_HEIGHT = 48;
-
 let input: Input | null = null;
 let sink: CanvasSink | null = null;
 let firstTimestamp = 0;
@@ -82,7 +80,7 @@ const getErrorResponse = (error: unknown): FramePreviewWorkerResponse => {
   };
 };
 
-const openInput = async (blob: Blob) => {
+const openInput = async (blob: Blob, outputHeight: number) => {
   input = new Input({
     formats: ALL_FORMATS,
     source: new BlobSource(blob),
@@ -139,14 +137,14 @@ const openInput = async (blob: Blob) => {
 
     firstTimestamp = trackFirstTimestamp;
     sink = new CanvasSink(track, {
-      height: FRAME_PREVIEW_HEIGHT,
+      height: outputHeight,
       poolSize: 1,
     });
     postResponse({
       frameWidth: Math.max(
         1,
         Math.round(
-          FRAME_PREVIEW_HEIGHT * (displayWidth / displayHeight),
+          outputHeight * (displayWidth / displayHeight),
         ),
       ),
       mediaDurationUs: secondsToMicroseconds(
@@ -217,7 +215,7 @@ self.addEventListener('message', (event: MessageEvent<unknown>) => {
       });
       return;
     }
-    void openInput(event.data.blob);
+    void openInput(event.data.blob, event.data.outputHeight);
     return;
   }
   void extractFrames(event.data.frames);

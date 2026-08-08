@@ -6,6 +6,7 @@ export {
   useMediaMetadata,
   useMediaObjectUrl,
   useMediaRuntime,
+  useSingleFramePreview,
   type MediaObjectUrlLease,
   type MediaRuntime,
   type MediaRuntimeProviderProps,
@@ -17,6 +18,10 @@ export {
   type FramePreviewRequest,
   type FramePreviewStrip,
 } from './frame-preview';
+export {
+  TRIM_FRAME_PREVIEW_HEIGHT,
+  type SingleFramePreviewResult,
+} from './single-frame-preview';
 export {
   HIGH_RESOLUTION_AUDIO_WAVEFORM_SAMPLE_COUNT,
   sampleAudioBuffer,

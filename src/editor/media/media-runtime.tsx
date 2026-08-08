@@ -32,6 +32,13 @@ import {
 } from './frame-preview';
 import { createMediabunnyAudioWaveformExtractor } from './mediabunny-audio-waveform';
 import {
+  createSingleFramePreviewRuntime,
+  type SingleFramePreviewRequest,
+  type SingleFramePreviewResult,
+  type SingleFramePreviewSession,
+  type SingleFramePreviewSubscriber,
+} from './single-frame-preview';
+import {
   createTextLayoutRuntime,
   type TextLayoutRequest,
 } from './text-layout-runtime';
@@ -284,6 +291,10 @@ export type MediaObjectUrlLease = {
 
 export type MediaRuntime = {
   acquireObjectUrl(input: MediaInput): MediaObjectUrlLease;
+  createSingleFramePreviewSession(
+    request: SingleFramePreviewRequest,
+    subscriber: SingleFramePreviewSubscriber,
+  ): SingleFramePreviewSession;
   dispose(): void;
   getAudioWaveformSamples(
     input: MediaInput,
@@ -556,14 +567,22 @@ export const createMediaRuntime = (
     (src) => getBlob(src),
     () => disposed,
   );
+  const singleFramePreviewRuntime = createSingleFramePreviewRuntime(
+    (src) => getBlob(src),
+    () => disposed,
+  );
   const textLayoutRuntime = createTextLayoutRuntime();
 
   const runtime: MediaRuntime = {
     acquireObjectUrl,
+    createSingleFramePreviewSession(request, subscriber) {
+      return singleFramePreviewRuntime.createSession(request, subscriber);
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
       framePreviewCache.clear();
+      singleFramePreviewRuntime.clear();
       waveformCache.clear();
       audioWaveformExtractor?.dispose();
       textLayoutRuntime.dispose();
@@ -796,4 +815,50 @@ export const useFramePreviewStrip = (request: FramePreviewRequest | null) => {
   ]);
 
   return result?.sourceKey === sourceKey ? result.strip : null;
+};
+
+export const useSingleFramePreview = (
+  request: (SingleFramePreviewRequest & { timeUs: number }) | null,
+) => {
+  const runtime = useMediaRuntime();
+  const height = request?.height ?? 0;
+  const sourceDurationUs = request?.sourceDurationUs ?? 0;
+  const src = request?.src ?? '';
+  const timeUs = request?.timeUs ?? 0;
+  const sessionKey = src
+    ? [src, sourceDurationUs, height].join('\n')
+    : '';
+  const [result, setResult] = useState<{
+    result: SingleFramePreviewResult;
+    sessionKey: string;
+  } | null>(null);
+  const sessionRef = useRef<{
+    key: string;
+    session: SingleFramePreviewSession;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!sessionKey) return undefined;
+    const session = runtime.createSingleFramePreviewSession(
+      { height, sourceDurationUs, src },
+      (nextResult) => {
+        setResult({ result: nextResult, sessionKey });
+      },
+    );
+    sessionRef.current = { key: sessionKey, session };
+    return () => {
+      session.dispose();
+      if (sessionRef.current?.session === session) {
+        sessionRef.current = null;
+      }
+    };
+  }, [height, runtime, sessionKey, sourceDurationUs, src]);
+
+  useEffect(() => {
+    const active = sessionRef.current;
+    if (!active || active.key !== sessionKey) return;
+    active.session.request(timeUs);
+  }, [sessionKey, timeUs]);
+
+  return result?.sessionKey === sessionKey ? result.result : null;
 };

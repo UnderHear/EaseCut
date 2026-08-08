@@ -1546,6 +1546,36 @@
   right: -2px;
 }
 
+.ec-trim-frame-preview {
+  position: fixed;
+  z-index: 1000;
+  outline: 1px solid #00cae0;
+  border-radius: 6px;
+  background: #111111;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 52%);
+  color: #f4f4f5;
+  pointer-events: none;
+}
+
+.ec-trim-frame-preview__image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+.ec-trim-frame-preview__arrow {
+  position: absolute;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid #00cae0;
+  border-right: 7px solid transparent;
+  border-left: 7px solid transparent;
+  transform: translateX(-50%);
+}
+
 .ec-timeline-clip-placeholder {
   z-index: 1;
   background: rgb(255 255 255 / 4%);

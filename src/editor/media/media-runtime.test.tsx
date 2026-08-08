@@ -12,6 +12,7 @@ import {
   createMediaRuntime,
   useFramePreviewStrip,
   useMediaObjectUrl,
+  useSingleFramePreview,
 } from './media-runtime';
 import type { FramePreviewRequest } from './frame-preview';
 import type {
@@ -599,5 +600,67 @@ describe('MediaRuntime', () => {
     await waitFor(() =>
       expect(view.getByText('160:6')).toBeInTheDocument(),
     );
+  });
+
+  it('keeps one single-frame session while the requested trim time changes', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'Chrome' });
+    vi.stubGlobal('Worker', class Worker {});
+    vi.stubGlobal('OffscreenCanvas', class OffscreenCanvas {});
+    vi.stubGlobal('VideoDecoder', class VideoDecoder {});
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        queueMicrotask(() => callback(0));
+        return 1;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const previewSource = createTestFramePreviewSource();
+    framePreviewSourceFactory.mockResolvedValue(previewSource);
+    const mediaLoader: VideoTimelineMediaLoader = {
+      loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
+    };
+
+    function Consumer({ timeUs }: { timeUs: number }) {
+      const result = useSingleFramePreview({
+        height: 90,
+        sourceDurationUs: secondsToMicroseconds(10),
+        src: source.src,
+        timeUs,
+      });
+      return (
+        <output>
+          {result?.status === 'ready'
+            ? `${result.status}:${result.timeUs}`
+            : (result?.status ?? 'empty')}
+        </output>
+      );
+    }
+
+    const view = render(
+      <MediaRuntimeProvider mediaLoader={mediaLoader} sources={[source]}>
+        <Consumer timeUs={secondsToMicroseconds(1)} />
+      </MediaRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(view.getByText('ready:1000000')).toBeInTheDocument(),
+    );
+    view.rerender(
+      <MediaRuntimeProvider mediaLoader={mediaLoader} sources={[source]}>
+        <Consumer timeUs={secondsToMicroseconds(2)} />
+      </MediaRuntimeProvider>,
+    );
+    await waitFor(() =>
+      expect(view.getByText('ready:2000000')).toBeInTheDocument(),
+    );
+
+    expect(framePreviewSourceFactory).toHaveBeenCalledTimes(1);
+    expect(framePreviewSourceFactory).toHaveBeenCalledWith(
+      expect.any(Blob),
+      expect.any(AbortSignal),
+      90,
+    );
+    view.unmount();
+    expect(previewSource.dispose).toHaveBeenCalled();
   });
 });

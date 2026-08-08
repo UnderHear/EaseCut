@@ -171,7 +171,7 @@ clip 的已保存音量。
 
 图片通过运行时管理的 Object URL 和 `HTMLImageElement` 解码尺寸，在预览 Canvas 中作为静态视觉层绘制；不会进入视频 seek、音频图或帧预览 Worker。
 
-时间线帧预览在独立 Worker 中使用 Mediabunny `CanvasSink.canvasesAtTimestamps()` 按当前时间线密度批量解码，并将 48px 高的 OffscreenCanvas 编码为 JPEG 缩略图；任务取消或编辑器卸载时会释放 Worker、Mediabunny 输入资源和生成的 Object URL。该能力要求浏览器支持 Worker、OffscreenCanvas 和 WebCodecs。
+时间线帧预览在独立 Worker 中使用 Mediabunny `CanvasSink.canvasesAtTimestamps()` 解码：片段条带按当前时间线密度批量生成 48px 高的 JPEG 缩略图，拖动视频裁剪手柄时则在手柄上方生成 90px 高的精确边界帧，左侧显示新的首帧、右侧显示最后保留帧。单帧请求会按动画帧合并并丢弃过期结果；任务取消、缓存淘汰或编辑器卸载时会释放 Worker、Mediabunny 输入资源和生成的 Object URL。该能力要求浏览器支持 Worker、OffscreenCanvas 和 WebCodecs；能力缺失或解码失败时，裁剪浮层会显示明确提示，但不会阻止继续裁剪。
 
 音频波形会优先在独立 Worker 中使用 Mediabunny 分段解码；每个解码样本会立即聚合为归一化峰值并释放，不会在主线程保留整段 PCM。运行时销毁会同步取消解码；容器、编码格式或浏览器能力不支持时，自动回退到 `AudioContext.decodeAudioData()`。
 

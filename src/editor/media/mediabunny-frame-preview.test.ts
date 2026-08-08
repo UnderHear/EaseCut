@@ -39,10 +39,12 @@ describe('Mediabunny frame preview source', () => {
     const sourcePromise = createMediabunnyFramePreviewSource(
       blob,
       new AbortController().signal,
+      48,
       createWorkerFactory(worker),
     );
     expect(worker.postMessage).toHaveBeenCalledWith({
       blob,
+      outputHeight: 48,
       type: 'open',
     });
 
@@ -128,6 +130,7 @@ describe('Mediabunny frame preview source', () => {
     const sourcePromise = createMediabunnyFramePreviewSource(
       new Blob(['video']),
       controller.signal,
+      48,
       createWorkerFactory(worker),
     );
     worker.onmessage?.({
@@ -163,6 +166,7 @@ describe('Mediabunny frame preview source', () => {
     const sourcePromise = createMediabunnyFramePreviewSource(
       new Blob(['video']),
       new AbortController().signal,
+      48,
       createWorkerFactory(worker),
     );
 
@@ -185,6 +189,7 @@ describe('Mediabunny frame preview source', () => {
     const sourcePromise = createMediabunnyFramePreviewSource(
       new Blob(['video']),
       new AbortController().signal,
+      48,
       createWorkerFactory(worker),
     );
     worker.onmessage?.({
@@ -215,6 +220,7 @@ describe('Mediabunny frame preview source', () => {
       createMediabunnyFramePreviewSource(
         new Blob(['video']),
         controller.signal,
+        48,
         createWorkerFactory(worker),
       ),
     ).rejects.toMatchObject({ name: 'AbortError' });

@@ -576,6 +576,11 @@ export function TimelineViewport({
                     )}
                     {trackClips.map((clip) => (
                       <TimelineClipView
+                        activeTrimEdge={
+                          controller.trimPreview?.clipId === clip.id
+                            ? controller.trimPreview.edge
+                            : null
+                        }
                         canPaste={Boolean(
                           copiedClip && copiedClip.type === clip.type,
                         )}

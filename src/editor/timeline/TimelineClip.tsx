@@ -50,6 +50,7 @@ import {
 } from '../util/format-timeline-time';
 import { clampNumber } from '../util/number';
 import { AudioWaveformCanvas } from './AudioWaveformCanvas';
+import { TimelineTrimHandle } from './TimelineTrimHandle';
 
 const AUDIO_VOLUME_INSET = 8;
 
@@ -57,6 +58,7 @@ export type TimelineClipViewProps = {
   canPaste: boolean;
   canSplitAt: (timeUs: number) => boolean;
   clip: TimelineClip;
+  activeTrimEdge: TimelineClipTrimEdge | null;
   isSelected: boolean;
   left: number;
   onCopy: () => void;
@@ -330,6 +332,7 @@ function TimelineClipVisual({
 }
 
 export function TimelineClipView({
+  activeTrimEdge,
   canPaste,
   canSplitAt,
   clip,
@@ -447,14 +450,14 @@ export function TimelineClipView({
 
           {isSelected &&
             (['start', 'end'] as const).map((edge) => (
-              <button
-                aria-label={`Trim ${edge} of ${clipLabel}`}
-                className='ec-timeline-clip__trim-handle'
-                data-edge={edge}
-                data-trimmed={isTrimmedAt(edge)}
+              <TimelineTrimHandle
+                active={activeTrimEdge === edge}
+                clip={clip}
+                edge={edge}
                 key={edge}
                 onPointerDown={startTrim(edge)}
-                type='button'
+                label={`Trim ${edge} of ${clipLabel}`}
+                trimmed={isTrimmedAt(edge)}
               />
             ))}
         </article>
