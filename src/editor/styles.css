@@ -84,10 +84,11 @@
   display: flex;
   width: 100%;
   height: 100%;
-  min-height: 520px;
+  min-height: 0;
   min-width: 0;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   color: var(--ec-text);
   color-scheme: dark;
   background: var(--ec-background);
@@ -188,10 +189,10 @@
 .ec-editor__main {
   position: relative;
   display: flex;
-  min-height: 0;
-  flex: 1;
+  min-height: 552px;
+  flex: 1 0 552px;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   padding: 0 8px 8px 8px;
 }
 
@@ -275,7 +276,7 @@
 
 .ec-preview-panel {
   position: relative;
-  min-height: 0;
+  min-height: 300px;
   flex: 1;
   overflow: hidden;
   border-radius: 10px;
@@ -683,12 +684,55 @@
   display: flex;
   height: 360px;
   min-height: 210px;
-  flex: 0 0 360px;
+  flex: 0 0 auto;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--ec-border);
   border-radius: 10px;
   background: #1c1c1c;
+}
+
+.ec-timeline-panel__resize-handle {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  flex: 0 0 8px;
+  padding: 0;
+  border: 0;
+  color: transparent;
+  background: transparent;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.ec-timeline-panel__resize-handle::after {
+  position: absolute;
+  top: 3px;
+  width: 100%;
+  height: 2px;
+  background: currentcolor;
+  content: '';
+  transform: translateX(-50%);
+  transition:
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.ec-timeline-panel__resize-handle:hover,
+.ec-timeline-panel__resize-handle:focus-visible,
+.ec-timeline-panel__resize-handle[data-resizing='true'] {
+  color: var(--ec-accent);
+}
+
+.ec-timeline-panel__resize-handle:hover::after,
+.ec-timeline-panel__resize-handle:focus-visible::after,
+.ec-timeline-panel__resize-handle[data-resizing='true']::after {
+  opacity: 1;
+}
+
+.ec-timeline-panel__resize-handle:focus-visible {
+  outline: 2px solid var(--ec-accent);
+  outline-offset: -2px;
 }
 
 .ec-timeline-toolbar {
@@ -1286,7 +1330,7 @@
 
 .ec-timeline-clip[data-type="audio"] {
   --ec-timeline-waveform-bar: rgb(250 245 255 / 82%);
-  background: #8051ad;
+  background: #00ab84;
 }
 
 .ec-timeline-clip[data-type='text'] {
@@ -1613,29 +1657,34 @@
   }
 }
 
+.ec-editor,
 .ec-scrollbar {
   scrollbar-color: var(--ec-scrollbar) transparent;
   scrollbar-width: thin;
 }
 
 @supports selector(::-webkit-scrollbar) {
+  .ec-editor,
   .ec-scrollbar {
     scrollbar-color: auto;
     scrollbar-width: auto;
   }
 }
 
+.ec-editor::-webkit-scrollbar,
 .ec-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
+.ec-editor::-webkit-scrollbar-button,
 .ec-scrollbar::-webkit-scrollbar-button {
   display: none;
   width: 0;
   height: 0;
 }
 
+.ec-editor::-webkit-scrollbar-thumb,
 .ec-scrollbar::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
@@ -1643,11 +1692,14 @@
   background-clip: padding-box;
 }
 
+.ec-editor:hover::-webkit-scrollbar-thumb,
 .ec-scrollbar:hover::-webkit-scrollbar-thumb {
   background: var(--ec-scrollbar-hover);
   background-clip: padding-box;
 }
 
+.ec-editor::-webkit-scrollbar-track,
+.ec-editor::-webkit-scrollbar-corner,
 .ec-scrollbar::-webkit-scrollbar-track,
 .ec-scrollbar::-webkit-scrollbar-corner {
   background: transparent;

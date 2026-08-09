@@ -9,6 +9,7 @@ import {
   TIMELINE_ZOOM_STEP,
 } from '../core/timeline-math';
 import { secondsToMicroseconds } from '../core/time';
+import { TRIM_FRAME_PREVIEW_HEIGHT } from '../media';
 import { MAIN_VIDEO_TRACK_ID } from '../store/timeline-store';
 import type {
   TimelineImageClip,
@@ -2397,7 +2398,7 @@ describe('TimelineViewport DOM interactions', () => {
         .filter(Boolean)
         .at(-1),
     ).toEqual({
-      height: 90,
+      height: TRIM_FRAME_PREVIEW_HEIGHT,
       sourceDurationUs: secondsToMicroseconds(6),
       src: '/opening.mp4',
       timeUs: secondsToMicroseconds(4) - 1,
