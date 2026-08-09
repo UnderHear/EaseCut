@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   VideoTimelineEditor,
@@ -7,6 +7,7 @@ import {
 
 export function DemoApp() {
   const editorRef = useRef<VideoTimelineEditorHandle>(null);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const editProject = async () => {
     const editor = editorRef.current;
@@ -26,12 +27,24 @@ export function DemoApp() {
   };
 
   useEffect(() => {
-    editProject();
-  }, []);
+    if (isEditorOpen) {
+      editProject();
+    }
+  }, [isEditorOpen]);
 
   return (
     <main className='ec-demo'>
-      <VideoTimelineEditor title='EaseCut 视频编辑器' ref={editorRef} />
+      <button className='ec-demo__open-editor-btn'
+        onClick={() => setIsEditorOpen(true)}>点我打开编辑器！
+      </button>
+      {isEditorOpen && (
+        <div className='ec-demo__editor'>
+          <VideoTimelineEditor title='EaseCut 视频编辑器' 
+            ref={editorRef} 
+            onClose={() => setIsEditorOpen(false)}
+          />
+        </div>
+      )}
     </main>
   );
 }

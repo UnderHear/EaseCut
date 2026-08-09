@@ -22,3 +22,15 @@ body,
   overflow: hidden;
   background: #101010;
 }
+
+.ec-demo__open-editor-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.ec-demo__editor {
+  position: fixed;
+  inset: 0;
+}
