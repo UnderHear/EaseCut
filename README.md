@@ -181,8 +181,8 @@ Mediabunny 负责媒体解封装、缩略图和波形解码，不承担实时音
 
 ## 导出
 
-- “导出 JSON”下载当前 `CompositionExportPayload`。
-- 传入 `onExport` 后显示“导出视频”，回调会收到最新 `draft` 和 `payload`。
+- 标题栏“导出”菜单中的“导出 JSON”下载当前 `CompositionExportPayload`。
+- “导出到本地”在传入 `onExport` 后调用该回调，并提供最新 `draft` 和 `payload`；未传入时保留静态菜单项。
 - EaseCut React 不包含 MP4 编码器或渲染后端。
 - 可使用 `createCompositionExportPayload(draft)` 在组件外创建同样的导出数据。
 - `CompositionExportPayload.Track` 与草稿采用相同的从下到上顺序：

@@ -309,11 +309,11 @@ type VideoTimelineEditorProps = {
 | `title` | `'视频合成'` | 标题栏文字和根区域可访问名称 |
 | `className` | `''` | 追加到根节点 `ec-editor` 的类名 |
 | `style` | 无 | 编辑器根节点内联样式 |
-| `jsonFileName` | `'video-composition.json'` | “导出 JSON”下载文件名 |
+| `jsonFileName` | `'video-composition.json'` | “导出”菜单中“导出 JSON”的下载文件名 |
 | `mediaLoader` | 默认浏览器加载 | 自定义 Blob 和元数据加载方式 |
 | `onSourcesChange` | 无 | 实例 source 列表增删改后接收最新快照 |
 | `onDraftChange` | 无 | 可持久化项目内容发生变化后接收最新草稿 |
-| `onExport` | 无 | 提供后显示“导出视频”按钮 |
+| `onExport` | 无 | 提供后启用“导出”菜单中的“导出到本地”回调 |
 | `onClose` | 无 | 提供后显示关闭按钮 |
 
 `initialDraft` 是挂载时初始值，组件不会观察它的后续变化。切换项目草稿时应更换 React `key`：

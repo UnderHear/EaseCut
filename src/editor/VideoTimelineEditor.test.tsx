@@ -345,10 +345,10 @@ describe('VideoTimelineEditor', () => {
     render(<VideoTimelineEditor />);
 
     expect(screen.getByRole('heading', { name: '视频合成' })).toBeVisible();
-    expect(screen.getByRole('button', { name: '导出 JSON' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '导出' })).toBeVisible();
   });
 
-  it('always shows JSON export and only renders optional export and close actions', async () => {
+  it('always shows the export menu and only renders the optional close action', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onExport = vi.fn();
@@ -357,13 +357,21 @@ describe('VideoTimelineEditor', () => {
     );
 
     expect(screen.getByRole('heading', { name: '剪辑项目' })).toBeVisible();
-    expect(screen.getByRole('button', { name: '导出 JSON' })).toBeVisible();
+    const exportTrigger = screen.getByRole('button', { name: '导出' });
+    expect(exportTrigger).toBeVisible();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '导出视频' }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '关闭视频编辑器' }),
     ).not.toBeInTheDocument();
+
+    await user.click(exportTrigger);
+    expect(screen.getByRole('menuitem', { name: '导出到本地' })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: '导出 JSON' })).toBeEnabled();
+    expect(screen.queryByText('导出位置')).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
 
     rerender(
       <VideoTimelineEditor
@@ -372,7 +380,11 @@ describe('VideoTimelineEditor', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: '导出视频' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: '导出视频' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    expect(screen.getByRole('menuitem', { name: '导出到本地' })).toBeEnabled();
     await user.click(
       screen.getByRole('button', { name: '关闭视频编辑器' }),
     );
@@ -644,7 +656,8 @@ describe('VideoTimelineEditor', () => {
       'data-first-clip-volume',
       '1',
     );
-    await user.click(screen.getByRole('button', { name: '导出视频' }));
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    await user.click(screen.getByRole('menuitem', { name: '导出到本地' }));
 
     await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
     const request = onExport.mock.calls[0][0];
@@ -681,7 +694,8 @@ describe('VideoTimelineEditor', () => {
       screen.getByRole('button', { name: '测试：切换首个片段静音' }),
     );
 
-    await user.click(screen.getByRole('button', { name: '导出 JSON' }));
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    await user.click(screen.getByRole('menuitem', { name: '导出 JSON' }));
 
     expect(downloadedFileName).toBe('my-cut.json');
     expect(exportedBlob).not.toBeNull();
@@ -822,7 +836,8 @@ describe('VideoTimelineEditor', () => {
       'data-canvas-size',
       JSON.stringify({ height: 1080, width: 1080 }),
     );
-    await user.click(screen.getByRole('button', { name: '导出视频' }));
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    await user.click(screen.getByRole('menuitem', { name: '导出到本地' }));
 
     await waitFor(() => expect(onExport).toHaveBeenCalledOnce());
     expect(onExport.mock.calls[0][0].payload.Canvas).toEqual({
@@ -850,10 +865,12 @@ describe('VideoTimelineEditor', () => {
       .mockResolvedValueOnce(undefined);
     await renderEditor({ onClose, onExport }, [videoSource]);
 
-    await user.click(screen.getByRole('button', { name: '导出视频' }));
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    await user.click(screen.getByRole('menuitem', { name: '导出到本地' }));
 
-    expect(screen.getByRole('button', { name: '导出中…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '导出 JSON' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    expect(screen.getByRole('menuitem', { name: '导出中…' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: '导出 JSON' })).toBeEnabled();
     expect(
       screen.getByRole('button', { name: '关闭视频编辑器' }),
     ).toBeEnabled();
@@ -867,7 +884,7 @@ describe('VideoTimelineEditor', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '导出服务暂不可用',
     );
-    const retryButton = screen.getByRole('button', { name: '导出视频' });
+    const retryButton = screen.getByRole('menuitem', { name: '导出到本地' });
     expect(retryButton).toBeEnabled();
     await user.click(retryButton);
 
@@ -875,7 +892,10 @@ describe('VideoTimelineEditor', () => {
     await waitFor(() =>
       expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
     );
-    expect(screen.getByRole('button', { name: '导出视频' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    expect(
+      screen.getByRole('menuitem', { name: '导出到本地' }),
+    ).toBeEnabled();
   });
 
   it('allows an export error toast to be dismissed manually', async () => {
@@ -885,7 +905,8 @@ describe('VideoTimelineEditor', () => {
       .mockRejectedValue(new Error('导出服务暂不可用'));
     await renderEditor({ onExport }, [videoSource]);
 
-    await user.click(screen.getByRole('button', { name: '导出视频' }));
+    await user.click(screen.getByRole('button', { name: '导出' }));
+    await user.click(screen.getByRole('menuitem', { name: '导出到本地' }));
 
     const errorToast = await screen.findByRole('alert');
     expect(errorToast).toHaveTextContent('导出服务暂不可用');

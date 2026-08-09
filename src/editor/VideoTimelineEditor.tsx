@@ -8,7 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import * as Toast from '@radix-ui/react-toast';
-import { CircleAlert, FileJson, FileVideo, X } from 'lucide-react';
+import { CircleAlert, X } from 'lucide-react';
 import { useStore } from 'zustand';
 
 import {
@@ -19,6 +19,7 @@ import {
   createVideoTimelineSourceStore,
 } from './api/source-store';
 import type { VideoTimelineEditorHandle } from './api';
+import { ExportMenu } from './components/ExportMenu';
 import { PreviewPanel } from './components/PreviewPanel';
 import { FormDialog } from './components/FormDialog';
 import { IconButton } from './components/ui/IconButton';
@@ -535,25 +536,13 @@ function VideoTimelineEditorView({
       <header className='ec-editor__header'>
         <h1 id={titleId}>{title}</h1>
         <div className='ec-editor__header-actions'>
-          <button
-            className='ec-button ec-button--secondary'
-            onClick={() => downloadJson(jsonFileName, getExportState().payload)}
-            type='button'
-          >
-            <FileJson aria-hidden='true' size={16} />
-            导出 JSON
-          </button>
-          {onExport && (
-            <button
-              className='ec-button ec-button--primary'
-              disabled={isExporting}
-              onClick={() => void submitExport()}
-              type='button'
-            >
-              <FileVideo aria-hidden='true' size={16} />
-              {isExporting ? '导出中…' : '导出视频'}
-            </button>
-          )}
+          <ExportMenu
+            isExporting={isExporting}
+            onExportJson={() =>
+              downloadJson(jsonFileName, getExportState().payload)
+            }
+            onExportLocal={onExport ? () => void submitExport() : undefined}
+          />
           {onClose && (
             <IconButton
               aria-label='关闭视频编辑器'

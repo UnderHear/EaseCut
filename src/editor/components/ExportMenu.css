@@ -1,0 +1,65 @@
+.ec-export-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.ec-export-menu__trigger {
+  padding-right: 8px;
+}
+
+.ec-export-menu__chevron {
+  width: 15px;
+  height: 15px;
+  transition: transform 120ms ease;
+}
+
+.ec-export-menu[data-state='open'] .ec-export-menu__chevron {
+  transform: rotate(180deg);
+}
+
+.ec-export-menu__content {
+  position: absolute;
+  z-index: 100;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--ec-border);
+  border-radius: 8px;
+  background: var(--ec-panel-raised);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 48%);
+}
+
+.ec-export-menu__item {
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 5px;
+  outline: none;
+  color: var(--ec-text);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  user-select: none;
+}
+
+.ec-export-menu__item svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ec-export-menu__item:hover:not(:disabled),
+.ec-export-menu__item:focus-visible {
+  background: var(--ec-panel-hover);
+}
+
+.ec-export-menu__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
