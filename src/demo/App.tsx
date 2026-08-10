@@ -2,14 +2,50 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   VideoTimelineEditor,
+  type CompositionExportPayload,
   type VideoTimelineEditorHandle,
 } from '../index';
+
+async function submitVideoEditTask({
+  payload,
+}: {
+  payload: CompositionExportPayload;
+}): Promise<void> {
+  let response = await fetch(
+    'http://localhost:10081/api/v1/video-edit-tasks',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  let result = await response.json();
+  if (!response.ok) throw new Error(result.message);
+
+  const taskId = result.data.taskId;
+  while (true) {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    response = await fetch(
+      `http://localhost:10081/api/v1/video-edit-tasks/${taskId}`,
+    );
+    result = await response.json();
+
+    if (!response.ok) throw new Error(result.message);
+    if (result.data.status === 'SUCCESS') return;
+    if (
+      result.data.status !== 'PENDING' &&
+      result.data.status !== 'PROCESSING'
+    ) {
+      throw new Error(result.data.taskMessage || result.message);
+    }
+  }
+}
 
 export function DemoApp() {
   const editorRef = useRef<VideoTimelineEditorHandle>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
 
-  const editProject = async () => {
+  const initClip = async () => {
     const editor = editorRef.current;
     if (!editor) return;
 
@@ -28,7 +64,7 @@ export function DemoApp() {
 
   useEffect(() => {
     if (isEditorOpen) {
-      editProject();
+      initClip();
     }
   }, [isEditorOpen]);
 
@@ -42,6 +78,7 @@ export function DemoApp() {
           <VideoTimelineEditor title='EaseCut 视频编辑器' 
             ref={editorRef} 
             onClose={() => setIsEditorOpen(false)}
+            onExport={submitVideoEditTask}
           />
         </div>
       )}
