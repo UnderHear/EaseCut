@@ -218,7 +218,6 @@
   align-items: center;
   gap: 8px;
   padding: 10px 10px 10px 12px;
-  border: 1px solid var(--ec-border-strong);
   border-radius: calc(var(--ec-radius) + 2px);
   color: var(--ec-text);
   background: var(--ec-panel-raised);
@@ -229,15 +228,13 @@
 }
 
 .ec-editor__toast--error {
-  border-color: rgb(251 113 133 / 32%);
-  background: #2c1b21;
+  background: #cf222e;
 }
 
 .ec-editor__toast-icon {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
-  color: #fb7185;
 }
 
 .ec-editor__toast-description {
@@ -256,7 +253,6 @@
   padding: 0;
   border: 0;
   border-radius: var(--ec-radius);
-  color: var(--ec-text-muted);
   background: transparent;
   cursor: pointer;
   transition:
@@ -429,20 +425,6 @@
 .ec-floating-inspector__close {
   flex: 0 0 auto;
   color: #9ca3af;
-}
-
-.ec-floating-inspector__close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  transition:
-    color 120ms ease,
-    background-color 120ms ease;
 }
 
 .ec-floating-inspector__close:hover {

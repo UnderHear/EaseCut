@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { IconButton } from './ui/IconButton';
+
 type FloatingInspectorShellProps = {
   ariaLabel?: string;
   children: ReactNode;
@@ -34,14 +36,13 @@ export function FloatingInspectorShell({
       <div className='ec-floating-inspector__panel' hidden={!isPanelOpen}>
         <header className='ec-floating-inspector__header'>
           <h2>{sectionTitle}</h2>
-          <button
+          <IconButton
             aria-label={closeLabel}
             className='ec-floating-inspector__close'
             onClick={onClose}
-            type='button'
           >
             <X aria-hidden='true' size={19} />
-          </button>
+          </IconButton>
         </header>
         <div className='ec-floating-inspector__main'>{children}</div>
       </div>

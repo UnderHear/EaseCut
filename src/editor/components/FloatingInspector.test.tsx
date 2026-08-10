@@ -162,7 +162,8 @@ describe('FloatingInspector', () => {
       within(rail)
         .getAllByRole('button')
         .map((button) => button.textContent),
-    ).toEqual(['基本', '背景', '变速']);
+    ).toEqual(['基本', '变速']);
+    expect(rail.querySelector('.lucide-image')).not.toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: '片段信息' })).toBeVisible();
     expect(screen.getByText('sample.mp4')).toHaveClass(
@@ -274,7 +275,7 @@ describe('FloatingInspector', () => {
 
     expect(screen.getByText('图片')).toBeInTheDocument();
     expect(screen.getByText('still.png')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '背景' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '背景' })).toBeNull();
     expect(screen.queryByRole('button', { name: '变速' })).toBeNull();
     expect(screen.queryByLabelText('片段音量')).toBeNull();
 
@@ -347,15 +348,7 @@ describe('FloatingInspector', () => {
 
   it('switches sections and restores the selected clip properties', async () => {
     const user = userEvent.setup();
-    const { container } = renderWithEditorProviders(<FloatingInspector />);
-    const main = container.querySelector('.ec-floating-inspector__main');
-
-    const backgroundButton = screen.getByRole('button', {
-      name: '背景',
-    });
-    await user.click(backgroundButton);
-    expect(backgroundButton).toHaveAttribute('aria-current', 'page');
-    expect(main).toBeEmptyDOMElement();
+    renderWithEditorProviders(<FloatingInspector />);
 
     {
       const sectionName = '变速';
@@ -384,8 +377,15 @@ describe('FloatingInspector', () => {
   it('closes only the panel and reopens it from the rail', async () => {
     const user = userEvent.setup();
     const { container } = renderWithEditorProviders(<FloatingInspector />);
+    const closeButton = screen.getByRole('button', {
+      name: '关闭属性面板',
+    });
 
-    await user.click(screen.getByRole('button', { name: '关闭属性面板' }));
+    expect(closeButton).toHaveClass(
+      'ec-icon-button',
+      'ec-floating-inspector__close',
+    );
+    await user.click(closeButton);
 
     expect(
       screen.getByRole('complementary', { name: '基础属性面板' }),
@@ -401,7 +401,8 @@ describe('FloatingInspector', () => {
       'aria-current',
     );
 
-    await user.click(screen.getByRole('button', { name: '背景' }));
+    const basicButton = screen.getByRole('button', { name: '基本' });
+    await user.click(basicButton);
 
     expect(
       screen.getByRole('complementary', { name: '基础属性面板' }),
@@ -409,9 +410,7 @@ describe('FloatingInspector', () => {
     expect(
       container.querySelector('.ec-floating-inspector__panel'),
     ).toBeVisible();
-    expect(screen.getByRole('button', { name: '背景' })).toHaveClass(
-      'ec-is-active',
-    );
+    expect(basicButton).toHaveClass('ec-is-active');
   });
 
   it('shows only basic text properties and commits one history entry per field', async () => {

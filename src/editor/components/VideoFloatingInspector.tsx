@@ -1,5 +1,5 @@
 import * as Separator from '@radix-ui/react-separator';
-import { Film, Gauge, Image } from 'lucide-react';
+import { Film, Gauge } from 'lucide-react';
 import { useState } from 'react';
 
 import { useTimelineStore } from '../store/timeline-store-context';
@@ -13,7 +13,7 @@ import { FloatingInspectorShell } from './FloatingInspectorShell';
 import { FloatingInspectorSpeedPanel } from './FloatingInspectorSpeedPanel';
 import { InputNumber } from './ui/InputNumber';
 
-type VideoInspectorSection = 'basic' | 'background' | 'speed';
+type VideoInspectorSection = 'basic' | 'speed';
 type TransformField = keyof TimelineClipTransform;
 
 type VideoFloatingInspectorProps = {
@@ -43,13 +43,9 @@ export function VideoFloatingInspector({
       : clip.transform;
   const displayedTiming =
     previewTiming?.clipId === clip.id ? previewTiming : clip;
-  const visibleSection =
-    clip.type === 'image' && activeSection === 'speed'
-      ? 'basic'
-      : activeSection;
+  const visibleSection = activeSection;
   const sectionTitle = {
     basic: '基本',
-    background: '背景',
     speed: '变速',
   }[visibleSection];
   const activeRailSection = isPanelOpen ? visibleSection : null;
@@ -80,17 +76,6 @@ export function VideoFloatingInspector({
           >
             <Film aria-hidden='true' size={20} />
             <span>基本</span>
-          </button>
-          <button
-            aria-current={
-              activeRailSection === 'background' ? 'page' : undefined
-            }
-            className={`ec-floating-inspector__rail-item${activeRailSection === 'background' ? ' ec-is-active' : ''}`}
-            onClick={() => selectSection('background')}
-            type='button'
-          >
-            <Image aria-hidden='true' size={20} />
-            <span>背景</span>
           </button>
           {clip.type === 'video' && (
             <button
