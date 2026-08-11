@@ -2,7 +2,7 @@
 
 本文面向通过 npm 安装并嵌入 EaseCut React 的 React 应用开发者，描述当前包入口公开的组件、实例 API、Props、数据结构和浏览器要求。
 
-> 当前仓库中的包名是 `easecut-react`，版本为 `0.1.0`，但 `package.json` 仍设置了 `private: true`。以下安装方式适用于正式发布之后；发布前可通过 workspace 或本地包路径使用相同 API。
+> 当前仓库中的包名是 `easecut`，版本为 `0.1.0`，但 `package.json` 仍设置了 `private: true`。以下安装方式适用于正式发布之后；发布前可通过 workspace 或本地包路径使用相同 API。
 
 ## 1. 安装与导入
 
@@ -14,25 +14,25 @@
 - 现代桌面浏览器和 ESM 构建环境。
 
 ```bash
-npm install easecut-react react@^19 react-dom@^19
+npm install easecut react@^19 react-dom@^19
 ```
 
 组件逻辑和样式分别从包根入口与样式子路径导入：
 
 ```tsx
-import { VideoTimelineEditor } from 'easecut-react';
-import 'easecut-react/styles.css';
+import { VideoTimelineEditor } from 'easecut';
+import 'easecut/styles.css';
 ```
 
-不要从 `easecut-react/dist/...` 或包内的 `editor/...` 路径深层导入。
+不要从 `easecut/dist/...` 或包内的 `editor/...` 路径深层导入。
 
 ## 2. 最小使用示例
 
 `VideoTimelineEditor` 不要求传入任何 Prop。下面就是完整的最小 TSX 示例：
 
 ```tsx
-import { VideoTimelineEditor } from 'easecut-react';
-import 'easecut-react/styles.css';
+import { VideoTimelineEditor } from 'easecut';
+import 'easecut/styles.css';
 
 export function EditorPage() {
   return (
@@ -43,7 +43,7 @@ export function EditorPage() {
 }
 ```
 
-必须导入 `easecut-react/styles.css`。编辑器根节点使用 `width: 100%`、`height: 100%`，并具有 `520px` 的默认最小高度，因此宿主容器应提供明确高度。
+必须导入 `easecut/styles.css`。编辑器根节点使用 `width: 100%`、`height: 100%`，并具有 `520px` 的默认最小高度，因此宿主容器应提供明确高度。
 
 编辑器会创建空工程。之后使用实例 API 添加素材和片段，不需要维护 React `sources` state。
 
@@ -56,8 +56,8 @@ import { useRef } from 'react';
 import {
   VideoTimelineEditor,
   type VideoTimelineEditorHandle,
-} from 'easecut-react';
-import 'easecut-react/styles.css';
+} from 'easecut';
+import 'easecut/styles.css';
 
 export function EditorPage() {
   const editorRef = useRef<VideoTimelineEditorHandle>(null);
@@ -258,7 +258,7 @@ editor.clip.remove('clip-opening');
 实例 API 的领域错误使用 `VideoTimelineEditorApiError`：
 
 ```ts
-import { VideoTimelineEditorApiError } from 'easecut-react';
+import { VideoTimelineEditorApiError } from 'easecut';
 
 try {
   editor.source.remove('opening');
@@ -437,7 +437,7 @@ type VideoTimelineDraft = {
 也可以在组件外从草稿创建导出数据：
 
 ```ts
-import { createCompositionExportPayload } from 'easecut-react';
+import { createCompositionExportPayload } from 'easecut';
 
 const payload = createCompositionExportPayload(draft);
 ```
@@ -510,7 +510,7 @@ VideoTimelineMediaMetadata
 VideoTimelineExportRequest
 ```
 
-草稿、轨道、片段、导出 payload 和时间函数的公共类型继续从 `easecut-react` 包根入口导出。内部 store、Context、Hook 和 `src/editor/api/` 的内部处理函数不属于公共入口，不应深层导入。
+草稿、轨道、片段、导出 payload 和时间函数的公共类型继续从 `easecut` 包根入口导出。内部 store、Context、Hook 和 `src/editor/api/` 的内部处理函数不属于公共入口，不应深层导入。
 
 ## 11. 浏览器与部署注意事项
 

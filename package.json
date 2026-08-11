@@ -1,6 +1,6 @@
 {
-  "name": "easecut-react",
-  "version": "0.1.0",
+  "name": "easecut",
+  "version": "1.1.0",
   "type": "module",
   "description": "独立、可嵌入的 React 视频时间线编辑器",
   "license": "MIT",

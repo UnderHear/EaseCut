@@ -6,7 +6,7 @@ EaseCut React 是一个独立、可嵌入的 React 视频时间线编辑器。�
 
 项目不依赖 React Flow、Tailwind、shadcn 或 Base UI。界面由语义 HTML、普通 CSS、原生 Canvas 和 lucide-react 构成。
 
-> 当前包名为 `easecut-react`，并设置了 `private: true`。这是为了先稳定公开 API；正式发布到 npm 前需要确认包名和版权主体。
+> 当前包名为 `easecut`，并设置了 `private: true`。这是为了先稳定公开 API；正式发布到 npm 前需要确认包名和版权主体。
 
 ## 本地开发
 
@@ -40,8 +40,8 @@ npm run preview
 import {
   VideoTimelineEditor,
   type VideoTimelineDraft,
-} from 'easecut-react';
-import 'easecut-react/styles.css';
+} from 'easecut';
+import 'easecut/styles.css';
 
 export function Editor() {
   const saveDraft = (draft: VideoTimelineDraft) => {
@@ -107,7 +107,7 @@ type VideoTimelineSource =
 
 ```tsx
 import { useRef } from 'react';
-import type { VideoTimelineEditorHandle } from 'easecut-react';
+import type { VideoTimelineEditorHandle } from 'easecut';
 
 const editorRef = useRef<VideoTimelineEditorHandle>(null);
 
