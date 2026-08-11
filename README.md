@@ -23,7 +23,9 @@
 具备进行快速视频编辑的完备功能。
 </p>
 
-## 效果图
+## 效果图 
+
+[underhear.github.io/EaseCut/](underhear.github.io/EaseCut/)
 
 <table>
   <tr>
