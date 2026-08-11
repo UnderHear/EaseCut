@@ -1,9 +1,14 @@
 {
-  "name": "easecut",
+  "name": "easecut-react",
   "version": "1.1.0",
   "type": "module",
-  "description": "独立、可嵌入的 React 视频时间线编辑器",
+  "description": "独立、可嵌入的 React 视频编辑器",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/你的用户名/你的仓库名.git"
+  },
+  "homepage": "https://underhear.github.io/EaseCut/",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/types/index.d.ts",

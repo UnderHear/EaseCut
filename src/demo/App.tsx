@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 
 import {
   EaseCut,
@@ -10,9 +11,9 @@ async function submitVideoEditTask({
   payload,
 }: {
   payload: CompositionExportPayload;
-}): Promise<void> {
+}): Promise<string> {
   let response = await fetch(
-    'http://localhost:10081/api/v1/video-edit-tasks',
+    'https://easecut.onlikee.com/api/v1/video-edit-tasks',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -26,12 +27,12 @@ async function submitVideoEditTask({
   while (true) {
     await new Promise((resolve) => setTimeout(resolve, 2_000));
     response = await fetch(
-      `http://localhost:10081/api/v1/video-edit-tasks/${taskId}`,
+      `https://easecut.onlikee.com/api/v1/video-edit-tasks/${taskId}`,
     );
     result = await response.json();
 
     if (!response.ok) throw new Error(result.message);
-    if (result.data.status === 'SUCCESS') return;
+    if (result.data.status === 'SUCCESS') return result.data.playUrl;
     if (
       result.data.status !== 'PENDING' &&
       result.data.status !== 'PROCESSING'
@@ -41,9 +42,38 @@ async function submitVideoEditTask({
   }
 }
 
+async function downloadVideo(playUrl: string) {
+  const response = await fetch(playUrl);
+  if (!response.ok) throw new Error('视频下载失败，请稍后重试。');
+
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement('a');
+  anchor.download = 'easecut-export.mp4';
+  anchor.href = url;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 export function DemoApp() {
   const editorRef = useRef<EaseCutHandle>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isVideoExporting, setIsVideoExporting] = useState(false);
+
+  const handleVideoExport = async ({
+    payload,
+  }: {
+    payload: CompositionExportPayload;
+  }) => {
+    setIsVideoExporting(true);
+    try {
+      const playUrl = await submitVideoEditTask({ payload });
+      await downloadVideo(playUrl);
+    } finally {
+      setIsVideoExporting(false);
+    }
+  };
 
   const initClip = async () => {
     const editor = editorRef.current;
@@ -79,10 +109,27 @@ export function DemoApp() {
             title='EaseCut 视频编辑器'
             ref={editorRef}
             onClose={() => setIsEditorOpen(false)}
-            onExport={submitVideoEditTask}
+            onExport={handleVideoExport}
           />
         </div>
       )}
+      <Dialog.Root open={isVideoExporting}>
+        <Dialog.Portal>
+          <Dialog.Overlay className='ec-shortcuts-dialog__overlay' />
+          <Dialog.Content
+            className='ec-shortcuts-dialog'
+            onEscapeKeyDown={(event) => event.preventDefault()}
+            onInteractOutside={(event) => event.preventDefault()}
+          >
+            <div className='ec-shortcuts-dialog__header'>
+              <Dialog.Title className='ec-shortcuts-dialog__title'>
+                正在导出视频…
+              </Dialog.Title>
+            </div>
+            <Dialog.Description>视频正在导出，请稍候。</Dialog.Description>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </main>
   );
 }
