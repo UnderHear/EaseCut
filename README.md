@@ -1,4 +1,6 @@
-![Logo.png](https://i.postimg.cc/Zq8fXr1D/Logo.png)
+<p align="center">
+  <img src="https://i.postimg.cc/Zq8fXr1D/Logo.png" width="160">
+</p>
 
 <h1 align="center">EaseCut</h1>
 
