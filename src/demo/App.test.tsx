@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../index', () => ({
-  VideoTimelineEditor: () => <output>编辑器已挂载</output>,
+  EaseCut: () => <output>编辑器已挂载</output>,
 }));
 
 import { DemoApp } from './App';

@@ -11,13 +11,13 @@ import type {
   VideoTimelineSource,
 } from '../types';
 
-type VideoTimelineSourceInputBase = {
+type EaseCutSourceInputBase = {
   fileName?: string;
   id?: string;
   src: string;
 };
 
-type VideoTimelineTimedMediaSourceInput = VideoTimelineSourceInputBase & {
+type EaseCutTimedMediaSourceInput = EaseCutSourceInputBase & {
   durationUs?: number;
   height?: number;
   type: Exclude<VideoTimelineMediaType, 'image'>;
@@ -25,19 +25,19 @@ type VideoTimelineTimedMediaSourceInput = VideoTimelineSourceInputBase & {
   width?: number;
 };
 
-type VideoTimelineImageSourceInput = VideoTimelineSourceInputBase & {
+type EaseCutImageSourceInput = EaseCutSourceInputBase & {
   durationUs?: number;
   height?: number;
   type: 'image';
   width?: number;
 };
 
-export type VideoTimelineSourceInput =
+export type EaseCutSourceInput =
   | string
-  | VideoTimelineTimedMediaSourceInput
-  | VideoTimelineImageSourceInput;
+  | EaseCutTimedMediaSourceInput
+  | EaseCutImageSourceInput;
 
-export type VideoTimelineSourcePatch = {
+export type EaseCutSourcePatch = {
   durationUs?: number;
   fileName?: string;
   height?: number;
@@ -46,23 +46,23 @@ export type VideoTimelineSourcePatch = {
   width?: number;
 };
 
-export type VideoTimelineMediaClipInput = {
+export type EaseCutMediaClipInput = {
   sourceId: string;
   startUs?: number;
   trackId?: string;
 };
 
-export type VideoTimelineTextClipInput = {
+export type EaseCutTextClipInput = {
   startUs?: number;
   text: string;
   type: 'text';
 };
 
-export type VideoTimelineClipInput =
-  | VideoTimelineMediaClipInput
-  | VideoTimelineTextClipInput;
+export type EaseCutClipInput =
+  | EaseCutMediaClipInput
+  | EaseCutTextClipInput;
 
-export type VideoTimelineClipPatch = {
+export type EaseCutClipPatch = {
   bold?: boolean;
   endUs?: number;
   fontColor?: string;
@@ -82,24 +82,24 @@ export type VideoTimelineClipPatch = {
   volume?: TimelineClipVolume;
 };
 
-export type VideoTimelineSourceApi = {
-  add(input: VideoTimelineSourceInput): Promise<VideoTimelineSource>;
+export type EaseCutSourceApi = {
+  add(input: EaseCutSourceInput): Promise<VideoTimelineSource>;
   get(id: string): VideoTimelineSource | undefined;
   remove(id: string): void;
   update(
     id: string,
-    patch: VideoTimelineSourcePatch,
+    patch: EaseCutSourcePatch,
   ): Promise<VideoTimelineSource>;
 };
 
-export type VideoTimelineClipApi = {
-  add(input: VideoTimelineClipInput): Promise<TimelineClip>;
+export type EaseCutClipApi = {
+  add(input: EaseCutClipInput): Promise<TimelineClip>;
   get(id: string): TimelineClip | undefined;
   remove(id: string): void;
-  update(id: string, patch: VideoTimelineClipPatch): Promise<TimelineClip>;
+  update(id: string, patch: EaseCutClipPatch): Promise<TimelineClip>;
 };
 
-export type VideoTimelineEditorHandle = {
-  clip: VideoTimelineClipApi;
-  source: VideoTimelineSourceApi;
+export type EaseCutHandle = {
+  clip: EaseCutClipApi;
+  source: EaseCutSourceApi;
 };

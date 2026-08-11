@@ -10,29 +10,29 @@ import {
 
 import { useMediaRuntime } from '../media';
 import { useTimelineStoreApi } from '../store/timeline-store-context';
-import { createVideoTimelineEditorApi } from './create-editor-api';
+import { createEaseCutApi } from './create-easecut-api';
 import type { VideoTimelineSourceStoreApi } from './source-store';
-import type { VideoTimelineEditorHandle } from './types';
+import type { EaseCutHandle } from './types';
 
-const VideoTimelineEditorApiContext =
-  createContext<VideoTimelineEditorHandle | null>(null);
+const EaseCutApiContext =
+  createContext<EaseCutHandle | null>(null);
 
-type VideoTimelineEditorApiProviderProps = {
-  apiRef: Ref<VideoTimelineEditorHandle>;
+type EaseCutApiProviderProps = {
+  apiRef: Ref<EaseCutHandle>;
   children: ReactNode;
   sourceStore: VideoTimelineSourceStoreApi;
 };
 
-export function VideoTimelineEditorApiProvider({
+export function EaseCutApiProvider({
   apiRef,
   children,
   sourceStore,
-}: VideoTimelineEditorApiProviderProps) {
+}: EaseCutApiProviderProps) {
   const mediaRuntime = useMediaRuntime();
   const timelineStore = useTimelineStoreApi();
   const api = useMemo(
     () =>
-      createVideoTimelineEditorApi({
+      createEaseCutApi({
         mediaRuntime,
         sourceStore,
         timelineStore,
@@ -42,17 +42,17 @@ export function VideoTimelineEditorApiProvider({
   useImperativeHandle(apiRef, () => api, [api]);
 
   return (
-    <VideoTimelineEditorApiContext.Provider value={api}>
+    <EaseCutApiContext.Provider value={api}>
       {children}
-    </VideoTimelineEditorApiContext.Provider>
+    </EaseCutApiContext.Provider>
   );
 }
 
-export const useVideoTimelineEditorApi = () => {
-  const api = useContext(VideoTimelineEditorApiContext);
+export const useEaseCutApi = () => {
+  const api = useContext(EaseCutApiContext);
   if (!api) {
     throw new Error(
-      'useVideoTimelineEditorApi 必须在 VideoTimelineEditorApiProvider 内使用',
+      'useEaseCutApi 必须在 EaseCutApiProvider 内使用',
     );
   }
   return api;

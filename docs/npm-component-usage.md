@@ -20,7 +20,7 @@ npm install easecut react@^19 react-dom@^19
 组件逻辑和样式分别从包根入口与样式子路径导入：
 
 ```tsx
-import { VideoTimelineEditor } from 'easecut';
+import { EaseCut } from 'easecut';
 import 'easecut/styles.css';
 ```
 
@@ -28,16 +28,16 @@ import 'easecut/styles.css';
 
 ## 2. 最小使用示例
 
-`VideoTimelineEditor` 不要求传入任何 Prop。下面就是完整的最小 TSX 示例：
+`EaseCut` 不要求传入任何 Prop。下面就是完整的最小 TSX 示例：
 
 ```tsx
-import { VideoTimelineEditor } from 'easecut';
+import { EaseCut } from 'easecut';
 import 'easecut/styles.css';
 
 export function EditorPage() {
   return (
     <div style={{ height: 720 }}>
-      <VideoTimelineEditor />
+      <EaseCut />
     </div>
   );
 }
@@ -54,13 +54,13 @@ export function EditorPage() {
 ```tsx
 import { useRef } from 'react';
 import {
-  VideoTimelineEditor,
-  type VideoTimelineEditorHandle,
+  EaseCut,
+  type EaseCutHandle,
 } from 'easecut';
 import 'easecut/styles.css';
 
 export function EditorPage() {
-  const editorRef = useRef<VideoTimelineEditorHandle>(null);
+  const editorRef = useRef<EaseCutHandle>(null);
 
   const editProject = async () => {
     const editor = editorRef.current;
@@ -87,7 +87,7 @@ export function EditorPage() {
 
   return (
     <div style={{ height: 720 }}>
-      <VideoTimelineEditor ref={editorRef} />
+      <EaseCut ref={editorRef} />
     </div>
   );
 }
@@ -255,15 +255,15 @@ editor.clip.remove('clip-opening');
 
 ### 3.3 错误处理
 
-实例 API 的领域错误使用 `VideoTimelineEditorApiError`：
+实例 API 的领域错误使用 `EaseCutApiError`：
 
 ```ts
-import { VideoTimelineEditorApiError } from 'easecut';
+import { EaseCutApiError } from 'easecut';
 
 try {
   editor.source.remove('opening');
 } catch (error) {
-  if (error instanceof VideoTimelineEditorApiError) {
+  if (error instanceof EaseCutApiError) {
     console.error(error.code, error.message);
   }
 }
@@ -272,7 +272,7 @@ try {
 错误码：
 
 ```ts
-type VideoTimelineEditorApiErrorCode =
+type EaseCutApiErrorCode =
   | 'CLIP_INVALID'
   | 'CLIP_NOT_FOUND'
   | 'SOURCE_ALREADY_EXISTS'
@@ -284,20 +284,20 @@ type VideoTimelineEditorApiErrorCode =
 
 `SOURCE_CONFLICT` 表示异步更新期间同一 source 已被更新、删除或用相同 ID 重新创建；重新读取最新 source 后再决定是否重试。
 
-## 4. `VideoTimelineEditor` Props
+## 4. `EaseCut` Props
 
 ```ts
-type VideoTimelineEditorProps = {
+type EaseCutProps = {
   initialDraft?: VideoTimelineDraft;
   title?: string;
   className?: string;
   style?: React.CSSProperties;
   jsonFileName?: string;
-  mediaLoader?: VideoTimelineMediaLoader;
+  mediaLoader?: EaseCutMediaLoader;
   onSourcesChange?: (sources: VideoTimelineSource[]) => void;
   onDraftChange?: (draft: VideoTimelineDraft) => void;
   onExport?: (
-    request: VideoTimelineExportRequest,
+    request: EaseCutExportRequest,
   ) => void | Promise<void>;
   onClose?: () => void;
 };
@@ -306,7 +306,7 @@ type VideoTimelineEditorProps = {
 | Prop | 默认值 | 作用 |
 | --- | --- | --- |
 | `initialDraft` | 新工程 | 仅在实例创建时读取的项目草稿 |
-| `title` | `'视频合成'` | 标题栏文字和根区域可访问名称 |
+| `title` | `'EaseCut'` | 标题栏文字和根区域可访问名称 |
 | `className` | `''` | 追加到根节点 `ec-editor` 的类名 |
 | `style` | 无 | 编辑器根节点内联样式 |
 | `jsonFileName` | `'video-composition.json'` | “导出”菜单中“导出 JSON”的下载文件名 |
@@ -319,7 +319,7 @@ type VideoTimelineEditorProps = {
 `initialDraft` 是挂载时初始值，组件不会观察它的后续变化。切换项目草稿时应更换 React `key`：
 
 ```tsx
-<VideoTimelineEditor
+<EaseCut
   key={projectId}
   initialDraft={projectDraft}
 />
@@ -376,7 +376,7 @@ URL 没有可识别后缀时，使用对象形式显式提供 `type`。
 默认加载器执行不带 token、cookie 或自定义 header 的 `fetch`。私有媒体可以注入稳定的 `mediaLoader` 对象：
 
 ```tsx
-const mediaLoader = useMemo<VideoTimelineMediaLoader>(
+const mediaLoader = useMemo<EaseCutMediaLoader>(
   () => ({
     async loadBlob(url, { signal }) {
       const response = await fetch(url, {
@@ -390,11 +390,11 @@ const mediaLoader = useMemo<VideoTimelineMediaLoader>(
   [token],
 );
 
-<VideoTimelineEditor mediaLoader={mediaLoader} />;
+<EaseCut mediaLoader={mediaLoader} />;
 ```
 
 ```ts
-interface VideoTimelineMediaLoader {
+interface EaseCutMediaLoader {
   loadBlob(
     url: string,
     options: {
@@ -405,7 +405,7 @@ interface VideoTimelineMediaLoader {
   loadMetadata?(
     source: VideoTimelineSource,
     options: { signal: AbortSignal },
-  ): Promise<VideoTimelineMediaMetadata | null>;
+  ): Promise<EaseCutMediaMetadata | null>;
 }
 ```
 
@@ -427,7 +427,7 @@ type VideoTimelineDraft = {
 组件自身不编码 MP4。传入 `onExport` 后，回调收到当前草稿和标准化导出数据：
 
 ```tsx
-<VideoTimelineEditor
+<EaseCut
   onExport={async ({ draft, payload }) => {
     await submitRenderTask({ draft, payload });
   }}
@@ -485,29 +485,29 @@ source API、clip API、草稿历史、播放状态和媒体缓存均为实例�
 实例 API：
 
 ```ts
-VideoTimelineEditorHandle
-VideoTimelineSourceApi
-VideoTimelineSourceInput
-VideoTimelineSourcePatch
-VideoTimelineClipApi
-VideoTimelineClipInput
-VideoTimelineMediaClipInput
-VideoTimelineTextClipInput
-VideoTimelineClipPatch
-VideoTimelineEditorApiError
-VideoTimelineEditorApiErrorCode
+EaseCutHandle
+EaseCutSourceApi
+EaseCutSourceInput
+EaseCutSourcePatch
+EaseCutClipApi
+EaseCutClipInput
+EaseCutMediaClipInput
+EaseCutTextClipInput
+EaseCutClipPatch
+EaseCutApiError
+EaseCutApiErrorCode
 ```
 
 组件、素材和回调：
 
 ```ts
-VideoTimelineEditor
-VideoTimelineEditorProps
+EaseCut
+EaseCutProps
 VideoTimelineSource
 VideoTimelineMediaType
-VideoTimelineMediaLoader
-VideoTimelineMediaMetadata
-VideoTimelineExportRequest
+EaseCutMediaLoader
+EaseCutMediaMetadata
+EaseCutExportRequest
 ```
 
 草稿、轨道、片段、导出 payload 和时间函数的公共类型继续从 `easecut` 包根入口导出。内部 store、Context、Hook 和 `src/editor/api/` 的内部处理函数不属于公共入口，不应深层导入。

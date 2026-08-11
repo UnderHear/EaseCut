@@ -10,8 +10,8 @@ import {
 } from 'react';
 
 import type {
-  VideoTimelineMediaLoader,
-  VideoTimelineMediaMetadata,
+  EaseCutMediaLoader,
+  EaseCutMediaMetadata,
   VideoTimelineSource,
 } from '../types';
 import type { TimelineMediaType } from '../core/model';
@@ -69,11 +69,11 @@ type ObjectUrlCacheEntry = {
 type MetadataCacheEntry =
   | {
       controller: AbortController;
-      promise: Promise<VideoTimelineMediaMetadata | null>;
+      promise: Promise<EaseCutMediaMetadata | null>;
       status: 'pending';
     }
   | {
-      metadata: VideoTimelineMediaMetadata | null;
+      metadata: EaseCutMediaMetadata | null;
       status: 'ready';
     };
 
@@ -85,9 +85,9 @@ const hasPositiveTimeUs = (value: number | undefined): value is number =>
 
 const getSourceMetadata = (
   source: VideoTimelineSource | undefined,
-): VideoTimelineMediaMetadata | null => {
+): EaseCutMediaMetadata | null => {
   if (!source) return null;
-  const metadata: VideoTimelineMediaMetadata = {};
+  const metadata: EaseCutMediaMetadata = {};
   if (hasPositiveTimeUs(source.durationUs)) {
     metadata.durationUs = source.durationUs;
   }
@@ -97,8 +97,8 @@ const getSourceMetadata = (
 };
 
 const mergeMetadata = (
-  base: VideoTimelineMediaMetadata | null,
-  next: VideoTimelineMediaMetadata | null,
+  base: EaseCutMediaMetadata | null,
+  next: EaseCutMediaMetadata | null,
 ) => {
   if (!base && !next) return null;
   const merged = { ...(base ?? {}), ...(next ?? {}) };
@@ -106,7 +106,7 @@ const mergeMetadata = (
 };
 
 const validateLoadedMetadata = (
-  metadata: VideoTimelineMediaMetadata | null,
+  metadata: EaseCutMediaMetadata | null,
 ) => {
   if (!metadata) return null;
   if (
@@ -131,7 +131,7 @@ const validateLoadedMetadata = (
 };
 
 const isMetadataComplete = (
-  metadata: VideoTimelineMediaMetadata | null,
+  metadata: EaseCutMediaMetadata | null,
   source: VideoTimelineSource | undefined,
 ) =>
   Boolean(
@@ -148,7 +148,7 @@ const isMetadataComplete = (
 const canReadMediaMetadata = () =>
   typeof document !== 'undefined' && !isJsdomEnvironment();
 
-const defaultMediaLoader: VideoTimelineMediaLoader = {
+const defaultMediaLoader: EaseCutMediaLoader = {
   async loadBlob(url, { signal }) {
     const response = await fetch(url, { signal });
     if (!response.ok) {
@@ -164,11 +164,11 @@ const readBrowserMetadata = (
   signal: AbortSignal,
 ) => {
   if (!canReadMediaMetadata()) {
-    return Promise.resolve<VideoTimelineMediaMetadata | null>(null);
+    return Promise.resolve<EaseCutMediaMetadata | null>(null);
   }
 
   if (source?.type === 'image') {
-    return new Promise<VideoTimelineMediaMetadata>((resolve, reject) => {
+    return new Promise<EaseCutMediaMetadata>((resolve, reject) => {
       const image = document.createElement('img');
       const cleanup = () => {
         signal.removeEventListener('abort', handleAbort);
@@ -208,7 +208,7 @@ const readBrowserMetadata = (
     });
   }
 
-  return new Promise<VideoTimelineMediaMetadata>((resolve, reject) => {
+  return new Promise<EaseCutMediaMetadata>((resolve, reject) => {
     const media = document.createElement(
       source?.type === 'audio' ? 'audio' : 'video',
     );
@@ -229,7 +229,7 @@ const readBrowserMetadata = (
     };
 
     media.onloadedmetadata = () => {
-      const metadata: VideoTimelineMediaMetadata = {};
+      const metadata: EaseCutMediaMetadata = {};
       if (hasPositiveNumber(media.duration)) {
         metadata.durationUs = secondsToMicroseconds(media.duration);
       }
@@ -303,7 +303,7 @@ export type MediaRuntime = {
   getBlob(input: MediaInput): Promise<Blob>;
   getMetadata(
     input: MediaInput,
-  ): Promise<VideoTimelineMediaMetadata | null>;
+  ): Promise<EaseCutMediaMetadata | null>;
   isDisposed(): boolean;
   measureTextLayout(
     request: TextLayoutRequest,
@@ -317,7 +317,7 @@ export type MediaRuntime = {
 };
 
 export const createMediaRuntime = (
-  mediaLoader: VideoTimelineMediaLoader = defaultMediaLoader,
+  mediaLoader: EaseCutMediaLoader = defaultMediaLoader,
   sources: VideoTimelineSource[] = [],
 ): MediaRuntime => {
   const blobs = new Map<string, BlobCacheEntry>();
@@ -502,7 +502,7 @@ export const createMediaRuntime = (
 
   const getMetadata = (
     input: MediaInput,
-  ): Promise<VideoTimelineMediaMetadata | null> => {
+  ): Promise<EaseCutMediaMetadata | null> => {
     if (disposed) return Promise.reject(createAbortError());
     const { source, src } = resolveInput(input);
     const cached = metadataEntries.get(src);
@@ -621,7 +621,7 @@ const MediaRuntimeContext = createContext<MediaRuntime | null>(null);
 
 export type MediaRuntimeProviderProps = {
   children: ReactNode;
-  mediaLoader?: VideoTimelineMediaLoader;
+  mediaLoader?: EaseCutMediaLoader;
   sources: VideoTimelineSource[];
 };
 
@@ -700,7 +700,7 @@ export const useMediaMetadata = (input: MediaInput, enabled = true) => {
   const runtime = useMediaRuntime();
   const src = typeof input === 'string' ? input : input.src;
   const [result, setResult] = useState<{
-    metadata: VideoTimelineMediaMetadata | null;
+    metadata: EaseCutMediaMetadata | null;
     src: string;
   } | null>(null);
 

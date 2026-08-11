@@ -57,13 +57,13 @@ export type VideoTimelineSource = TimelineSource;
 
 export type VideoTimelineDraft = TimelineProject;
 
-export type VideoTimelineMediaMetadata = {
+export type EaseCutMediaMetadata = {
   durationUs?: number;
   height?: number;
   width?: number;
 };
 
-export interface VideoTimelineMediaLoader {
+export interface EaseCutMediaLoader {
   loadBlob(
     url: string,
     options: {
@@ -74,7 +74,7 @@ export interface VideoTimelineMediaLoader {
   loadMetadata?(
     source: VideoTimelineSource,
     options: { signal: AbortSignal },
-  ): Promise<VideoTimelineMediaMetadata | null>;
+  ): Promise<EaseCutMediaMetadata | null>;
 }
 
 export type {
@@ -91,21 +91,21 @@ export type {
   CompositionExportVolume,
 } from './core/model';
 
-export type VideoTimelineExportRequest = {
+export type EaseCutExportRequest = {
   draft: VideoTimelineDraft;
   payload: CompositionExportPayload;
 };
 
-export type VideoTimelineEditorProps = {
+export type EaseCutProps = {
   initialDraft?: VideoTimelineDraft;
   title?: string;
   className?: string;
   style?: CSSProperties;
   jsonFileName?: string;
-  mediaLoader?: VideoTimelineMediaLoader;
+  mediaLoader?: EaseCutMediaLoader;
   onSourcesChange?: (sources: VideoTimelineSource[]) => void;
   onDraftChange?: (draft: VideoTimelineDraft) => void;
-  onExport?: (request: VideoTimelineExportRequest) => void | Promise<void>;
+  onExport?: (request: EaseCutExportRequest) => void | Promise<void>;
   onClose?: () => void;
 };
 

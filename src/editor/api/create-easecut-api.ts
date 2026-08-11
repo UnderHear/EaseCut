@@ -17,7 +17,7 @@ import { isValidTimeUs } from '../core/time';
 import type { MediaRuntime } from '../media';
 import type { TimelineStoreApi } from '../store/timeline-store';
 import type { VideoTimelineSource } from '../types';
-import { VideoTimelineEditorApiError } from './errors';
+import { EaseCutApiError } from './errors';
 import {
   createSourceCandidate,
   hasCompleteSourceMetadata,
@@ -33,13 +33,13 @@ import {
   type VideoTimelineSourceStoreApi,
 } from './source-store';
 import type {
-  VideoTimelineClipInput,
-  VideoTimelineClipPatch,
-  VideoTimelineEditorHandle,
-  VideoTimelineSourcePatch,
+  EaseCutClipInput,
+  EaseCutClipPatch,
+  EaseCutHandle,
+  EaseCutSourcePatch,
 } from './types';
 
-type CreateVideoTimelineEditorApiParams = {
+type CreateEaseCutApiParams = {
   mediaRuntime: MediaRuntime;
   sourceStore: VideoTimelineSourceStoreApi;
   timelineStore: TimelineStoreApi;
@@ -55,16 +55,16 @@ const cloneClip = (clip: TimelineClip): TimelineClip =>
     : { ...clip, transform: { ...clip.transform } };
 
 const clipError = (message: string) =>
-  new VideoTimelineEditorApiError('CLIP_INVALID', message);
+  new EaseCutApiError('CLIP_INVALID', message);
 
 const duplicateSourceError = (id: string) =>
-  new VideoTimelineEditorApiError(
+  new EaseCutApiError(
     'SOURCE_ALREADY_EXISTS',
     `素材 ID 已存在：${id}。`,
   );
 
 const sourceConflictError = (id: string) =>
-  new VideoTimelineEditorApiError(
+  new EaseCutApiError(
     'SOURCE_CONFLICT',
     `素材 ${id} 在更新期间已发生变化。`,
   );
@@ -77,7 +77,7 @@ const getClip = (timelineStore: TimelineStoreApi, id: string) =>
 const requireClip = (timelineStore: TimelineStoreApi, id: string) => {
   const clip = getClip(timelineStore, id);
   if (!clip) {
-    throw new VideoTimelineEditorApiError(
+    throw new EaseCutApiError(
       'CLIP_NOT_FOUND',
       `找不到片段：${id}。`,
     );
@@ -88,7 +88,7 @@ const requireClip = (timelineStore: TimelineStoreApi, id: string) => {
 const requireSource = (sourceStore: VideoTimelineSourceStoreApi, id: string) => {
   const source = getSourceSnapshot(sourceStore, id);
   if (!source) {
-    throw new VideoTimelineEditorApiError(
+    throw new EaseCutApiError(
       'SOURCE_NOT_FOUND',
       `找不到素材：${id}。`,
     );
@@ -106,14 +106,14 @@ const resolveSource = async (
   try {
     metadata = await mediaRuntime.getMetadata(source);
   } catch (error) {
-    throw new VideoTimelineEditorApiError(
+    throw new EaseCutApiError(
       'SOURCE_INVALID',
       error instanceof Error ? error.message : '素材元数据加载失败。',
     );
   }
   const resolved = mergeSourceMetadata(source, metadata);
   if (!hasCompleteSourceMetadata(resolved)) {
-    throw new VideoTimelineEditorApiError(
+    throw new EaseCutApiError(
       'SOURCE_INVALID',
       '素材缺少有效的时长或尺寸信息。',
     );
@@ -123,7 +123,7 @@ const resolveSource = async (
 
 const createUpdatedSource = (
   current: VideoTimelineSource,
-  patch: VideoTimelineSourcePatch,
+  patch: EaseCutSourcePatch,
   sources: readonly VideoTimelineSource[],
 ) => {
   const src = patch.src?.trim() ?? current.src;
@@ -184,7 +184,7 @@ const assertFinitePoint = (
 const assertClipPatch = (
   timelineStore: TimelineStoreApi,
   clip: TimelineClip,
-  patch: VideoTimelineClipPatch,
+  patch: EaseCutClipPatch,
 ) => {
   assertTime(patch.startUs, 'startUs');
   assertTime(patch.endUs, 'endUs');
@@ -294,7 +294,7 @@ const assertClipPatch = (
   }
 };
 
-const hasTextLayoutChange = (patch: VideoTimelineClipPatch) =>
+const hasTextLayoutChange = (patch: EaseCutClipPatch) =>
   patch.bold !== undefined ||
   patch.fontSize !== undefined ||
   patch.fontType !== undefined ||
@@ -305,8 +305,8 @@ const createClipApi = (
   mediaRuntime: MediaRuntime,
   sourceStore: VideoTimelineSourceStoreApi,
   timelineStore: TimelineStoreApi,
-): VideoTimelineEditorHandle['clip'] => ({
-  async add(input: VideoTimelineClipInput) {
+): EaseCutHandle['clip'] => ({
+  async add(input: EaseCutClipInput) {
     const state = timelineStore.getState();
     const startUs = input.startUs ?? state.currentTimeUs;
     assertTime(startUs, 'startUs');
@@ -315,7 +315,7 @@ const createClipApi = (
     if ('sourceId' in input) {
       const source = requireSource(sourceStore, input.sourceId);
       if (!hasCompleteSourceMetadata(source)) {
-        throw new VideoTimelineEditorApiError(
+        throw new EaseCutApiError(
           'SOURCE_INVALID',
           `素材 ${source.id} 的元数据尚未就绪。`,
         );
@@ -387,7 +387,7 @@ const createSourceApi = (
   mediaRuntime: MediaRuntime,
   sourceStore: VideoTimelineSourceStoreApi,
   timelineStore: TimelineStoreApi,
-): VideoTimelineEditorHandle['source'] => ({
+): EaseCutHandle['source'] => ({
   async add(input) {
     const sources = getSourceSnapshots(sourceStore);
     const candidate = createSourceCandidate(input, sources);
@@ -423,7 +423,7 @@ const createSourceApi = (
           (clip) => isTimelineMediaClip(clip) && clip.sourceId === id,
         )
     ) {
-      throw new VideoTimelineEditorApiError(
+      throw new EaseCutApiError(
         'SOURCE_IN_USE',
         `素材 ${id} 仍被片段引用，请先删除相关片段。`,
       );
@@ -449,11 +449,11 @@ const createSourceApi = (
   },
 });
 
-export const createVideoTimelineEditorApi = ({
+export const createEaseCutApi = ({
   mediaRuntime,
   sourceStore,
   timelineStore,
-}: CreateVideoTimelineEditorApiParams): VideoTimelineEditorHandle => ({
+}: CreateEaseCutApiParams): EaseCutHandle => ({
   clip: createClipApi(mediaRuntime, sourceStore, timelineStore),
   source: createSourceApi(mediaRuntime, sourceStore, timelineStore),
 });

@@ -38,7 +38,7 @@ npm run preview
 
 ```tsx
 import {
-  VideoTimelineEditor,
+  EaseCut,
   type VideoTimelineDraft,
 } from 'easecut';
 import 'easecut/styles.css';
@@ -50,7 +50,7 @@ export function Editor() {
 
   return (
     <div style={{ height: 720 }}>
-      <VideoTimelineEditor
+      <EaseCut
         onDraftChange={saveDraft}
         onExport={async ({ draft, payload }) => {
           // 将 payload 交给自己的服务端视频渲染服务。
@@ -63,7 +63,7 @@ export function Editor() {
 }
 ```
 
-`initialDraft` 只在组件实例创建时读取。素材和片段通过 `VideoTimelineEditorHandle` 实例 API 增删改查；`onDraftChange` 只响应可持久化的轨道、片段和画布变化，不会因播放时间、缩放或选中状态触发。
+`initialDraft` 只在组件实例创建时读取。素材和片段通过 `EaseCutHandle` 实例 API 增删改查；`onDraftChange` 只响应可持久化的轨道、片段和画布变化，不会因播放时间、缩放或选中状态触发。
 
 新建项目的“原纵横比”取素材列表中第一个具有有效宽高的视频原始尺寸；没有符合条件的视频时使用 `1280 × 720`。预览区左侧的纵横比面板还提供 `16:9`（`1280 × 720`）、`4:3`（`960 × 720`）、`2:1`（`1440 × 720`）、`9:16`（`720 × 1280`）、`1:1`（`720 × 720`）和 `3:4`（`720 × 960`）项目预设。切换画布时会围绕画布中心等比调整现有视觉内容，并形成一个可撤销、可重做的编辑记录。
 
@@ -107,9 +107,9 @@ type VideoTimelineSource =
 
 ```tsx
 import { useRef } from 'react';
-import type { VideoTimelineEditorHandle } from 'easecut';
+import type { EaseCutHandle } from 'easecut';
 
-const editorRef = useRef<VideoTimelineEditorHandle>(null);
+const editorRef = useRef<EaseCutHandle>(null);
 
 const addOpening = async () => {
   const source = await editorRef.current?.source.add(
@@ -120,7 +120,7 @@ const addOpening = async () => {
   }
 };
 
-<VideoTimelineEditor ref={editorRef} />;
+<EaseCut ref={editorRef} />;
 ```
 
 项目草稿只接受 `schemaVersion: 12`，旧 schema 会被明确拒绝且不会自动迁移。草稿中的
@@ -153,7 +153,7 @@ clip 的已保存音量。
 默认加载器执行不带 token、cookie 或自定义 header 的 `fetch`。私有媒体可以注入加载器：
 
 ```tsx
-<VideoTimelineEditor
+<EaseCut
   mediaLoader={{
     async loadBlob(url, { signal }) {
       const response = await fetch(url, {

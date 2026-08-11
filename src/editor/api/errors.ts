@@ -1,4 +1,4 @@
-export type VideoTimelineEditorApiErrorCode =
+export type EaseCutApiErrorCode =
   | 'CLIP_INVALID'
   | 'CLIP_NOT_FOUND'
   | 'SOURCE_ALREADY_EXISTS'
@@ -7,12 +7,12 @@ export type VideoTimelineEditorApiErrorCode =
   | 'SOURCE_INVALID'
   | 'SOURCE_NOT_FOUND';
 
-export class VideoTimelineEditorApiError extends Error {
-  readonly code: VideoTimelineEditorApiErrorCode;
+export class EaseCutApiError extends Error {
+  readonly code: EaseCutApiErrorCode;
 
-  constructor(code: VideoTimelineEditorApiErrorCode, message: string) {
+  constructor(code: EaseCutApiErrorCode, message: string) {
     super(message);
-    this.name = 'VideoTimelineEditorApiError';
+    this.name = 'EaseCutApiError';
     this.code = code;
   }
 }

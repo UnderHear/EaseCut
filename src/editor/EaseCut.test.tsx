@@ -12,15 +12,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { secondsToMicroseconds } from './core/time';
 import {
-  VideoTimelineEditorApiError,
-  type VideoTimelineEditorHandle,
+  EaseCutApiError,
+  type EaseCutHandle,
 } from './api';
 import type {
   TimelineClip,
   VideoTimelineDraft,
-  VideoTimelineEditorProps,
-  VideoTimelineExportRequest,
-  VideoTimelineMediaMetadata,
+  EaseCutProps,
+  EaseCutExportRequest,
+  EaseCutMediaMetadata,
   VideoTimelineSource,
 } from './types';
 
@@ -183,7 +183,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
   };
 });
 
-import { VideoTimelineEditor } from './VideoTimelineEditor';
+import { EaseCut } from './EaseCut';
 
 const videoSource: VideoTimelineSource = {
   durationUs: secondsToMicroseconds(5),
@@ -261,7 +261,7 @@ const flushEffects = async () => {
 };
 
 const addSourcesAndClips = async (
-  editor: VideoTimelineEditorHandle | null,
+  editor: EaseCutHandle | null,
   sources: readonly VideoTimelineSource[],
 ) => {
   if (!editor) throw new Error('编辑器实例未就绪');
@@ -272,11 +272,11 @@ const addSourcesAndClips = async (
 };
 
 const renderEditor = async (
-  props: VideoTimelineEditorProps = {},
+  props: EaseCutProps = {},
   sources: readonly VideoTimelineSource[] = [],
 ) => {
-  const ref = createRef<VideoTimelineEditorHandle>();
-  const view = render(<VideoTimelineEditor {...props} ref={ref} />);
+  const ref = createRef<EaseCutHandle>();
+  const view = render(<EaseCut {...props} ref={ref} />);
 
   await act(async () => {
     await addSourcesAndClips(ref.current, sources);
@@ -303,7 +303,7 @@ const readBlobText = (blob: Blob) =>
     reader.readAsText(blob);
   });
 
-describe('VideoTimelineEditor', () => {
+describe('EaseCut', () => {
   const fontsDescriptor = Object.getOwnPropertyDescriptor(document, 'fonts');
 
   beforeEach(() => {
@@ -342,9 +342,9 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('renders with an omitted source catalog', () => {
-    render(<VideoTimelineEditor />);
+    render(<EaseCut />);
 
-    expect(screen.getByRole('heading', { name: '视频合成' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'EaseCut' })).toBeVisible();
     expect(screen.getByRole('button', { name: '导出' })).toBeVisible();
   });
 
@@ -353,7 +353,7 @@ describe('VideoTimelineEditor', () => {
     const onClose = vi.fn();
     const onExport = vi.fn();
     const { rerender } = render(
-      <VideoTimelineEditor title='剪辑项目' />,
+      <EaseCut title='剪辑项目' />,
     );
 
     expect(screen.getByRole('heading', { name: '剪辑项目' })).toBeVisible();
@@ -364,7 +364,7 @@ describe('VideoTimelineEditor', () => {
       screen.queryByRole('button', { name: '导出视频' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: '关闭视频编辑器' }),
+      screen.queryByRole('button', { name: '关闭 EaseCut' }),
     ).not.toBeInTheDocument();
 
     await user.click(exportTrigger);
@@ -374,7 +374,7 @@ describe('VideoTimelineEditor', () => {
     await user.keyboard('{Escape}');
 
     rerender(
-      <VideoTimelineEditor
+      <EaseCut
         onClose={onClose}
         onExport={onExport}
       />,
@@ -386,14 +386,14 @@ describe('VideoTimelineEditor', () => {
     await user.click(screen.getByRole('button', { name: '导出' }));
     expect(screen.getByRole('menuitem', { name: '导出到本地' })).toBeEnabled();
     await user.click(
-      screen.getByRole('button', { name: '关闭视频编辑器' }),
+      screen.getByRole('button', { name: '关闭 EaseCut' }),
     );
     expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('always exposes the instance-backed online import dialog', async () => {
     const user = userEvent.setup();
-    render(<VideoTimelineEditor />);
+    render(<EaseCut />);
     await user.click(screen.getByRole('button', { name: '导入素材' }));
 
     expect(screen.getByRole('dialog', { name: '导入在线素材' })).toBeVisible();
@@ -561,7 +561,7 @@ describe('VideoTimelineEditor', () => {
 
   it('rejects missing or unsupported URL file suffixes', async () => {
     const user = userEvent.setup();
-    render(<VideoTimelineEditor />);
+    render(<EaseCut />);
     await user.click(screen.getByRole('button', { name: '导入素材' }));
     const urlInput = screen.getByLabelText('素材 URL');
 
@@ -644,7 +644,7 @@ describe('VideoTimelineEditor', () => {
   it('passes the latest draft and derived payload to onExport', async () => {
     const user = userEvent.setup();
     const onExport = vi
-      .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
+      .fn<(request: EaseCutExportRequest) => Promise<void>>()
       .mockResolvedValue(undefined);
     await renderEditor({ onExport }, [audioSource]);
     await flushEffects();
@@ -805,7 +805,7 @@ describe('VideoTimelineEditor', () => {
   it('uses a square video as the original canvas after metadata is resolved', async () => {
     const user = userEvent.setup();
     const onExport = vi
-      .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
+      .fn<(request: EaseCutExportRequest) => Promise<void>>()
       .mockResolvedValue(undefined);
     const squareSource: VideoTimelineSource = {
       fileName: 'square.mp4',
@@ -860,7 +860,7 @@ describe('VideoTimelineEditor', () => {
     const deferred = createDeferred<void>();
     const onClose = vi.fn();
     const onExport = vi
-      .fn<(request: VideoTimelineExportRequest) => void | Promise<void>>()
+      .fn<(request: EaseCutExportRequest) => void | Promise<void>>()
       .mockReturnValueOnce(deferred.promise)
       .mockResolvedValueOnce(undefined);
     await renderEditor({ onClose, onExport }, [videoSource]);
@@ -872,7 +872,7 @@ describe('VideoTimelineEditor', () => {
     expect(screen.getByRole('menuitem', { name: '导出中…' })).toBeDisabled();
     expect(screen.getByRole('menuitem', { name: '导出 JSON' })).toBeEnabled();
     expect(
-      screen.getByRole('button', { name: '关闭视频编辑器' }),
+      screen.getByRole('button', { name: '关闭 EaseCut' }),
     ).toBeEnabled();
     expect(onExport).toHaveBeenCalledOnce();
 
@@ -901,7 +901,7 @@ describe('VideoTimelineEditor', () => {
   it('allows an export error toast to be dismissed manually', async () => {
     const user = userEvent.setup();
     const onExport = vi
-      .fn<(request: VideoTimelineExportRequest) => Promise<void>>()
+      .fn<(request: EaseCutExportRequest) => Promise<void>>()
       .mockRejectedValue(new Error('导出服务暂不可用'));
     await renderEditor({ onExport }, [videoSource]);
 
@@ -920,7 +920,7 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('keeps existing clips when an instance source add fails', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
+    const ref = createRef<EaseCutHandle>();
     const loadMetadata = vi
       .fn()
       .mockRejectedValue(new Error('无法读取媒体元数据'));
@@ -931,7 +931,7 @@ describe('VideoTimelineEditor', () => {
       id: 'failed-audio',
       src: '/failed-audio.mp3',
     };
-    render(<VideoTimelineEditor mediaLoader={mediaLoader} ref={ref} />);
+    render(<EaseCut mediaLoader={mediaLoader} ref={ref} />);
 
     await act(async () => {
       const source = await ref.current?.source.add(videoSource);
@@ -971,10 +971,10 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('supports source and media clip CRUD through the instance API', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
+    const ref = createRef<EaseCutHandle>();
     const onSourcesChange = vi.fn();
     render(
-      <VideoTimelineEditor onSourcesChange={onSourcesChange} ref={ref} />,
+      <EaseCut onSourcesChange={onSourcesChange} ref={ref} />,
     );
 
     let sourceId = '';
@@ -1043,8 +1043,8 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('keeps refreshed source identity when timeline history is restored', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
-    render(<VideoTimelineEditor ref={ref} />);
+    const ref = createRef<EaseCutHandle>();
+    render(<EaseCut ref={ref} />);
     let sourceId = '';
     let clipId = '';
 
@@ -1066,7 +1066,7 @@ describe('VideoTimelineEditor', () => {
       });
     });
 
-    fireEvent.keyDown(screen.getByRole('region', { name: '视频合成' }), {
+    fireEvent.keyDown(screen.getByRole('region', { name: 'EaseCut' }), {
       ctrlKey: true,
       key: 'z',
     });
@@ -1079,8 +1079,8 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('does not restore a dangling clip after its source is removed', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
-    render(<VideoTimelineEditor ref={ref} />);
+    const ref = createRef<EaseCutHandle>();
+    render(<EaseCut ref={ref} />);
     let sourceId = '';
     let clipId = '';
 
@@ -1096,7 +1096,7 @@ describe('VideoTimelineEditor', () => {
       ref.current?.source.remove(sourceId);
     });
 
-    fireEvent.keyDown(screen.getByRole('region', { name: '视频合成' }), {
+    fireEvent.keyDown(screen.getByRole('region', { name: 'EaseCut' }), {
       ctrlKey: true,
       key: 'z',
     });
@@ -1105,13 +1105,13 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('rejects a stale source update after the source ID is reused', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
-    const metadata = createDeferred<VideoTimelineMediaMetadata | null>();
+    const ref = createRef<EaseCutHandle>();
+    const metadata = createDeferred<EaseCutMediaMetadata | null>();
     const mediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob()),
       loadMetadata: vi.fn(() => metadata.promise),
     };
-    render(<VideoTimelineEditor mediaLoader={mediaLoader} ref={ref} />);
+    render(<EaseCut mediaLoader={mediaLoader} ref={ref} />);
 
     await act(async () => {
       await ref.current?.source.add({
@@ -1150,8 +1150,8 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('rejects source durations that are not positive safe integers', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
-    render(<VideoTimelineEditor ref={ref} />);
+    const ref = createRef<EaseCutHandle>();
+    render(<EaseCut ref={ref} />);
 
     await expect(
       ref.current?.source.add({
@@ -1166,8 +1166,8 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('rejects non-finite clip transform dimensions', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
-    render(<VideoTimelineEditor ref={ref} />);
+    const ref = createRef<EaseCutHandle>();
+    render(<EaseCut ref={ref} />);
     await act(async () => {
       const source = await ref.current?.source.add(videoSource);
       await ref.current?.clip.add({ sourceId: source?.id ?? '' });
@@ -1198,8 +1198,8 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('supports text clip CRUD and rejects incompatible updates', async () => {
-    const ref = createRef<VideoTimelineEditorHandle>();
-    render(<VideoTimelineEditor ref={ref} />);
+    const ref = createRef<EaseCutHandle>();
+    render(<EaseCut ref={ref} />);
 
     let clipId = '';
     await act(async () => {
@@ -1222,7 +1222,7 @@ describe('VideoTimelineEditor', () => {
     });
     await expect(
       ref.current?.clip.update(clipId, { volume: 0.5 }),
-    ).rejects.toBeInstanceOf(VideoTimelineEditorApiError);
+    ).rejects.toBeInstanceOf(EaseCutApiError);
 
     act(() => ref.current?.clip.remove(clipId));
     expect(ref.current?.clip.get(clipId)).toBeUndefined();
@@ -1257,7 +1257,7 @@ describe('VideoTimelineEditor', () => {
     const user = userEvent.setup();
     const onDraftChange = vi.fn<(draft: VideoTimelineDraft) => void>();
     render(
-      <VideoTimelineEditor
+      <EaseCut
         initialDraft={textDraft}
         onDraftChange={onDraftChange}
       />,
@@ -1287,11 +1287,11 @@ describe('VideoTimelineEditor', () => {
 
   it('handles shortcuts only when they originate inside the focused editor', async () => {
     const user = userEvent.setup();
-    const ref = createRef<VideoTimelineEditorHandle>();
+    const ref = createRef<EaseCutHandle>();
     const { container } = render(
       <>
         <input aria-label='编辑器外输入框' />
-        <VideoTimelineEditor ref={ref} />
+        <EaseCut ref={ref} />
       </>,
     );
     await act(async () => {
@@ -1365,12 +1365,12 @@ describe('VideoTimelineEditor', () => {
 
   it('routes copy and paste shortcuts only to the focused editor instance', async () => {
     const user = userEvent.setup();
-    const firstRef = createRef<VideoTimelineEditorHandle>();
-    const secondRef = createRef<VideoTimelineEditorHandle>();
+    const firstRef = createRef<EaseCutHandle>();
+    const secondRef = createRef<EaseCutHandle>();
     const { container } = render(
       <>
-        <VideoTimelineEditor ref={firstRef} title='编辑器 A' />
-        <VideoTimelineEditor ref={secondRef} title='编辑器 B' />
+        <EaseCut ref={firstRef} title='编辑器 A' />
+        <EaseCut ref={secondRef} title='编辑器 B' />
       </>,
     );
     await act(async () => {
@@ -1421,12 +1421,12 @@ describe('VideoTimelineEditor', () => {
   });
 
   it('isolates source and clip APIs between editor instances', async () => {
-    const firstRef = createRef<VideoTimelineEditorHandle>();
-    const secondRef = createRef<VideoTimelineEditorHandle>();
+    const firstRef = createRef<EaseCutHandle>();
+    const secondRef = createRef<EaseCutHandle>();
     render(
       <>
-        <VideoTimelineEditor ref={firstRef} title='编辑器 A' />
-        <VideoTimelineEditor ref={secondRef} title='编辑器 B' />
+        <EaseCut ref={firstRef} title='编辑器 A' />
+        <EaseCut ref={secondRef} title='编辑器 B' />
       </>,
     );
     const states = screen.getAllByTestId('timeline-state');
@@ -1451,12 +1451,12 @@ describe('VideoTimelineEditor', () => {
 
   it('keeps playback state isolated between two editor instances', async () => {
     const user = userEvent.setup();
-    const firstRef = createRef<VideoTimelineEditorHandle>();
-    const secondRef = createRef<VideoTimelineEditorHandle>();
+    const firstRef = createRef<EaseCutHandle>();
+    const secondRef = createRef<EaseCutHandle>();
     const { container } = render(
       <>
-        <VideoTimelineEditor ref={firstRef} title='编辑器 A' />
-        <VideoTimelineEditor ref={secondRef} title='编辑器 B' />
+        <EaseCut ref={firstRef} title='编辑器 A' />
+        <EaseCut ref={secondRef} title='编辑器 B' />
       </>,
     );
     await act(async () => {

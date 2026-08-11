@@ -1,15 +1,15 @@
 export {
-  VideoTimelineEditorApiError,
-  type VideoTimelineEditorApiErrorCode,
+  EaseCutApiError,
+  type EaseCutApiErrorCode,
 } from './errors';
 export type {
-  VideoTimelineClipApi,
-  VideoTimelineClipInput,
-  VideoTimelineClipPatch,
-  VideoTimelineEditorHandle,
-  VideoTimelineMediaClipInput,
-  VideoTimelineSourceApi,
-  VideoTimelineSourceInput,
-  VideoTimelineSourcePatch,
-  VideoTimelineTextClipInput,
+  EaseCutClipApi,
+  EaseCutClipInput,
+  EaseCutClipPatch,
+  EaseCutHandle,
+  EaseCutMediaClipInput,
+  EaseCutSourceApi,
+  EaseCutSourceInput,
+  EaseCutSourcePatch,
+  EaseCutTextClipInput,
 } from './types';

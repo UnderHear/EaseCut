@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 import {
-  VideoTimelineEditor,
+  EaseCut,
   type CompositionExportPayload,
-  type VideoTimelineEditorHandle,
+  type EaseCutHandle,
 } from '../index';
 
 async function submitVideoEditTask({
@@ -42,7 +42,7 @@ async function submitVideoEditTask({
 }
 
 export function DemoApp() {
-  const editorRef = useRef<VideoTimelineEditorHandle>(null);
+  const editorRef = useRef<EaseCutHandle>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const initClip = async () => {
@@ -75,8 +75,9 @@ export function DemoApp() {
       </button>
       {isEditorOpen && (
         <div className='ec-demo__editor'>
-          <VideoTimelineEditor title='EaseCut 视频编辑器' 
-            ref={editorRef} 
+          <EaseCut
+            title='EaseCut 视频编辑器'
+            ref={editorRef}
             onClose={() => setIsEditorOpen(false)}
             onExport={submitVideoEditTask}
           />

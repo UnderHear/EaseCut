@@ -12,13 +12,13 @@ import { CircleAlert, X } from 'lucide-react';
 import { useStore } from 'zustand';
 
 import {
-  VideoTimelineEditorApiProvider,
-  useVideoTimelineEditorApi,
-} from './api/editor-api-context';
+  EaseCutApiProvider,
+  useEaseCutApi,
+} from './api/easecut-api-context';
 import {
   createVideoTimelineSourceStore,
 } from './api/source-store';
-import type { VideoTimelineEditorHandle } from './api';
+import type { EaseCutHandle } from './api';
 import { ExportMenu } from './components/ExportMenu';
 import { PreviewPanel } from './components/PreviewPanel';
 import { FormDialog } from './components/FormDialog';
@@ -50,7 +50,7 @@ import type {
   TimelineClip,
   TimelineClipTimingPreview,
   VideoTimelineDraft,
-  VideoTimelineEditorProps,
+  EaseCutProps,
 } from './types';
 import { TimelinePanel } from './timeline/TimelinePanel';
 import { shouldIgnoreShortcutTarget } from './util/browser';
@@ -76,10 +76,10 @@ const downloadJson = (fileName: string, payload: unknown) => {
   );
 };
 
-export const VideoTimelineEditor = forwardRef<
-  VideoTimelineEditorHandle,
-  VideoTimelineEditorProps
->(function VideoTimelineEditor(
+export const EaseCut = forwardRef<
+  EaseCutHandle,
+  EaseCutProps
+>(function EaseCut(
   {
     initialDraft,
     mediaLoader,
@@ -114,32 +114,32 @@ export const VideoTimelineEditor = forwardRef<
   return (
     <TimelineStoreProvider store={store}>
       <MediaRuntimeProvider mediaLoader={mediaLoader} sources={sources}>
-        <VideoTimelineEditorApiProvider apiRef={ref} sourceStore={sourceStore}>
-          <VideoTimelineEditorView {...props} />
-        </VideoTimelineEditorApiProvider>
+        <EaseCutApiProvider apiRef={ref} sourceStore={sourceStore}>
+          <EaseCutView {...props} />
+        </EaseCutApiProvider>
       </MediaRuntimeProvider>
     </TimelineStoreProvider>
   );
 });
 
-type VideoTimelineEditorViewProps = Omit<
-  VideoTimelineEditorProps,
+type EaseCutViewProps = Omit<
+  EaseCutProps,
   'initialDraft' | 'mediaLoader' | 'onSourcesChange'
 >;
 
-function VideoTimelineEditorView({
+function EaseCutView({
   className = '',
   jsonFileName = 'video-composition.json',
   onClose,
   onDraftChange,
   onExport,
   style,
-  title = '视频合成',
-}: VideoTimelineEditorViewProps) {
+  title = 'EaseCut',
+}: EaseCutViewProps) {
   const titleId = useId();
   const store = useTimelineStoreApi();
   const runtime = useMediaRuntime();
-  const api = useVideoTimelineEditorApi();
+  const api = useEaseCutApi();
   const isPlaying = useTimelineStore((state) => state.isPlaying);
   const [exportError, setExportError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -545,7 +545,7 @@ function VideoTimelineEditorView({
           />
           {onClose && (
             <IconButton
-              aria-label='关闭视频编辑器'
+              aria-label='关闭 EaseCut'
               onClick={onClose}
               title='关闭'
             >

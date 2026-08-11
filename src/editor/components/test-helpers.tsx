@@ -9,11 +9,11 @@ import {
 } from '../store/timeline-store';
 import { TimelineStoreProvider } from '../store/timeline-store-context';
 import type {
-  VideoTimelineMediaLoader,
+  EaseCutMediaLoader,
   VideoTimelineSource,
 } from '../types';
 
-const defaultMediaLoader: VideoTimelineMediaLoader = {
+const defaultMediaLoader: EaseCutMediaLoader = {
   loadBlob: async () => new Blob([], { type: 'video/mp4' }),
 };
 
@@ -25,7 +25,7 @@ export function resetTestTimelineStore() {
 
 type EditorTestProvidersProps = {
   children: ReactNode;
-  mediaLoader?: VideoTimelineMediaLoader;
+  mediaLoader?: EaseCutMediaLoader;
   sources?: VideoTimelineSource[];
   store?: TimelineStoreApi;
 };

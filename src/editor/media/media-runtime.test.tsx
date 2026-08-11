@@ -3,7 +3,7 @@ import { render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
-  VideoTimelineMediaLoader,
+  EaseCutMediaLoader,
   VideoTimelineSource,
 } from '../types';
 import { secondsToMicroseconds } from '../core/time';
@@ -213,10 +213,10 @@ describe('MediaRuntime', () => {
   });
 
   it('passes source context to a custom loader and keeps instances isolated', async () => {
-    const firstLoader: VideoTimelineMediaLoader = {
+    const firstLoader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['first'])),
     };
-    const secondLoader: VideoTimelineMediaLoader = {
+    const secondLoader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['second'])),
     };
     const first = createMediaRuntime(firstLoader, [source]);
@@ -239,7 +239,7 @@ describe('MediaRuntime', () => {
     ['JPEG', jpegBlob],
   ])('accepts %s image signatures and reuses the managed object URL', async (_label, createBlob) => {
     const blob = createBlob();
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(blob),
     };
     const runtime = createMediaRuntime(loader, [imageSource]);
@@ -255,7 +255,7 @@ describe('MediaRuntime', () => {
   });
 
   it('rejects image data that is not PNG or JPEG', async () => {
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi
         .fn()
         .mockResolvedValue(
@@ -298,7 +298,7 @@ describe('MediaRuntime', () => {
       };
       return image as unknown as HTMLImageElement;
     });
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(pngBlob()),
     };
     const runtime = createMediaRuntime(loader, [imageSource]);
@@ -331,7 +331,7 @@ describe('MediaRuntime', () => {
   });
 
   it('deduplicates custom metadata loads', async () => {
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn(),
       loadMetadata: vi.fn().mockResolvedValue({
         durationUs: secondsToMicroseconds(12),
@@ -358,7 +358,7 @@ describe('MediaRuntime', () => {
   });
 
   it('rejects fractional microseconds returned by a metadata loader', async () => {
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn(),
       loadMetadata: vi.fn().mockResolvedValue({
         durationUs: 1_000_000.5,
@@ -375,7 +375,7 @@ describe('MediaRuntime', () => {
   it('converts browser media duration from seconds to microseconds', async () => {
     vi.stubGlobal('navigator', { userAgent: 'Chrome' });
     installFramePreviewElementMocks();
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
     };
     const runtime = createMediaRuntime(loader, [source]);
@@ -394,7 +394,7 @@ describe('MediaRuntime', () => {
       height: 1080,
       width: 1920,
     };
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn(),
       loadMetadata: vi.fn(),
     };
@@ -410,7 +410,7 @@ describe('MediaRuntime', () => {
   });
 
   it('drops a failed metadata entry so it can be retried', async () => {
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn(),
       loadMetadata: vi
         .fn()
@@ -435,7 +435,7 @@ describe('MediaRuntime', () => {
   });
 
   it('revokes a created object URL only once when disposal is repeated', async () => {
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
     };
     const runtime = createMediaRuntime(loader, [source]);
@@ -452,7 +452,7 @@ describe('MediaRuntime', () => {
 
   it('aborts a pending object URL load after the last lease is released', async () => {
     let requestSignal: AbortSignal | undefined;
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn((_url, { signal }) => {
         requestSignal = signal;
         return new Promise<Blob>((_resolve, reject) => {
@@ -487,7 +487,7 @@ describe('MediaRuntime', () => {
 
   it('aborts pending loads and rejects new work after disposal', async () => {
     let requestSignal: AbortSignal | undefined;
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn((_url, { signal }) => {
         requestSignal = signal;
         return new Promise<Blob>((_resolve, reject) => {
@@ -513,7 +513,7 @@ describe('MediaRuntime', () => {
   });
 
   it('keeps one runtime alive across StrictMode effect replay and disposes on unmount', async () => {
-    const loader: VideoTimelineMediaLoader = {
+    const loader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
     };
 
@@ -555,7 +555,7 @@ describe('MediaRuntime', () => {
       if (sourceOpenCount === 2) await secondSourceReady;
       return createTestFramePreviewSource();
     });
-    const mediaLoader: VideoTimelineMediaLoader = {
+    const mediaLoader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
     };
     const createRequest = (pixelsPerSecond: number): FramePreviewRequest => ({
@@ -617,7 +617,7 @@ describe('MediaRuntime', () => {
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
     const previewSource = createTestFramePreviewSource();
     framePreviewSourceFactory.mockResolvedValue(previewSource);
-    const mediaLoader: VideoTimelineMediaLoader = {
+    const mediaLoader: EaseCutMediaLoader = {
       loadBlob: vi.fn().mockResolvedValue(new Blob(['video'])),
     };
 

@@ -1,11 +1,11 @@
-import type { VideoTimelineMediaMetadata, VideoTimelineSource } from '../types';
+import type { EaseCutMediaMetadata, VideoTimelineSource } from '../types';
 import { isValidTimeUs } from '../core/time';
 import { getNextNumberedId } from '../util/id';
 import { inferMediaTypeFromUrl } from '../util/media-file-format';
 import { isPositiveFiniteNumber } from '../util/number';
 import { getUrlFileExtension, getUrlFileName, tryParseUrl } from '../util/url';
-import { VideoTimelineEditorApiError } from './errors';
-import type { VideoTimelineSourceInput } from './types';
+import { EaseCutApiError } from './errors';
+import type { EaseCutSourceInput } from './types';
 
 const isPositiveTimeUs = (value: number | undefined) =>
   typeof value === 'number' && isValidTimeUs(value) && value > 0;
@@ -13,7 +13,7 @@ const isPositiveTimeUs = (value: number | undefined) =>
 const parseSourceUrl = (src: string) => {
   const url = tryParseUrl(src, window.location.href);
   if (!url) {
-    throw new VideoTimelineEditorApiError(
+    throw new EaseCutApiError(
       'SOURCE_INVALID',
       '素材地址无效。',
     );
@@ -26,7 +26,7 @@ export const detectSourceType = (src: string) => {
   const extension = getUrlFileExtension(url);
 
   if (!extension) {
-    throw new VideoTimelineEditorApiError(
+    throw new EaseCutApiError(
       'SOURCE_INVALID',
       '无法从素材地址识别媒体类型，请显式提供 type。',
     );
@@ -34,7 +34,7 @@ export const detectSourceType = (src: string) => {
   const type = inferMediaTypeFromUrl(url);
   if (type) return type;
 
-  throw new VideoTimelineEditorApiError(
+  throw new EaseCutApiError(
     'SOURCE_INVALID',
     `不支持的素材文件后缀：.${extension}。`,
   );
@@ -51,13 +51,13 @@ const getNextSourceId = (sources: readonly VideoTimelineSource[]) =>
   getNextNumberedId(sources.map((source) => source.id), 'source');
 
 export const createSourceCandidate = (
-  input: VideoTimelineSourceInput,
+  input: EaseCutSourceInput,
   sources: readonly VideoTimelineSource[],
 ): VideoTimelineSource => {
   if (typeof input === 'string') {
     const src = input.trim();
     if (!src) {
-      throw new VideoTimelineEditorApiError(
+      throw new EaseCutApiError(
         'SOURCE_INVALID',
         '素材地址不能为空。',
       );
@@ -73,7 +73,7 @@ export const createSourceCandidate = (
 
   const src = input.src.trim();
   if (!src) {
-    throw new VideoTimelineEditorApiError(
+    throw new EaseCutApiError(
       'SOURCE_INVALID',
       '素材地址不能为空。',
     );
@@ -100,7 +100,7 @@ export const hasCompleteSourceMetadata = (source: VideoTimelineSource) =>
 
 export const mergeSourceMetadata = (
   source: VideoTimelineSource,
-  metadata: VideoTimelineMediaMetadata | null,
+  metadata: EaseCutMediaMetadata | null,
 ): VideoTimelineSource => {
   if (!metadata) return { ...source };
   return {
