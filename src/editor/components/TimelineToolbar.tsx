@@ -58,6 +58,7 @@ const timelineShortcutGroups = [
     items: [
       { action: '分割选中片段', key: 'Ctrl + B / ⌘ + B' },
       { action: '删除选中片段', key: 'Backspace' },
+      { action: '显示/隐藏选中片段', key: 'H' },
       { action: '后退 0.1 秒', key: 'Ctrl + ← / ⌘ + ←' },
       { action: '前进 0.1 秒', key: 'Ctrl + → / ⌘ + →' },
       { action: '缩放时间线', key: 'Ctrl + 滚轮 / ⌘ + 滚轮' },
@@ -169,7 +170,11 @@ export function TimelineToolbar({
               setClipHidden(selectedClip.id, !selectedClip.hidden);
             }
           }}
-          title={selectedClip?.hidden ? '显示选中片段' : '隐藏选中片段'}
+          title={
+            selectedClip?.hidden
+              ? '显示选中片段 H'
+              : '隐藏选中片段 H'
+          }
         >
           {selectedClip?.hidden ? (
             <Eye aria-hidden='true' />

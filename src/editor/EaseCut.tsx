@@ -443,6 +443,17 @@ function EaseCutView({
     }
     if (commandKey || event.altKey) return;
 
+    if (!event.shiftKey && !event.repeat && key === 'h') {
+      const selectedClip = state.clips.find(
+        (clip) => clip.id === state.selectedClipId,
+      );
+      if (selectedClip) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.setClipHidden(selectedClip.id, !selectedClip.hidden);
+      }
+      return;
+    }
     if (event.key === 'Backspace') {
       event.preventDefault();
       event.stopPropagation();
