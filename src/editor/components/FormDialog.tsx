@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { FormEvent, ReactNode, RefObject } from 'react';
+import type { ReactNode, RefObject, SubmitEvent } from 'react';
 
 import { IconButton } from './ui/IconButton';
 
@@ -11,7 +11,7 @@ type FormDialogProps = {
   describedBy?: string;
   disabled?: boolean;
   onClose: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
   open: boolean;
   returnFocusRef: RefObject<HTMLElement | null>;
   title: string;

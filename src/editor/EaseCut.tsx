@@ -4,7 +4,7 @@ import {
   useId,
   useRef,
   useState,
-  type FormEvent,
+  type SubmitEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 import * as Toast from '@radix-ui/react-toast';
@@ -300,7 +300,7 @@ function EaseCutView({
     setIsTitleDialogOpen(true);
   };
 
-  const submitTitle = async (event: FormEvent<HTMLFormElement>) => {
+  const submitTitle = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isAddingTitle) return;
     const text = titleText.trim();
@@ -343,7 +343,7 @@ function EaseCutView({
     }
   };
 
-  const submitMediaImport = async (event: FormEvent<HTMLFormElement>) => {
+  const submitMediaImport = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isImporting) return;
 
