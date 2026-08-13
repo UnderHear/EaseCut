@@ -96,6 +96,7 @@ describe('TimelineToolbar', () => {
     });
     expect(deleteButton.nextElementSibling).toBe(hideButton);
     expect(hideButton).toHaveAttribute('aria-pressed', 'false');
+    expect(hideButton).toHaveAttribute('title', '隐藏选中片段 H');
     expect(hideButton.querySelector('.lucide-eye-off')).not.toBeNull();
 
     await user.click(hideButton);
@@ -105,6 +106,7 @@ describe('TimelineToolbar', () => {
     });
     expect(testTimelineStore.getState().clips[0]?.hidden).toBe(true);
     expect(showButton).toHaveAttribute('aria-pressed', 'true');
+    expect(showButton).toHaveAttribute('title', '显示选中片段 H');
     expect(showButton.querySelector('.lucide-eye')).not.toBeNull();
 
     await user.click(showButton);
@@ -252,6 +254,7 @@ describe('TimelineToolbar', () => {
     expect(screen.getByText('粘贴到选中片段右侧')).toBeInTheDocument();
     expect(screen.getByText('分割选中片段')).toBeInTheDocument();
     expect(screen.getByText('删除选中片段')).toBeInTheDocument();
+    expect(screen.getByText('显示/隐藏选中片段')).toBeInTheDocument();
     expect(screen.getByText('后退 0.1 秒')).toBeInTheDocument();
     expect(screen.getByText('前进 0.1 秒')).toBeInTheDocument();
     expect(screen.getByText('缩放时间线')).toBeInTheDocument();
@@ -263,6 +266,7 @@ describe('TimelineToolbar', () => {
     expect(screen.getByText('Ctrl + V / ⌘ + V')).toBeInTheDocument();
     expect(screen.getByText('Ctrl + B / ⌘ + B')).toBeInTheDocument();
     expect(screen.getByText('Backspace')).toBeInTheDocument();
+    expect(screen.getByText('H')).toBeInTheDocument();
     expect(screen.getByText('Ctrl + ← / ⌘ + ←')).toBeInTheDocument();
     expect(screen.getByText('Ctrl + → / ⌘ + →')).toBeInTheDocument();
     expect(screen.getByText('Ctrl + 滚轮 / ⌘ + 滚轮')).toBeInTheDocument();

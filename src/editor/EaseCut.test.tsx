@@ -85,6 +85,7 @@ vi.mock('./timeline/TimelinePanel', async () => {
             data-clip-count={clips.length}
             data-current-time={currentTimeUs}
             data-first-duration={firstClip?.durationUs ?? ''}
+            data-first-hidden={String(firstClip?.hidden ?? false)}
             data-first-transform={JSON.stringify(
               firstClip && firstClip.type !== 'text'
                 ? firstClip.transform
@@ -173,6 +174,11 @@ vi.mock('./timeline/TimelinePanel', async () => {
               aria-label='测试：选择首个片段'
               disabled={!firstClip}
               onClick={() => selectClip(firstClip?.id ?? null)}
+              type='button'
+            />
+            <button
+              aria-label='测试：取消片段选择'
+              onClick={() => selectClip(null)}
               type='button'
             />
             <input aria-label='测试：编辑器内输入框' />
@@ -1335,6 +1341,101 @@ describe('EaseCut', () => {
 
     fireEvent.keyDown(editor, { ctrlKey: true, key: 'ArrowLeft' });
     expect(state).toHaveAttribute('data-current-time', '0');
+  });
+
+  it('toggles the selected clip visibility with H and records undo history', async () => {
+    const user = userEvent.setup();
+    const { container } = await renderEditor({}, [videoSource]);
+    const editor = container.querySelector<HTMLElement>('.ec-editor');
+    const state = screen.getByTestId('timeline-state');
+    if (!editor) throw new Error('编辑器根节点未渲染');
+
+    await user.click(
+      screen.getByRole('button', { name: '测试：取消片段选择' }),
+    );
+    editor.focus();
+    fireEvent.keyDown(editor, { key: 'h' });
+    expect(state).toHaveAttribute('data-first-hidden', 'false');
+
+    await user.click(
+      screen.getByRole('button', { name: '测试：选择首个片段' }),
+    );
+    editor.focus();
+
+    fireEvent.keyDown(editor, { key: 'h' });
+    expect(state).toHaveAttribute('data-first-hidden', 'true');
+
+    fireEvent.keyDown(editor, { key: 'H' });
+    expect(state).toHaveAttribute('data-first-hidden', 'false');
+
+    fireEvent.keyDown(editor, { key: 'h' });
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'z' });
+    expect(state).toHaveAttribute('data-first-hidden', 'false');
+
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'y' });
+    expect(state).toHaveAttribute('data-first-hidden', 'true');
+  });
+
+  it('ignores repeated or modified H shortcuts and editable targets', async () => {
+    const user = userEvent.setup();
+    const { container } = await renderEditor({}, [videoSource]);
+    const editor = container.querySelector<HTMLElement>('.ec-editor');
+    const state = screen.getByTestId('timeline-state');
+    if (!editor) throw new Error('编辑器根节点未渲染');
+    await user.click(
+      screen.getByRole('button', { name: '测试：选择首个片段' }),
+    );
+    editor.focus();
+
+    fireEvent.keyDown(editor, { key: 'h', repeat: true });
+    fireEvent.keyDown(editor, { ctrlKey: true, key: 'h' });
+    fireEvent.keyDown(editor, { metaKey: true, key: 'h' });
+    fireEvent.keyDown(editor, { altKey: true, key: 'h' });
+    fireEvent.keyDown(editor, { shiftKey: true, key: 'H' });
+    expect(state).toHaveAttribute('data-first-hidden', 'false');
+
+    const input = screen.getByRole('textbox', {
+      name: '测试：编辑器内输入框',
+    });
+    await user.click(input);
+    fireEvent.keyDown(input, { key: 'h' });
+    expect(state).toHaveAttribute('data-first-hidden', 'false');
+  });
+
+  it('routes H only to the focused editor instance', async () => {
+    const user = userEvent.setup();
+    const firstRef = createRef<EaseCutHandle>();
+    const secondRef = createRef<EaseCutHandle>();
+    const { container } = render(
+      <>
+        <input aria-label='编辑器外输入框' />
+        <EaseCut ref={firstRef} title='编辑器 A' />
+        <EaseCut ref={secondRef} title='编辑器 B' />
+      </>,
+    );
+    await act(async () => {
+      await addSourcesAndClips(firstRef.current, [videoSource]);
+      await addSourcesAndClips(secondRef.current, [videoSource]);
+    });
+    const editors = Array.from(
+      container.querySelectorAll<HTMLElement>('.ec-editor'),
+    );
+    const states = screen.getAllByTestId('timeline-state');
+    const firstEditor = editors[0];
+    if (!firstEditor) throw new Error('第一个编辑器根节点未渲染');
+
+    firstEditor.focus();
+    fireEvent.keyDown(firstEditor, { key: 'h' });
+    expect(states[0]).toHaveAttribute('data-first-hidden', 'true');
+    expect(states[1]).toHaveAttribute('data-first-hidden', 'false');
+
+    const outsideInput = screen.getByRole('textbox', {
+      name: '编辑器外输入框',
+    });
+    await user.click(outsideInput);
+    fireEvent.keyDown(outsideInput, { key: 'h' });
+    expect(states[0]).toHaveAttribute('data-first-hidden', 'true');
+    expect(states[1]).toHaveAttribute('data-first-hidden', 'false');
   });
 
   it('ignores playback and delete shortcuts from an input inside the editor', async () => {
