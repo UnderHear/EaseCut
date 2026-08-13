@@ -8,7 +8,7 @@
   <a href="https://underhear.github.io/EaseCut/"><img src="https://img.shields.io/badge/演示地址-https://underhear.github.io/EaseCut/-01ab85" alt="在线演示"></a>
 </p>
 <p align="center">
-  <a href="https://underhear.github.io/EaseCut/"><img src="https://img.shields.io/badge/Github-https://github.com/UnderHear/EaseCut-6543ae" alt="在线演示"></a>
+  <a href="https://github.com/UnderHear/EaseCut"><img src="https://img.shields.io/badge/Github-https://github.com/UnderHear/EaseCut-6543ae" alt="项目地址"></a>
 </p>
 
 <p align="center">
@@ -131,6 +131,7 @@ export function App() {
 - 问你的AI，它知道怎么做
 - EaseCut\docs\npm-component-usage.md 有较为详细的使用说明
 - 如果确实是EaseCut没做好，请提交Issues
+- 发送邮件至2533643340@qq.com
 
 **官方文档在制作路上...**
 
