@@ -160,7 +160,6 @@ function EaseCutView({
   const titleDialogReturnFocusRef = useRef<HTMLElement | null>(null);
   const titleTextInputRef = useRef<HTMLInputElement | null>(null);
   const titleLayoutRequestRef = useRef<AbortController | null>(null);
-  const previewRef = useRef<HTMLDivElement | null>(null);
   const onDraftChangeRef = useRef(onDraftChange);
   const importErrorId = useId();
   const titleTextErrorId = useId();
@@ -505,22 +504,6 @@ function EaseCutView({
     }
   };
 
-  const requestPreviewFullscreen = async () => {
-    const preview = previewRef.current;
-    if (!preview?.requestFullscreen) {
-      setExportError('当前浏览器不支持全屏预览。');
-      return;
-    }
-
-    try {
-      await preview.requestFullscreen();
-    } catch (error) {
-      setExportError(
-        error instanceof Error ? error.message : '无法进入全屏预览。',
-      );
-    }
-  };
-
   const rootClassName = `ec-editor${className ? ` ${className}` : ''}`;
 
   return (
@@ -567,17 +550,13 @@ function EaseCutView({
       </header>
 
       <main className='ec-editor__main'>
-        <PreviewPanel
-          clipTimingPreview={clipTimingPreview}
-          previewRef={previewRef}
-        />
+        <PreviewPanel clipTimingPreview={clipTimingPreview} />
 
         <TimelinePanel
           onClipTimingPreviewChange={setClipTimingPreview}
           onDownloadClip={downloadOriginalClip}
           onRequestAddTitle={openTitleDialog}
           onRequestImport={openImportDialog}
-          onRequestPreviewFullscreen={() => void requestPreviewFullscreen()}
         />
       </main>
 

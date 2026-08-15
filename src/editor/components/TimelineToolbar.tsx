@@ -4,7 +4,6 @@ import {
   Eye,
   EyeOff,
   Keyboard,
-  Maximize,
   Magnet,
   Pause,
   Play,
@@ -38,7 +37,6 @@ import { IconButton } from './ui/IconButton';
 type TimelineToolbarProps = {
   onRequestAddTitle?: () => void;
   onRequestImport?: () => void;
-  onRequestPreviewFullscreen: () => void;
 };
 
 const timelineShortcutGroups = [
@@ -79,7 +77,6 @@ const timelineShortcutGroups = [
 export function TimelineToolbar({
   onRequestAddTitle,
   onRequestImport,
-  onRequestPreviewFullscreen,
 }: TimelineToolbarProps) {
   const canRedo = useTimelineStore((state) => state.future.length > 0);
   const canUndo = useTimelineStore((state) => state.past.length > 0);
@@ -220,13 +217,6 @@ export function TimelineToolbar({
         >
           {formatTimelineTime(duration)}
         </time>
-        <IconButton
-          aria-label='全屏预览'
-          onClick={onRequestPreviewFullscreen}
-          title='全屏预览'
-        >
-          <Maximize aria-hidden='true' />
-        </IconButton>
       </div>
 
       <div className='ec-timeline-toolbar__group ec-timeline-toolbar__group--end'>

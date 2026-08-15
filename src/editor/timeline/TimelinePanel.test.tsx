@@ -70,7 +70,6 @@ describe('TimelinePanel', () => {
         <TimelinePanel
           onDownloadClip={() => undefined}
           onRequestAddTitle={() => undefined}
-          onRequestPreviewFullscreen={() => undefined}
         />
       </div>,
     );

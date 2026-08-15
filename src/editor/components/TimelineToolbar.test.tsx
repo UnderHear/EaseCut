@@ -31,7 +31,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(0.5));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.getByRole('button', { name: '分割片段' })).toBeDisabled();
@@ -42,7 +42,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(0.6));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.getByRole('button', { name: '分割片段' })).toBeEnabled();
@@ -53,7 +53,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(3.999));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.getByText('00:03:99')).toHaveAttribute(
@@ -68,7 +68,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(0.5));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const splitButton = screen.getByRole('button', { name: '分割片段' });
@@ -85,7 +85,7 @@ describe('TimelineToolbar', () => {
     if (!clip) throw new Error('Expected a timeline clip');
     testTimelineStore.getState().selectClip(clip.id);
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const deleteButton = screen.getByRole('button', {
@@ -115,7 +115,7 @@ describe('TimelineToolbar', () => {
 
   it('disables clip visibility without a selection', () => {
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(
@@ -130,7 +130,6 @@ describe('TimelineToolbar', () => {
     const { rerender } = renderWithEditorProviders(
       <TimelineToolbar
         onRequestAddTitle={onRequestAddTitle}
-        onRequestPreviewFullscreen={vi.fn()}
       />,
     );
 
@@ -148,7 +147,6 @@ describe('TimelineToolbar', () => {
       <TimelineToolbar
         onRequestAddTitle={onRequestAddTitle}
         onRequestImport={onRequestImport}
-        onRequestPreviewFullscreen={vi.fn()}
       />,
     );
 
@@ -166,7 +164,7 @@ describe('TimelineToolbar', () => {
   it('controls timeline and canvas snapping independently', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const timelineSnappingButton = screen.getByRole('button', {
@@ -193,7 +191,7 @@ describe('TimelineToolbar', () => {
   it('toggles playhead follow immediately before timeline snapping', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const playheadFollowButton = screen.getByRole('button', {
@@ -221,7 +219,7 @@ describe('TimelineToolbar', () => {
   it('shows timeline keyboard shortcuts in a dismissible dialog', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.queryByText('快捷键')).not.toBeInTheDocument();

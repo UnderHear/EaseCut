@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
-  type RefObject,
   type SyntheticEvent,
 } from 'react';
 
@@ -94,7 +93,6 @@ type PreviewCursor = 'default' | 'move' | 'nesw-resize' | 'nwse-resize';
 
 type PreviewPanelProps = {
   clipTimingPreview?: TimelineClipTimingPreview | null;
-  previewRef: RefObject<HTMLDivElement | null>;
 };
 
 const previewResizeHandles: PreviewResizeHandle[] = ['nw', 'ne', 'sw', 'se'];
@@ -610,7 +608,6 @@ const drawPreviewGuides = (
 
 export function PreviewPanel({
   clipTimingPreview = null,
-  previewRef,
 }: PreviewPanelProps) {
   const canvasSnappingEnabled = useTimelineStore(
     (state) => state.canvasSnappingEnabled,
@@ -1685,7 +1682,7 @@ export function PreviewPanel({
 
   return (
     <section className='ec-preview-panel'>
-      <div ref={previewRef} className='ec-preview-panel__viewport'>
+      <div className='ec-preview-panel__viewport'>
         <div
           ref={previewContainerRef}
           className='ec-preview-panel__canvas-wrap'
