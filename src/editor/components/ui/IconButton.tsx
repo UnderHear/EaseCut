@@ -9,6 +9,9 @@ type NativeButtonProps = ComponentPropsWithoutRef<'button'>;
 
 export type IconButtonProps = Pick<
   NativeButtonProps,
+  | 'aria-controls'
+  | 'aria-expanded'
+  | 'aria-haspopup'
   | 'aria-pressed'
   | 'children'
   | 'disabled'

@@ -188,6 +188,53 @@ describe('TimelineToolbar', () => {
     expect(timelineSnappingButton).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('opens one compact tools panel at a time and dismisses it with Escape', async () => {
+    const user = userEvent.setup();
+    renderWithEditorProviders(<TimelineToolbar />);
+
+    const startTrigger = screen.getByRole('button', {
+      name: '更多编辑工具',
+    });
+    const startPanel = screen.getByRole('group', {
+      name: '更多编辑工具',
+    });
+    const endTrigger = screen.getByRole('button', {
+      name: '更多时间线工具',
+    });
+    const endPanel = screen.getByRole('group', {
+      name: '更多时间线工具',
+    });
+
+    expect(startTrigger.querySelector('.lucide-ellipsis')).not.toBeNull();
+    expect(endTrigger.querySelector('.lucide-ellipsis')).not.toBeNull();
+    expect(startTrigger.parentElement).toHaveClass(
+      'ec-timeline-toolbar__compact-tools--start',
+    );
+    expect(endTrigger.parentElement).toHaveClass(
+      'ec-timeline-toolbar__compact-tools--end',
+    );
+    expect(startTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(endTrigger).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(startTrigger);
+
+    expect(startTrigger).toHaveAttribute('aria-expanded', 'true');
+    expect(startPanel).toHaveAttribute('data-compact-open', 'true');
+
+    await user.click(endTrigger);
+
+    expect(startTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(startPanel).toHaveAttribute('data-compact-open', 'false');
+    expect(endTrigger).toHaveAttribute('aria-expanded', 'true');
+    expect(endPanel).toHaveAttribute('data-compact-open', 'true');
+
+    await user.keyboard('{Escape}');
+
+    expect(endTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(endPanel).toHaveAttribute('data-compact-open', 'false');
+    expect(endTrigger).toHaveFocus();
+  });
+
   it('toggles playhead follow immediately before timeline snapping', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
