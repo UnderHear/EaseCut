@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +11,8 @@ import {
   testTimelineStore,
 } from './test-helpers';
 import { TimelineToolbar } from './TimelineToolbar';
+
+const editorStyles = readFileSync('src/editor/styles.css', 'utf8');
 
 describe('TimelineToolbar', () => {
   beforeEach(() => {
@@ -213,6 +217,8 @@ describe('TimelineToolbar', () => {
     expect(endTrigger.parentElement).toHaveClass(
       'ec-timeline-toolbar__compact-tools--end',
     );
+    expect(startPanel).toHaveClass('ec-scrollbar');
+    expect(endPanel).toHaveClass('ec-scrollbar');
     expect(startTrigger).toHaveAttribute('aria-expanded', 'false');
     expect(endTrigger).toHaveAttribute('aria-expanded', 'false');
 
@@ -233,6 +239,12 @@ describe('TimelineToolbar', () => {
     expect(endTrigger).toHaveAttribute('aria-expanded', 'false');
     expect(endPanel).toHaveAttribute('data-compact-open', 'false');
     expect(endTrigger).toHaveFocus();
+  });
+
+  it('keeps the compact toolbar separator from shrinking away', () => {
+    expect(editorStyles).toMatch(
+      /\.ec-timeline-toolbar__separator\s*\{[^}]*flex:\s*0\s+0\s+1px;/,
+    );
   });
 
   it('toggles playhead follow immediately before timeline snapping', async () => {

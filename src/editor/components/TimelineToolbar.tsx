@@ -191,7 +191,7 @@ export function TimelineToolbar({
         </IconButton>
         <div
           aria-label='更多编辑工具'
-          className='ec-timeline-toolbar__group ec-timeline-toolbar__group--start'
+          className='ec-timeline-toolbar__group ec-timeline-toolbar__group--start ec-scrollbar'
           data-compact-open={openCompactPanel === 'start'}
           id={compactStartToolsId}
           role='group'
@@ -311,7 +311,7 @@ export function TimelineToolbar({
         </IconButton>
         <div
           aria-label='更多时间线工具'
-          className='ec-timeline-toolbar__group ec-timeline-toolbar__group--end'
+          className='ec-timeline-toolbar__group ec-timeline-toolbar__group--end ec-scrollbar'
           data-compact-open={openCompactPanel === 'end'}
           id={compactEndToolsId}
           role='group'

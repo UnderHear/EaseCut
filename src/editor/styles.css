@@ -767,7 +767,7 @@
 }
 
 .ec-timeline-toolbar__separator {
-  width: 1px;
+  flex: 0 0 1px;
   height: 17px;
   margin: 0 4px;
   background: var(--ec-border-strong);
@@ -1726,6 +1726,7 @@
     border-radius: var(--ec-radius);
     background: #242424;
     box-shadow: 0 12px 32px rgb(0 0 0 / 38%);
+    justify-content: flex-start;
     overflow-x: auto;
   }
 
