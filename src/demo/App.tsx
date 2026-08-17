@@ -110,7 +110,7 @@ export function DemoApp() {
             ref={editorRef}
             onClose={() => setIsEditorOpen(false)}
             onExport={handleVideoExport}
-            theme='light'
+            theme='dark'
           />
         </div>
       )}

@@ -845,7 +845,6 @@
   gap: 8px;
   padding: 0 16px;
   border-bottom: 1px solid var(--ec-border);
-  background: var(--ec-panel-sunken);
 }
 
 .ec-timeline-toolbar__group,
@@ -1118,7 +1117,6 @@
   grid-template-rows:
     var(--ec-timeline-ruler-height)
     minmax(0, 1fr);
-  background: var(--ec-panel-sunken);
 }
 
 .ec-timeline-viewport {
@@ -1129,7 +1127,6 @@
   grid-row: 2;
   overflow: auto;
   overscroll-behavior: contain;
-  background: var(--ec-panel-sunken);
 }
 
 .ec-timeline-shell[data-scrubbing="true"],
@@ -1325,7 +1322,6 @@
   justify-content: center;
   gap: 12px;
   padding: 0 7px 0 8px;
-  background: var(--ec-panel-sunken);
 }
 
 .ec-timeline-track__icon,
