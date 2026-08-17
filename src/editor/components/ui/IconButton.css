@@ -31,6 +31,7 @@
 }
 
 .ec-icon-button[aria-pressed='true'],
+.ec-icon-button[aria-expanded='true'],
 .ec-icon-button[data-state='open'] {
   color: var(--ec-accent);
   background: var(--ec-panel-hover);

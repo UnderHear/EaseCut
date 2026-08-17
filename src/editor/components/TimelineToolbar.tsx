@@ -1,10 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
+  Ellipsis,
   FilePlus2,
   Eye,
   EyeOff,
   Keyboard,
-  Maximize,
   Magnet,
   Pause,
   Play,
@@ -39,7 +40,6 @@ import { IconButton } from './ui/IconButton';
 type TimelineToolbarProps = {
   onRequestAddTitle?: () => void;
   onRequestImport?: () => void;
-  onRequestPreviewFullscreen: () => void;
 };
 
 const timelineShortcutGroups = [
@@ -80,9 +80,17 @@ const timelineShortcutGroups = [
 export function TimelineToolbar({
   onRequestAddTitle,
   onRequestImport,
-  onRequestPreviewFullscreen,
 }: TimelineToolbarProps) {
   const theme = useEaseCutTheme();
+  const [openCompactPanel, setOpenCompactPanel] = useState<
+    'start' | 'end' | null
+  >(null);
+  const compactStartToolsId = useId();
+  const compactEndToolsId = useId();
+  const compactStartToolsRef = useRef<HTMLDivElement>(null);
+  const compactEndToolsRef = useRef<HTMLDivElement>(null);
+  const compactStartToolsTriggerRef = useRef<HTMLButtonElement>(null);
+  const compactEndToolsTriggerRef = useRef<HTMLButtonElement>(null);
   const canRedo = useTimelineStore((state) => state.future.length > 0);
   const canUndo = useTimelineStore((state) => state.past.length > 0);
   const canvasSnappingEnabled = useTimelineStore(
@@ -127,79 +135,140 @@ export function TimelineToolbar({
   );
   const duration = getTimelineDuration(clips);
 
+  useEffect(() => {
+    if (!openCompactPanel) return;
+
+    const activeToolsRef =
+      openCompactPanel === 'start'
+        ? compactStartToolsRef
+        : compactEndToolsRef;
+    const activeTriggerRef =
+      openCompactPanel === 'start'
+        ? compactStartToolsTriggerRef
+        : compactEndToolsTriggerRef;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !activeToolsRef.current?.contains(event.target)
+      ) {
+        setOpenCompactPanel(null);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      setOpenCompactPanel(null);
+      activeTriggerRef.current?.focus();
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openCompactPanel]);
+
   return (
     <div className='ec-timeline-toolbar' role='toolbar' aria-label='时间线工具栏'>
-      <div className='ec-timeline-toolbar__group ec-timeline-toolbar__group--start'>
+      <div
+        className='ec-timeline-toolbar__compact-tools ec-timeline-toolbar__compact-tools--start'
+        ref={compactStartToolsRef}
+      >
         <IconButton
-          aria-label='撤销'
-          disabled={!canUndo}
-          onClick={undo}
-          title='撤销 Ctrl+Z'
-        >
-          <Undo2 aria-hidden='true' />
-        </IconButton>
-        <IconButton
-          aria-label='重做'
-          disabled={!canRedo}
-          onClick={redo}
-          title='重做 Ctrl+Y'
-        >
-          <Redo2 aria-hidden='true' />
-        </IconButton>
-        <span aria-hidden='true' className='ec-timeline-toolbar__separator' />
-        <IconButton
-          aria-label='分割片段'
-          disabled={!canSplitAtPlayhead}
-          onClick={splitAtPlayhead}
-          title='分割片段 Ctrl+B'
-        >
-          <SquareSplitHorizontal aria-hidden='true' />
-        </IconButton>
-        <IconButton
-          aria-label='删除选中片段'
-          disabled={!selectedClipId}
-          onClick={deleteSelectedClip}
-          title='删除选中片段 Backspace'
-        >
-          <Trash2 aria-hidden='true' />
-        </IconButton>
-        <IconButton
-          aria-label={selectedClip?.hidden ? '显示选中片段' : '隐藏选中片段'}
-          aria-pressed={selectedClip?.hidden ?? false}
-          disabled={!selectedClip}
-          onClick={() => {
-            if (selectedClip) {
-              setClipHidden(selectedClip.id, !selectedClip.hidden);
-            }
-          }}
-          title={
-            selectedClip?.hidden
-              ? '显示选中片段 H'
-              : '隐藏选中片段 H'
+          aria-controls={compactStartToolsId}
+          aria-expanded={openCompactPanel === 'start'}
+          aria-haspopup='true'
+          aria-label='更多编辑工具'
+          className='ec-timeline-toolbar__compact-trigger'
+          onClick={() =>
+            setOpenCompactPanel((panel) =>
+              panel === 'start' ? null : 'start',
+            )
           }
+          ref={compactStartToolsTriggerRef}
+          title='更多编辑工具'
         >
-          {selectedClip?.hidden ? (
-            <Eye aria-hidden='true' />
-          ) : (
-            <EyeOff aria-hidden='true' />
-          )}
+          <Ellipsis aria-hidden='true' />
         </IconButton>
-        {onRequestImport && (
+        <div
+          aria-label='更多编辑工具'
+          className='ec-timeline-toolbar__group ec-timeline-toolbar__group--start ec-scrollbar'
+          data-compact-open={openCompactPanel === 'start'}
+          id={compactStartToolsId}
+          role='group'
+        >
           <IconButton
-            aria-label='导入素材'
-            onClick={onRequestImport}
-            title='导入素材'
+            aria-label='撤销'
+            disabled={!canUndo}
+            onClick={undo}
+            title='撤销 Ctrl+Z'
           >
-            <FilePlus2 aria-hidden='true' />
+            <Undo2 aria-hidden='true' />
           </IconButton>
-        )}
-        <IconButton
-          aria-label='添加标题'
-          onClick={() => onRequestAddTitle?.()}
-          title='添加标题'
-        >
-          <TypeIcon aria-hidden='true' />
-        </IconButton>
+          <IconButton
+            aria-label='重做'
+            disabled={!canRedo}
+            onClick={redo}
+            title='重做 Ctrl+Y'
+          >
+            <Redo2 aria-hidden='true' />
+          </IconButton>
+          <span aria-hidden='true' className='ec-timeline-toolbar__separator' />
+          <IconButton
+            aria-label='分割片段'
+            disabled={!canSplitAtPlayhead}
+            onClick={splitAtPlayhead}
+            title='分割片段 Ctrl+B'
+          >
+            <SquareSplitHorizontal aria-hidden='true' />
+          </IconButton>
+          <IconButton
+            aria-label='删除选中片段'
+            disabled={!selectedClipId}
+            onClick={deleteSelectedClip}
+            title='删除选中片段 Backspace'
+          >
+            <Trash2 aria-hidden='true' />
+          </IconButton>
+          <IconButton
+            aria-label={selectedClip?.hidden ? '显示选中片段' : '隐藏选中片段'}
+            aria-pressed={selectedClip?.hidden ?? false}
+            disabled={!selectedClip}
+            onClick={() => {
+              if (selectedClip) {
+                setClipHidden(selectedClip.id, !selectedClip.hidden);
+              }
+            }}
+            title={
+              selectedClip?.hidden
+                ? '显示选中片段 H'
+                : '隐藏选中片段 H'
+            }
+          >
+            {selectedClip?.hidden ? (
+              <Eye aria-hidden='true' />
+            ) : (
+              <EyeOff aria-hidden='true' />
+            )}
+          </IconButton>
+          {onRequestImport && (
+            <IconButton
+              aria-label='导入素材'
+              onClick={onRequestImport}
+              title='导入素材'
+            >
+              <FilePlus2 aria-hidden='true' />
+            </IconButton>
+          )}
+          <IconButton
+            aria-label='添加标题'
+            onClick={() => onRequestAddTitle?.()}
+            title='添加标题'
+          >
+            <TypeIcon aria-hidden='true' />
+          </IconButton>
+        </div>
       </div>
 
       <div className='ec-timeline-toolbar__transport'>
@@ -222,144 +291,156 @@ export function TimelineToolbar({
         >
           {formatTimelineTime(duration)}
         </time>
-        <IconButton
-          aria-label='全屏预览'
-          onClick={onRequestPreviewFullscreen}
-          title='全屏预览'
-        >
-          <Maximize aria-hidden='true' />
-        </IconButton>
       </div>
 
-      <div className='ec-timeline-toolbar__group ec-timeline-toolbar__group--end'>
-        <Dialog.Root>
-          <Dialog.Trigger asChild>
-            <IconButton
-              aria-label='查看快捷键'
-              title='查看快捷键'
-            >
-              <Keyboard aria-hidden='true' />
-            </IconButton>
-          </Dialog.Trigger>
-          <Dialog.Portal>
-            <Dialog.Overlay
-              className='ec-shortcuts-dialog__overlay'
-              data-light-theme={theme}
-            />
-            <Dialog.Content
-              className='ec-shortcuts-dialog'
-              data-light-theme={theme}
-            >
-              <div className='ec-shortcuts-dialog__header'>
-                <Dialog.Title className='ec-shortcuts-dialog__title'>
-                  快捷键
-                </Dialog.Title>
-                <Dialog.Close asChild>
-                  <IconButton
-                    aria-label='关闭快捷键弹窗'
-                    title='关闭'
-                  >
-                    <X aria-hidden='true' size={17} />
-                  </IconButton>
-                </Dialog.Close>
-              </div>
-              <div className='ec-shortcuts-dialog__groups'>
-                {timelineShortcutGroups.map((group) => (
-                  <section
-                    aria-labelledby={`ec-shortcuts-group-${group.id}`}
-                    className='ec-shortcuts-dialog__group'
-                    key={group.id}
-                  >
-                    <h3 id={`ec-shortcuts-group-${group.id}`}>
-                      {group.title}
-                    </h3>
-                    <dl className='ec-shortcuts__list'>
-                      {group.items.map((item) => (
-                        <div className='ec-shortcuts__item' key={item.action}>
-                          <dt>{item.action}</dt>
-                          <dd>
-                            <kbd>{item.key}</kbd>
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </section>
-                ))}
-              </div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
+      <div
+        className='ec-timeline-toolbar__compact-tools ec-timeline-toolbar__compact-tools--end'
+        ref={compactEndToolsRef}
+      >
         <IconButton
-          aria-label='片段信息'
-          aria-pressed={clipInfoVisible}
-          onClick={toggleClipInfoVisibility}
-          title='片段信息'
-        >
-          <TextAlignStart aria-hidden='true' />
-        </IconButton>
-        <IconButton
-          aria-label='播放头跟随'
-          aria-pressed={playheadFollowEnabled}
-          onClick={togglePlayheadFollow}
-          title='播放头跟随'
-        >
-          <TextCursorInput aria-hidden='true' />
-        </IconButton>
-        <IconButton
-          aria-label='时间轴吸附'
-          aria-pressed={snappingEnabled}
-          onClick={toggleSnapping}
-          title='时间轴吸附'
-        >
-          <Magnet aria-hidden='true' />
-        </IconButton>
-        <IconButton
-          aria-label='画布辅助线'
-          aria-pressed={canvasSnappingEnabled}
-          onClick={toggleCanvasSnapping}
-          title='画布辅助线'
-        >
-          <ScanLine aria-hidden='true' />
-        </IconButton>
-        <IconButton
-          aria-label='缩小'
-          disabled={pixelsPerSecond <= MIN_PIXELS_PER_SECOND}
+          aria-controls={compactEndToolsId}
+          aria-expanded={openCompactPanel === 'end'}
+          aria-haspopup='true'
+          aria-label='更多时间线工具'
+          className='ec-timeline-toolbar__compact-trigger'
           onClick={() =>
-            setPixelsPerSecond(
-              Math.max(
-                MIN_PIXELS_PER_SECOND,
-                pixelsPerSecond - TIMELINE_ZOOM_STEP,
-              ),
-            )
+            setOpenCompactPanel((panel) => (panel === 'end' ? null : 'end'))
           }
-          title='缩小'
+          ref={compactEndToolsTriggerRef}
+          title='更多时间线工具'
         >
-          <ZoomOut aria-hidden='true' />
+          <Ellipsis aria-hidden='true' />
         </IconButton>
-        <input
-          aria-label='时间轴缩放'
-          className='ec-range-input ec-timeline-toolbar__zoom'
-          max={MAX_PIXELS_PER_SECOND}
-          min={MIN_PIXELS_PER_SECOND}
-          onChange={(event) => setPixelsPerSecond(Number(event.target.value))}
-          type='range'
-          value={pixelsPerSecond}
-        />
-        <IconButton
-          aria-label='放大'
-          disabled={pixelsPerSecond >= MAX_PIXELS_PER_SECOND}
-          onClick={() =>
-            setPixelsPerSecond(
-              Math.min(
-                MAX_PIXELS_PER_SECOND,
-                pixelsPerSecond + TIMELINE_ZOOM_STEP,
-              ),
-            )
-          }
-          title='放大'
+        <div
+          aria-label='更多时间线工具'
+          className='ec-timeline-toolbar__group ec-timeline-toolbar__group--end ec-scrollbar'
+          data-compact-open={openCompactPanel === 'end'}
+          id={compactEndToolsId}
+          role='group'
         >
-          <ZoomIn aria-hidden='true' />
-        </IconButton>
+          <Dialog.Root>
+            <Dialog.Trigger asChild>
+              <IconButton aria-label='查看快捷键' title='查看快捷键'>
+                <Keyboard aria-hidden='true' />
+              </IconButton>
+            </Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Overlay
+                className='ec-shortcuts-dialog__overlay'
+                data-light-theme={theme}
+              />
+              <Dialog.Content
+                className='ec-shortcuts-dialog'
+                data-light-theme={theme}
+              >
+                <div className='ec-shortcuts-dialog__header'>
+                  <Dialog.Title className='ec-shortcuts-dialog__title'>
+                    快捷键
+                  </Dialog.Title>
+                  <Dialog.Close asChild>
+                    <IconButton aria-label='关闭快捷键弹窗' title='关闭'>
+                      <X aria-hidden='true' size={17} />
+                    </IconButton>
+                  </Dialog.Close>
+                </div>
+                <div className='ec-shortcuts-dialog__groups'>
+                  {timelineShortcutGroups.map((group) => (
+                    <section
+                      aria-labelledby={`ec-shortcuts-group-${group.id}`}
+                      className='ec-shortcuts-dialog__group'
+                      key={group.id}
+                    >
+                      <h3 id={`ec-shortcuts-group-${group.id}`}>
+                        {group.title}
+                      </h3>
+                      <dl className='ec-shortcuts__list'>
+                        {group.items.map((item) => (
+                          <div className='ec-shortcuts__item' key={item.action}>
+                            <dt>{item.action}</dt>
+                            <dd>
+                              <kbd>{item.key}</kbd>
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </section>
+                  ))}
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+          <IconButton
+            aria-label='片段信息'
+            aria-pressed={clipInfoVisible}
+            onClick={toggleClipInfoVisibility}
+            title='片段信息'
+          >
+            <TextAlignStart aria-hidden='true' />
+          </IconButton>
+          <IconButton
+            aria-label='播放头跟随'
+            aria-pressed={playheadFollowEnabled}
+            onClick={togglePlayheadFollow}
+            title='播放头跟随'
+          >
+            <TextCursorInput aria-hidden='true' />
+          </IconButton>
+          <IconButton
+            aria-label='时间轴吸附'
+            aria-pressed={snappingEnabled}
+            onClick={toggleSnapping}
+            title='时间轴吸附'
+          >
+            <Magnet aria-hidden='true' />
+          </IconButton>
+          <IconButton
+            aria-label='画布辅助线'
+            aria-pressed={canvasSnappingEnabled}
+            onClick={toggleCanvasSnapping}
+            title='画布辅助线'
+          >
+            <ScanLine aria-hidden='true' />
+          </IconButton>
+          <IconButton
+            aria-label='缩小'
+            disabled={pixelsPerSecond <= MIN_PIXELS_PER_SECOND}
+            onClick={() =>
+              setPixelsPerSecond(
+                Math.max(
+                  MIN_PIXELS_PER_SECOND,
+                  pixelsPerSecond - TIMELINE_ZOOM_STEP,
+                ),
+              )
+            }
+            title='缩小'
+          >
+            <ZoomOut aria-hidden='true' />
+          </IconButton>
+          <input
+            aria-label='时间轴缩放'
+            className='ec-range-input ec-timeline-toolbar__zoom'
+            max={MAX_PIXELS_PER_SECOND}
+            min={MIN_PIXELS_PER_SECOND}
+            onChange={(event) => setPixelsPerSecond(Number(event.target.value))}
+            type='range'
+            value={pixelsPerSecond}
+          />
+          <IconButton
+            aria-label='放大'
+            disabled={pixelsPerSecond >= MAX_PIXELS_PER_SECOND}
+            onClick={() =>
+              setPixelsPerSecond(
+                Math.min(
+                  MAX_PIXELS_PER_SECOND,
+                  pixelsPerSecond + TIMELINE_ZOOM_STEP,
+                ),
+              )
+            }
+            title='放大'
+          >
+            <ZoomIn aria-hidden='true' />
+          </IconButton>
+        </div>
       </div>
     </div>
   );

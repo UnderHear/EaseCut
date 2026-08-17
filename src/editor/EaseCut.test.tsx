@@ -39,12 +39,10 @@ vi.mock('./timeline/TimelinePanel', async () => {
       onDownloadClip,
       onRequestAddTitle,
       onRequestImport,
-      onRequestPreviewFullscreen,
     }: {
       onDownloadClip: (clip: TimelineClip) => void | Promise<void>;
       onRequestAddTitle: () => void;
       onRequestImport?: () => void;
-      onRequestPreviewFullscreen: () => void;
     }) => {
       const clips = useTimelineStore((state) => state.clips);
       const canvasSize = useTimelineStore((state) => state.canvasSize);
@@ -78,7 +76,6 @@ vi.mock('./timeline/TimelinePanel', async () => {
           <TimelineToolbar
             onRequestAddTitle={onRequestAddTitle}
             onRequestImport={onRequestImport}
-            onRequestPreviewFullscreen={onRequestPreviewFullscreen}
           />
           <div
             data-canvas-size={JSON.stringify(canvasSize)}

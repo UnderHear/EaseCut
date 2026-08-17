@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,6 +11,8 @@ import {
   testTimelineStore,
 } from './test-helpers';
 import { TimelineToolbar } from './TimelineToolbar';
+
+const editorStyles = readFileSync('src/editor/styles.css', 'utf8');
 
 describe('TimelineToolbar', () => {
   beforeEach(() => {
@@ -31,7 +35,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(0.5));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.getByRole('button', { name: '分割片段' })).toBeDisabled();
@@ -42,7 +46,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(0.6));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.getByRole('button', { name: '分割片段' })).toBeEnabled();
@@ -53,7 +57,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(3.999));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.getByText('00:03:99')).toHaveAttribute(
@@ -68,7 +72,7 @@ describe('TimelineToolbar', () => {
       .getState()
       .setCurrentTimeUs(secondsToMicroseconds(0.5));
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const splitButton = screen.getByRole('button', { name: '分割片段' });
@@ -85,7 +89,7 @@ describe('TimelineToolbar', () => {
     if (!clip) throw new Error('Expected a timeline clip');
     testTimelineStore.getState().selectClip(clip.id);
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const deleteButton = screen.getByRole('button', {
@@ -115,7 +119,7 @@ describe('TimelineToolbar', () => {
 
   it('disables clip visibility without a selection', () => {
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(
@@ -130,7 +134,6 @@ describe('TimelineToolbar', () => {
     const { rerender } = renderWithEditorProviders(
       <TimelineToolbar
         onRequestAddTitle={onRequestAddTitle}
-        onRequestPreviewFullscreen={vi.fn()}
       />,
     );
 
@@ -148,7 +151,6 @@ describe('TimelineToolbar', () => {
       <TimelineToolbar
         onRequestAddTitle={onRequestAddTitle}
         onRequestImport={onRequestImport}
-        onRequestPreviewFullscreen={vi.fn()}
       />,
     );
 
@@ -166,7 +168,7 @@ describe('TimelineToolbar', () => {
   it('controls timeline and canvas snapping independently', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const timelineSnappingButton = screen.getByRole('button', {
@@ -190,10 +192,65 @@ describe('TimelineToolbar', () => {
     expect(timelineSnappingButton).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('opens one compact tools panel at a time and dismisses it with Escape', async () => {
+    const user = userEvent.setup();
+    renderWithEditorProviders(<TimelineToolbar />);
+
+    const startTrigger = screen.getByRole('button', {
+      name: '更多编辑工具',
+    });
+    const startPanel = screen.getByRole('group', {
+      name: '更多编辑工具',
+    });
+    const endTrigger = screen.getByRole('button', {
+      name: '更多时间线工具',
+    });
+    const endPanel = screen.getByRole('group', {
+      name: '更多时间线工具',
+    });
+
+    expect(startTrigger.querySelector('.lucide-ellipsis')).not.toBeNull();
+    expect(endTrigger.querySelector('.lucide-ellipsis')).not.toBeNull();
+    expect(startTrigger.parentElement).toHaveClass(
+      'ec-timeline-toolbar__compact-tools--start',
+    );
+    expect(endTrigger.parentElement).toHaveClass(
+      'ec-timeline-toolbar__compact-tools--end',
+    );
+    expect(startPanel).toHaveClass('ec-scrollbar');
+    expect(endPanel).toHaveClass('ec-scrollbar');
+    expect(startTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(endTrigger).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(startTrigger);
+
+    expect(startTrigger).toHaveAttribute('aria-expanded', 'true');
+    expect(startPanel).toHaveAttribute('data-compact-open', 'true');
+
+    await user.click(endTrigger);
+
+    expect(startTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(startPanel).toHaveAttribute('data-compact-open', 'false');
+    expect(endTrigger).toHaveAttribute('aria-expanded', 'true');
+    expect(endPanel).toHaveAttribute('data-compact-open', 'true');
+
+    await user.keyboard('{Escape}');
+
+    expect(endTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(endPanel).toHaveAttribute('data-compact-open', 'false');
+    expect(endTrigger).toHaveFocus();
+  });
+
+  it('keeps the compact toolbar separator from shrinking away', () => {
+    expect(editorStyles).toMatch(
+      /\.ec-timeline-toolbar__separator\s*\{[^}]*flex:\s*0\s+0\s+1px;/,
+    );
+  });
+
   it('toggles playhead follow immediately before timeline snapping', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     const playheadFollowButton = screen.getByRole('button', {
@@ -221,7 +278,7 @@ describe('TimelineToolbar', () => {
   it('shows timeline keyboard shortcuts in a dismissible dialog', async () => {
     const user = userEvent.setup();
     renderWithEditorProviders(
-      <TimelineToolbar onRequestPreviewFullscreen={vi.fn()} />,
+      <TimelineToolbar />,
     );
 
     expect(screen.queryByText('快捷键')).not.toBeInTheDocument();

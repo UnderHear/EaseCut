@@ -1,4 +1,3 @@
-import { createRef } from 'react';
 import {
   act,
   cleanup,
@@ -505,16 +504,15 @@ describe('PreviewPanel', () => {
     );
 
   it('renders the video preview as a canvas', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
 
     expect(screen.getByLabelText('视频预览').tagName).toBe('CANVAS');
   });
 
   it('redraws the preview surround when the theme changes', () => {
-    const previewRef = createRef<HTMLDivElement>();
     const { rerender } = renderWithEditorProviders(
       <EaseCutThemeProvider theme='dark'>
-        <PreviewPanel previewRef={previewRef} />
+        <PreviewPanel />
       </EaseCutThemeProvider>,
     );
 
@@ -523,7 +521,7 @@ describe('PreviewPanel', () => {
     filledRectColors = [];
     rerender(
       <EaseCutThemeProvider theme='light'>
-        <PreviewPanel previewRef={previewRef} />
+        <PreviewPanel />
       </EaseCutThemeProvider>,
     );
 
@@ -531,7 +529,7 @@ describe('PreviewPanel', () => {
   });
 
   it('resizes the preview canvas to fill its parent container', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     drawCalls = [];
 
@@ -548,7 +546,7 @@ describe('PreviewPanel', () => {
   });
 
   it('draws active clips by track order so later tracks overlay earlier tracks', async () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
 
     await waitFor(() => {
       expect(drawImageMock.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -582,7 +580,7 @@ describe('PreviewPanel', () => {
       tracks: [mainTrack, overlayTrack],
     });
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() =>
@@ -628,7 +626,7 @@ describe('PreviewPanel', () => {
       tracks: [mainTrack, overlayTrack],
     });
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() =>
@@ -647,7 +645,7 @@ describe('PreviewPanel', () => {
   });
 
   it('syncs preview media volume with each track mute state', async () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
 
     await waitFor(() => {
       expect(document.querySelectorAll('video')).toHaveLength(2);
@@ -712,7 +710,7 @@ describe('PreviewPanel', () => {
     });
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -727,7 +725,7 @@ describe('PreviewPanel', () => {
 
   it('stops and unmounts an active media element when its clip is hidden', async () => {
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
     const overlayVideo = await waitFor(() => {
       const videos = Array.from(document.querySelectorAll('video'));
@@ -776,7 +774,7 @@ describe('PreviewPanel', () => {
       tracks: [...state.tracks, audioTrack],
     }));
 
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
 
     await waitFor(() => {
       expect(document.querySelectorAll('video')).toHaveLength(2);
@@ -835,7 +833,7 @@ describe('PreviewPanel', () => {
     }));
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     expect(fillTextMock).toHaveBeenCalledWith(
@@ -930,7 +928,7 @@ describe('PreviewPanel', () => {
     }));
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -1031,7 +1029,7 @@ describe('PreviewPanel', () => {
     };
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -1118,7 +1116,7 @@ describe('PreviewPanel', () => {
     }));
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -1171,7 +1169,7 @@ describe('PreviewPanel', () => {
     }));
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -1193,7 +1191,7 @@ describe('PreviewPanel', () => {
       'release',
     );
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     const video = await waitFor(() => {
@@ -1272,7 +1270,7 @@ describe('PreviewPanel', () => {
     });
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     const video = await waitFor(() => {
@@ -1355,7 +1353,7 @@ describe('PreviewPanel', () => {
     });
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     const [continuousVideo, overlayVideo] = await waitFor(() => {
@@ -1441,7 +1439,7 @@ describe('PreviewPanel', () => {
     });
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     const [continuingOverlay, laterMain] = await waitFor(() => {
@@ -1513,7 +1511,7 @@ describe('PreviewPanel', () => {
     }));
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -1547,7 +1545,7 @@ describe('PreviewPanel', () => {
     });
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     const nextVideo = await waitFor(() => {
@@ -1613,7 +1611,7 @@ describe('PreviewPanel', () => {
     }));
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -1652,7 +1650,7 @@ describe('PreviewPanel', () => {
     }));
 
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     await waitFor(() => {
@@ -1669,7 +1667,7 @@ describe('PreviewPanel', () => {
 
   it('draws selected clip bounds after every active clip so overlays cannot cover the frame', async () => {
     testTimelineStore.setState({ selectedClipId: 'clip-main' });
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
 
     await waitFor(() => {
       expect(drawImageMock.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -1694,7 +1692,7 @@ describe('PreviewPanel', () => {
   it('shows the inspector only for a selected clip and allows it to be closed', () => {
     testTimelineStore.setState({ selectedClipId: null });
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     expect(
@@ -1722,7 +1720,7 @@ describe('PreviewPanel', () => {
   });
 
   it('draws clips inside the centered composition frame when the parent is wider', async () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
 
     await waitFor(() => {
@@ -1739,7 +1737,7 @@ describe('PreviewPanel', () => {
   });
 
   it('keeps the previous preview frame while active videos are seeking during playhead scrubbing', async () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
 
     await waitFor(() => {
       expect(drawImageMock.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -1807,7 +1805,7 @@ describe('PreviewPanel', () => {
       tracks: [mainTrack, textTrack],
     });
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
 
     const video = await waitFor(() => {
@@ -1854,7 +1852,7 @@ describe('PreviewPanel', () => {
 
   it('selects the topmost visible clip when pointer starts on preview content', () => {
     testTimelineStore.setState({ selectedClipId: null });
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -1872,7 +1870,7 @@ describe('PreviewPanel', () => {
       clips: state.clips.filter((clip) => clip.id === 'clip-overlay'),
     }));
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
@@ -1898,7 +1896,7 @@ describe('PreviewPanel', () => {
 
   it('clears the selected clip when pointer starts on preview letterboxing', () => {
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
@@ -1913,7 +1911,7 @@ describe('PreviewPanel', () => {
 
   it('selects another visible clip instead of clearing the selection', () => {
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
@@ -1934,7 +1932,7 @@ describe('PreviewPanel', () => {
       ),
       selectedClipId: null,
     }));
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -1945,7 +1943,7 @@ describe('PreviewPanel', () => {
   });
 
   it('shows a moved transform live and commits it once on pointer up', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2008,7 +2006,7 @@ describe('PreviewPanel', () => {
       tracks: [...state.tracks, textTrack],
     }));
     renderWithEditorProviders(
-      <PreviewPanel previewRef={createRef<HTMLDivElement>()} />,
+      <PreviewPanel />,
     );
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
@@ -2045,7 +2043,7 @@ describe('PreviewPanel', () => {
   });
 
   it('restores inspector values without committing a cancelled move', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2070,7 +2068,7 @@ describe('PreviewPanel', () => {
   });
 
   it('snaps a moved clip to the canvas center and draws a full-height guide', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2114,7 +2112,7 @@ describe('PreviewPanel', () => {
   });
 
   it('clears an active guide immediately when canvas snapping is disabled', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2147,7 +2145,7 @@ describe('PreviewPanel', () => {
       ],
       tracks: [...state.tracks, targetTrack],
     }));
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2185,7 +2183,7 @@ describe('PreviewPanel', () => {
       ],
       tracks: [overlayTrack, targetTrack, audioTrack],
     }));
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2206,7 +2204,7 @@ describe('PreviewPanel', () => {
 
   it('moves freely and does not draw guides when canvas snapping is disabled', () => {
     testTimelineStore.setState({ canvasSnappingEnabled: false });
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2226,7 +2224,7 @@ describe('PreviewPanel', () => {
   });
 
   it('shows a resized transform live and commits it from a corner handle', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2256,7 +2254,7 @@ describe('PreviewPanel', () => {
   });
 
   it('keeps the initial aspect ratio when shift-resizing from a corner handle', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2279,7 +2277,7 @@ describe('PreviewPanel', () => {
   });
 
   it('resizes continuously when opposing pointer axes cross the control threshold', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2303,7 +2301,7 @@ describe('PreviewPanel', () => {
   });
 
   it('stays at the minimum aspect-ratio size after crossing the fixed corner', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2327,7 +2325,7 @@ describe('PreviewPanel', () => {
   });
 
   it('updates the preview cursor when hovering selected clip handles and content', () => {
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
     const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
     mockWidePreviewRect(canvas);
@@ -2353,7 +2351,7 @@ describe('PreviewPanel', () => {
           : clip,
       ),
     }));
-    renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
+    renderWithEditorProviders(<PreviewPanel />);
     triggerPreviewResize(1600, 720);
 
     await waitFor(() => {

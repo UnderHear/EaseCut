@@ -65,7 +65,6 @@ type TimelinePanelProps = {
   ) => void;
   onDownloadClip: (clip: TimelineClip) => void | Promise<void>;
   onRequestImport?: () => void;
-  onRequestPreviewFullscreen: () => void;
 };
 
 type ResizableTimelinePanelProps = {
@@ -295,14 +294,12 @@ export function TimelinePanel({
   onClipTimingPreviewChange,
   onDownloadClip,
   onRequestImport,
-  onRequestPreviewFullscreen,
 }: TimelinePanelProps) {
   return (
     <ResizableTimelinePanel>
       <TimelineToolbar
         onRequestAddTitle={onRequestAddTitle}
         onRequestImport={onRequestImport}
-        onRequestPreviewFullscreen={onRequestPreviewFullscreen}
       />
       <TimelineViewport
         onClipTimingPreviewChange={onClipTimingPreviewChange}
