@@ -43,6 +43,7 @@ import {
   normalizeTimelineTimeUs,
 } from '../core/timeline-math';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
+import { useEaseCutTheme } from '../theme-context';
 import { getTimelineClipLabel } from '../util/format-media-label';
 import {
   formatTimelineDateTime,
@@ -354,6 +355,7 @@ export function TimelineClipView({
   visibleTimeStartUs,
   width,
 }: TimelineClipViewProps) {
+  const theme = useEaseCutTheme();
   const [contextMenuTimeUs, setContextMenuTimeUs] = useState(clip.startUs);
   const {
     imageUrl,
@@ -468,6 +470,7 @@ export function TimelineClipView({
           aria-label={`${clipLabel} 操作菜单`}
           className='ec-clip-context-menu'
           collisionPadding={8}
+          data-light-theme={theme}
           onPointerDown={(event) => event.stopPropagation()}
         >
           <ContextMenu.Item

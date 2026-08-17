@@ -96,9 +96,12 @@ export type EaseCutExportRequest = {
   payload: CompositionExportPayload;
 };
 
+export type EaseCutTheme = 'light' | 'dark';
+
 export type EaseCutProps = {
   initialDraft?: VideoTimelineDraft;
   title?: string;
+  theme?: EaseCutTheme;
   className?: string;
   style?: CSSProperties;
   jsonFileName?: string;

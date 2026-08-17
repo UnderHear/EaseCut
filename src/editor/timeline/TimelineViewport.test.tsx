@@ -1582,7 +1582,7 @@ describe('TimelineViewport DOM interactions', () => {
 
     expect(
       screen.getByRole('menu', { name: 'background.mp3 操作菜单' }),
-    ).toBeVisible();
+    ).toHaveAttribute('data-light-theme', 'dark');
     expect(screen.queryByText('Ctrl+B')).not.toBeInTheDocument();
     expect(testTimelineStore.getState().selectedClipId).toBe(audioClip.id);
     expect(testTimelineStore.getState().past).toHaveLength(0);
@@ -2548,6 +2548,10 @@ describe('TimelineViewport DOM interactions', () => {
       height: '90px',
       width: '51px',
     });
+    expect(document.querySelector('.ec-trim-frame-preview')).toHaveAttribute(
+      'data-light-theme',
+      'dark',
+    );
     expect(
       document.querySelector('.ec-trim-frame-preview__image'),
     ).toHaveAttribute('src', 'blob:portrait-trim-frame');

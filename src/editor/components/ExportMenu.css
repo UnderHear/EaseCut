@@ -27,7 +27,7 @@
   border: 1px solid var(--ec-border);
   border-radius: 8px;
   background: var(--ec-panel-raised);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 48%);
+  box-shadow: var(--ec-shadow-popover);
 }
 
 .ec-export-menu__item {

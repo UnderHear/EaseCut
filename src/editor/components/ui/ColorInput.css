@@ -2,7 +2,7 @@
   display: block;
   padding: 0;
   border: none;
-  outline: 1px solid #333333;
+  outline: 1px solid var(--ec-border);
   border-radius: 4px;
   cursor: pointer;
 }
@@ -22,7 +22,7 @@
 }
 
 .ec-color-input:focus-visible {
-  outline: 2px solid var(--ec-accent, #00cae0);
+  outline: 2px solid var(--ec-accent);
   outline-offset: 2px;
 }
 

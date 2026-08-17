@@ -45,6 +45,7 @@ import {
   useTimelineStore,
   useTimelineStoreApi,
 } from './store/timeline-store-context';
+import { EaseCutThemeProvider } from './theme-provider';
 import type {
   CompositionExportPayload,
   TimelineClip,
@@ -134,6 +135,7 @@ function EaseCutView({
   onDraftChange,
   onExport,
   style,
+  theme = 'dark',
   title = 'EaseCut',
 }: EaseCutViewProps) {
   const titleId = useId();
@@ -524,26 +526,28 @@ function EaseCutView({
   const rootClassName = `ec-editor${className ? ` ${className}` : ''}`;
 
   return (
-    <Toast.Provider label='编辑器提示'>
-      <div
-        ref={rootRef}
-        aria-labelledby={titleId}
-        className={rootClassName}
-        onKeyDown={handleKeyDown}
-        onPointerDownCapture={(event) => {
-          if (!(event.target instanceof Element)) return;
-          if (
-            !event.target.closest(
-              'button, input, select, textarea, summary, a[href], [role="dialog"], [role="menu"]',
-            )
-          ) {
-            rootRef.current?.focus({ preventScroll: true });
-          }
-        }}
-        style={style}
-        tabIndex={0}
-        role='region'
-      >
+    <EaseCutThemeProvider theme={theme}>
+      <Toast.Provider label='编辑器提示'>
+        <div
+          ref={rootRef}
+          aria-labelledby={titleId}
+          className={rootClassName}
+          data-light-theme={theme}
+          onKeyDown={handleKeyDown}
+          onPointerDownCapture={(event) => {
+            if (!(event.target instanceof Element)) return;
+            if (
+              !event.target.closest(
+                'button, input, select, textarea, summary, a[href], [role="dialog"], [role="menu"]',
+              )
+            ) {
+              rootRef.current?.focus({ preventScroll: true });
+            }
+          }}
+          style={style}
+          tabIndex={0}
+          role='region'
+        >
       <header className='ec-editor__header'>
         <h1 id={titleId}>{title}</h1>
         <div className='ec-editor__header-actions'>
@@ -723,7 +727,8 @@ function EaseCutView({
           </Toast.Close>
         </Toast.Root>
         <Toast.Viewport className='ec-editor__toast-viewport' />
-      </div>
-    </Toast.Provider>
+        </div>
+      </Toast.Provider>
+    </EaseCutThemeProvider>
   );
 }

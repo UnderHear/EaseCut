@@ -65,6 +65,7 @@ export type {
   VideoTimelineDraft,
   EaseCutProps,
   EaseCutExportRequest,
+  EaseCutTheme,
   EaseCutMediaLoader,
   EaseCutMediaMetadata,
   VideoTimelineMediaType,

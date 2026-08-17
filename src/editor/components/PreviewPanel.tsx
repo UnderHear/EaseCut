@@ -28,6 +28,7 @@ import {
 } from '../core/preview-snapping';
 import { MIN_CLIP_TRANSFORM_SIZE } from '../core/timeline-commands';
 import { useTimelineStore } from '../store/timeline-store-context';
+import { useEaseCutTheme } from '../theme-context';
 import type {
   TimelineCanvasSize,
   TimelineClip,
@@ -612,6 +613,7 @@ export function PreviewPanel({
   clipTimingPreview = null,
   previewRef,
 }: PreviewPanelProps) {
+  const theme = useEaseCutTheme();
   const canvasSnappingEnabled = useTimelineStore(
     (state) => state.canvasSnappingEnabled,
   );
@@ -638,6 +640,7 @@ export function PreviewPanel({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const interactionRef = useRef<PreviewInteractionState | null>(null);
   const lastPreviewCanvasSizeRef = useRef<TimelineCanvasSize | null>(null);
+  const lastPreviewThemeRef = useRef(theme);
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const previewAudioEngineRef = useRef<PreviewAudioEngine | null>(null);
   const previewPlaybackControllerRef = useRef(
@@ -966,6 +969,7 @@ export function PreviewPanel({
       const lastCanvasSize = lastPreviewCanvasSizeRef.current;
       if (
         !interaction &&
+        lastPreviewThemeRef.current === theme &&
         lastCanvasSize?.height === canvas.height &&
         lastCanvasSize.width === canvas.width &&
         hasPendingPreviewMedia(
@@ -977,7 +981,7 @@ export function PreviewPanel({
         return;
       }
 
-      context.fillStyle = '#1f1f1f';
+      context.fillStyle = theme === 'light' ? '#EFF3F5' : '#1f1f1f';
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = '#000000';
       context.fillRect(
@@ -1106,6 +1110,7 @@ export function PreviewPanel({
         height: canvas.height,
         width: canvas.width,
       };
+      lastPreviewThemeRef.current = theme;
     },
     [
       activeVideoClips,
@@ -1114,6 +1119,7 @@ export function PreviewPanel({
       previewObjectUrls,
       selectedClipId,
       textStyleEdit,
+      theme,
     ],
   );
   useLayoutEffect(() => {
@@ -1202,6 +1208,7 @@ export function PreviewPanel({
     previewCanvasSize.width,
     previewObjectUrls,
     selectedClipId,
+    theme,
   ]);
 
   useEffect(() => {

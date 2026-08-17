@@ -3,8 +3,8 @@
   width: 100%;
   border: 1px solid transparent;
   border-radius: var(--ec-radius);
-  color: #d4d4d4;
-  background: #303030;
+  color: var(--ec-text-secondary);
+  background: var(--ec-control);
 }
 
 .ec-text-input:focus {
@@ -14,7 +14,7 @@
 .ec-text-input:hover,
 .ec-text-input:focus-within {
   border-color: var(--ec-border-strong);
-  background: #333333;
+  background: var(--ec-panel-hover);
 }
 
 .ec-text-input[data-size='small'] {

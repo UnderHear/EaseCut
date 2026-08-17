@@ -354,6 +354,56 @@ describe('EaseCut', () => {
     expect(screen.getByRole('button', { name: '导出' })).toBeVisible();
   });
 
+  it('uses dark by default and updates its controlled theme', () => {
+    const { container, rerender } = render(<EaseCut />);
+    const editor = container.querySelector('.ec-editor');
+
+    expect(editor).toHaveAttribute('data-light-theme', 'dark');
+
+    rerender(<EaseCut theme='light' />);
+    expect(editor).toHaveAttribute('data-light-theme', 'light');
+
+    rerender(<EaseCut theme='dark' />);
+    expect(editor).toHaveAttribute('data-light-theme', 'dark');
+  });
+
+  it('keeps portal themes isolated between editor instances', async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <EaseCut theme='dark' title='深色编辑器' />
+        <EaseCut theme='light' title='浅色编辑器' />
+      </>,
+    );
+
+    await user.click(
+      within(screen.getByRole('region', { name: '浅色编辑器' })).getByRole(
+        'button',
+        { name: '查看快捷键' },
+      ),
+    );
+    expect(screen.getByRole('dialog', { name: '快捷键' })).toHaveAttribute(
+      'data-light-theme',
+      'light',
+    );
+    expect(document.querySelector('.ec-shortcuts-dialog__overlay')).toHaveAttribute(
+      'data-light-theme',
+      'light',
+    );
+
+    await user.click(screen.getByRole('button', { name: '关闭快捷键弹窗' }));
+    await user.click(
+      within(screen.getByRole('region', { name: '深色编辑器' })).getByRole(
+        'button',
+        { name: '查看快捷键' },
+      ),
+    );
+    expect(screen.getByRole('dialog', { name: '快捷键' })).toHaveAttribute(
+      'data-light-theme',
+      'dark',
+    );
+  });
+
   it('always shows the export menu and only renders the optional close action', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

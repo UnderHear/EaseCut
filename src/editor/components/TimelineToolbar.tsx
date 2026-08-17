@@ -29,6 +29,7 @@ import {
 } from '../core/timeline-math';
 import { canSplitClipAtTime } from '../core/timeline-commands';
 import { useTimelineStore } from '../store/timeline-store-context';
+import { useEaseCutTheme } from '../theme-context';
 import {
   formatTimelineDateTime,
   formatTimelineTime,
@@ -81,6 +82,7 @@ export function TimelineToolbar({
   onRequestImport,
   onRequestPreviewFullscreen,
 }: TimelineToolbarProps) {
+  const theme = useEaseCutTheme();
   const canRedo = useTimelineStore((state) => state.future.length > 0);
   const canUndo = useTimelineStore((state) => state.past.length > 0);
   const canvasSnappingEnabled = useTimelineStore(
@@ -240,8 +242,14 @@ export function TimelineToolbar({
             </IconButton>
           </Dialog.Trigger>
           <Dialog.Portal>
-            <Dialog.Overlay className='ec-shortcuts-dialog__overlay' />
-            <Dialog.Content className='ec-shortcuts-dialog'>
+            <Dialog.Overlay
+              className='ec-shortcuts-dialog__overlay'
+              data-light-theme={theme}
+            />
+            <Dialog.Content
+              className='ec-shortcuts-dialog'
+              data-light-theme={theme}
+            >
               <div className='ec-shortcuts-dialog__header'>
                 <Dialog.Title className='ec-shortcuts-dialog__title'>
                   快捷键

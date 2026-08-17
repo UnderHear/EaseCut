@@ -23,6 +23,7 @@ import type {
 import type { TextLayoutRequest } from '../media/text-layout-runtime';
 import { PreviewAudioEngine } from '../media/preview-audio-engine';
 import { PreviewPanel } from './PreviewPanel';
+import { EaseCutThemeProvider } from '../theme-provider';
 import {
   renderWithEditorProviders,
   resetTestTimelineStore,
@@ -215,6 +216,7 @@ describe('PreviewPanel', () => {
   let drawnTextColors: string[];
   let drawnTextFonts: string[];
   let fillRectMock: ReturnType<typeof vi.fn>;
+  let filledRectColors: string[];
   let fillTextMock: ReturnType<typeof vi.fn>;
   let currentCanvasFillStyle: string;
   let measureTextMock: ReturnType<typeof vi.fn>;
@@ -236,6 +238,7 @@ describe('PreviewPanel', () => {
     drawCalls = [];
     drawnTextColors = [];
     drawnTextFonts = [];
+    filledRectColors = [];
     currentCanvasFillStyle = '';
     currentCanvasFont = '';
     const createCanvasCallMock = (kind: CanvasDrawCall['kind']) =>
@@ -243,7 +246,10 @@ describe('PreviewPanel', () => {
         drawCalls.push({ args, kind });
       });
     drawImageMock = createCanvasCallMock('drawImage');
-    fillRectMock = createCanvasCallMock('fillRect');
+    fillRectMock = vi.fn((...args: unknown[]) => {
+      drawCalls.push({ args, kind: 'fillRect' });
+      filledRectColors.push(currentCanvasFillStyle);
+    });
     fillTextMock = vi.fn((...args: unknown[]) => {
       drawCalls.push({ args, kind: 'fillText' });
       drawnTextColors.push(currentCanvasFillStyle);
@@ -502,6 +508,26 @@ describe('PreviewPanel', () => {
     renderWithEditorProviders(<PreviewPanel previewRef={createRef<HTMLDivElement>()} />);
 
     expect(screen.getByLabelText('视频预览').tagName).toBe('CANVAS');
+  });
+
+  it('redraws the preview surround when the theme changes', () => {
+    const previewRef = createRef<HTMLDivElement>();
+    const { rerender } = renderWithEditorProviders(
+      <EaseCutThemeProvider theme='dark'>
+        <PreviewPanel previewRef={previewRef} />
+      </EaseCutThemeProvider>,
+    );
+
+    expect(filledRectColors).toContain('#1f1f1f');
+
+    filledRectColors = [];
+    rerender(
+      <EaseCutThemeProvider theme='light'>
+        <PreviewPanel previewRef={previewRef} />
+      </EaseCutThemeProvider>,
+    );
+
+    expect(filledRectColors).toContain('#EFF3F5');
   });
 
   it('resizes the preview canvas to fill its parent container', () => {

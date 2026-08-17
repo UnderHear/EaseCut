@@ -9,7 +9,7 @@
   border-radius: 8px;
   outline: 0;
   color: var(--ec-text);
-  background: #303030;
+  background: var(--ec-control);
   font: inherit;
   font-size: 14px;
   line-height: 1.5;
@@ -24,5 +24,5 @@
 .ec-title-content-textarea:hover,
 .ec-title-content-textarea:focus {
   border-color: var(--ec-border-strong);
-  background: #333333;
+  background: var(--ec-panel-hover);
 }

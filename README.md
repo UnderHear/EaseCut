@@ -61,6 +61,21 @@ export function App() {
 
 好了。
 
+## 明暗主题
+
+`theme` 支持 `"light"` 和 `"dark"`，未传时默认使用深色主题。
+
+```tsx
+import { EaseCut } from "easecut-react";
+import "easecut-react/styles.css";
+
+export function App() {
+  return <EaseCut theme="light" />;
+}
+```
+
+`theme` 是受控属性，更新它即可在运行时切换主题。
+
 ## 导入素材 & 导出视频 & 关闭编辑器
 
 ### 导入素材

@@ -287,9 +287,12 @@ type EaseCutApiErrorCode =
 ## 4. `EaseCut` Props
 
 ```ts
+type EaseCutTheme = 'light' | 'dark';
+
 type EaseCutProps = {
   initialDraft?: VideoTimelineDraft;
   title?: string;
+  theme?: EaseCutTheme;
   className?: string;
   style?: React.CSSProperties;
   jsonFileName?: string;
@@ -307,6 +310,7 @@ type EaseCutProps = {
 | --- | --- | --- |
 | `initialDraft` | 新工程 | 仅在实例创建时读取的项目草稿 |
 | `title` | `'EaseCut'` | 标题栏文字和根区域可访问名称 |
+| `theme` | `'dark'` | 编辑器主题，可设为 `'light'` 或 `'dark'` |
 | `className` | `''` | 追加到根节点 `ec-editor` 的类名 |
 | `style` | 无 | 编辑器根节点内联样式 |
 | `jsonFileName` | `'video-composition.json'` | “导出”菜单中“导出 JSON”的下载文件名 |
@@ -323,6 +327,12 @@ type EaseCutProps = {
   key={projectId}
   initialDraft={projectDraft}
 />
+```
+
+`theme` 是受控属性，更新它会立即切换根节点和浮层主题：
+
+```tsx
+<EaseCut theme='light' />
 ```
 
 后续 source/clip 变更使用实例 API。项目所需的素材也通过 source API 注册，再通过 clip API 放入时间线。
@@ -503,6 +513,7 @@ EaseCutApiErrorCode
 ```ts
 EaseCut
 EaseCutProps
+EaseCutTheme
 VideoTimelineSource
 VideoTimelineMediaType
 EaseCutMediaLoader

@@ -6,15 +6,15 @@
   overflow: hidden;
   border: 1px solid transparent;
   border-radius: var(--ec-radius);
-  color: #d4d4d4;
-  background: #303030;
+  color: var(--ec-text-secondary);
+  background: var(--ec-control);
   font-size: 14px;
 }
 
 .ec-input-number:hover,
 .ec-input-number:focus-within {
   border-color: var(--ec-border-strong);
-  background: #333333;
+  background: var(--ec-panel-hover);
 }
 
 .ec-input-number input {
@@ -95,5 +95,5 @@
 
 .ec-input-number__step-button:hover {
   color: var(--ec-text);
-  background: rgb(255 255 255 / 9%);
+  background: var(--ec-control-hover-subtle);
 }

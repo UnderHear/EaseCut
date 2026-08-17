@@ -11,6 +11,7 @@ import {
   TRIM_FRAME_PREVIEW_HEIGHT,
   useSingleFramePreview,
 } from '../media';
+import { useEaseCutTheme } from '../theme-context';
 import type { TimelineClip, TimelineClipTrimEdge } from '../types';
 
 const TRIM_FRAME_PREVIEW_GAP = 8;
@@ -39,6 +40,7 @@ export function TimelineTrimHandle({
   onPointerDown,
   trimmed,
 }: TimelineTrimHandleProps) {
+  const theme = useEaseCutTheme();
   const handleRef = useRef<HTMLButtonElement | null>(null);
   const [position, setPosition] = useState<PreviewPosition | null>(null);
   const previewTimeUs =
@@ -143,6 +145,7 @@ export function TimelineTrimHandle({
           <div
             aria-hidden='true'
             className='ec-trim-frame-preview'
+            data-light-theme={theme}
             style={{
               height: preview.height,
               left: position.left,
