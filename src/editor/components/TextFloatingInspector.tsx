@@ -26,14 +26,17 @@ import {
   getRgbHexColor,
   replaceRgbHexColor,
 } from '../util/format-text-color';
-import { FloatingInspectorShell } from './FloatingInspectorShell';
+import {
+  FloatingInspectorShell,
+  type FloatingInspectorControls,
+} from './FloatingInspectorShell';
 import { ColorInput } from './ui/ColorInput';
 import { IconButton } from './ui/IconButton';
 import { InputNumber } from './ui/InputNumber';
 import { Select } from './ui/Select';
 import { TitleContentTextarea } from './TitleContentTextarea';
 
-type TextFloatingInspectorProps = {
+type TextFloatingInspectorProps = FloatingInspectorControls & {
   clip: TimelineTextClip;
   previewTiming: TimelineClipTimingPreview | null;
   previewTransform: {
@@ -53,8 +56,8 @@ export function TextFloatingInspector({
   clip,
   previewTiming,
   previewTransform,
+  ...panelControls
 }: TextFloatingInspectorProps) {
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [textDraft, setTextDraft] = useState(clip.text);
   const [boldDraft, setBoldDraft] = useState(clip.bold);
   const [fontTypeDraft, setFontTypeDraft] = useState(clip.fontType);
@@ -294,13 +297,12 @@ export function TextFloatingInspector({
 
   return (
     <FloatingInspectorShell
-      isPanelOpen={isPanelOpen}
-      onClose={() => setIsPanelOpen(false)}
+      {...panelControls}
       railItems={
         <button
-          aria-current={isPanelOpen ? 'page' : undefined}
-          className={`ec-floating-inspector__rail-item${isPanelOpen ? ' ec-is-active' : ''}`}
-          onClick={() => setIsPanelOpen(true)}
+          aria-current={panelControls.isPanelOpen ? 'page' : undefined}
+          className={`ec-floating-inspector__rail-item${panelControls.isPanelOpen ? ' ec-is-active' : ''}`}
+          onClick={panelControls.onOpen}
           type='button'
         >
           <TypeIcon aria-hidden='true' size={20} />

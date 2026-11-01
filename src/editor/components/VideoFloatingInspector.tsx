@@ -9,14 +9,17 @@ import type {
   TimelineClipTransform,
 } from '../types';
 import { FloatingInspectorBasicPanel } from './FloatingInspectorBasicPanel';
-import { FloatingInspectorShell } from './FloatingInspectorShell';
+import {
+  FloatingInspectorShell,
+  type FloatingInspectorControls,
+} from './FloatingInspectorShell';
 import { FloatingInspectorSpeedPanel } from './FloatingInspectorSpeedPanel';
 import { InputNumber } from './ui/InputNumber';
 
 type VideoInspectorSection = 'basic' | 'speed';
 type TransformField = keyof TimelineClipTransform;
 
-type VideoFloatingInspectorProps = {
+type VideoFloatingInspectorProps = FloatingInspectorControls & {
   clip: TimelineVisualMediaClip;
   previewTiming: TimelineClipTimingPreview | null;
   previewTransform: {
@@ -29,10 +32,10 @@ export function VideoFloatingInspector({
   clip,
   previewTiming,
   previewTransform,
+  ...panelControls
 }: VideoFloatingInspectorProps) {
   const [activeSection, setActiveSection] =
     useState<VideoInspectorSection>('basic');
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const commitMediaClipTransform = useTimelineStore(
     (state) => state.commitMediaClipTransform,
   );
@@ -48,11 +51,11 @@ export function VideoFloatingInspector({
     basic: '基本',
     speed: '变速',
   }[visibleSection];
-  const activeRailSection = isPanelOpen ? visibleSection : null;
+  const activeRailSection = panelControls.isPanelOpen ? visibleSection : null;
 
   const selectSection = (section: VideoInspectorSection) => {
     setActiveSection(section);
-    setIsPanelOpen(true);
+    panelControls.onOpen();
   };
 
   const commitTransformField = (field: TransformField, value: number) => {
@@ -64,8 +67,7 @@ export function VideoFloatingInspector({
 
   return (
     <FloatingInspectorShell
-      isPanelOpen={isPanelOpen}
-      onClose={() => setIsPanelOpen(false)}
+      {...panelControls}
       railItems={
         <>
           <button

@@ -3,12 +3,15 @@ import { useState } from 'react';
 
 import type { TimelineMediaClip, TimelineClipTimingPreview } from '../types';
 import { FloatingInspectorBasicPanel } from './FloatingInspectorBasicPanel';
-import { FloatingInspectorShell } from './FloatingInspectorShell';
+import {
+  FloatingInspectorShell,
+  type FloatingInspectorControls,
+} from './FloatingInspectorShell';
 import { FloatingInspectorSpeedPanel } from './FloatingInspectorSpeedPanel';
 
 type AudioInspectorSection = 'basic' | 'speed';
 
-type AudioFloatingInspectorProps = {
+type AudioFloatingInspectorProps = FloatingInspectorControls & {
   clip: TimelineMediaClip & { type: 'audio' };
   previewTiming: TimelineClipTimingPreview | null;
 };
@@ -16,22 +19,21 @@ type AudioFloatingInspectorProps = {
 export function AudioFloatingInspector({
   clip,
   previewTiming,
+  ...panelControls
 }: AudioFloatingInspectorProps) {
   const [activeSection, setActiveSection] =
     useState<AudioInspectorSection>('basic');
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const displayedTiming =
     previewTiming?.clipId === clip.id ? previewTiming : clip;
-  const activeRailSection = isPanelOpen ? activeSection : null;
+  const activeRailSection = panelControls.isPanelOpen ? activeSection : null;
   const selectSection = (section: AudioInspectorSection) => {
     setActiveSection(section);
-    setIsPanelOpen(true);
+    panelControls.onOpen();
   };
 
   return (
     <FloatingInspectorShell
-      isPanelOpen={isPanelOpen}
-      onClose={() => setIsPanelOpen(false)}
+      {...panelControls}
       railItems={
         <>
           <button

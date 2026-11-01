@@ -54,8 +54,7 @@ import {
   PreviewPlaybackController,
   seekPreviewMediaToTimelineTime,
 } from '../media/preview-playback-controller';
-import { FloatingInspector } from './FloatingInspector';
-import { CanvasRatioPanel } from './CanvasRatioPanel';
+import { PreviewInspectors } from './PreviewInspectors';
 
 const PREVIEW_HANDLE_SIZE = 12;
 const PREVIEW_HANDLE_HIT_PADDING = 8;
@@ -638,7 +637,6 @@ export function PreviewPanel({
   const interactionRef = useRef<PreviewInteractionState | null>(null);
   const lastPreviewCanvasSizeRef = useRef<TimelineCanvasSize | null>(null);
   const lastPreviewThemeRef = useRef(theme);
-  const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const previewAudioEngineRef = useRef<PreviewAudioEngine | null>(null);
   const previewPlaybackControllerRef = useRef(
     new PreviewPlaybackController(),
@@ -655,8 +653,6 @@ export function PreviewPanel({
     clipId: string;
     transform: TimelineClipTransform;
   } | null>(null);
-  const [previewContainerSize, setPreviewContainerSize] =
-    useState<TimelineCanvasSize | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [fontLoadState, setFontLoadState] = useState<{
     key: string;
@@ -864,11 +860,6 @@ export function PreviewPanel({
   ]);
   const selectedActiveClip =
     activeVisualClips.find((clip) => clip.id === selectedClipId) ?? null;
-  const previewCanvasSize = previewContainerSize ?? canvasSize;
-  const previewFrame = useMemo(
-    () => getPreviewFrame(canvasSize, previewCanvasSize),
-    [canvasSize, previewCanvasSize],
-  );
 
   const setClipMediaElement = useCallback(
     (clipId: string, element: HTMLMediaElement | null) => {
@@ -962,6 +953,15 @@ export function PreviewPanel({
       const context = canvas?.getContext('2d');
       if (!canvas || !context) return;
 
+      const bounds = canvas.getBoundingClientRect();
+      const width = Math.round(bounds.width);
+      const height = Math.round(bounds.height);
+      if (width <= 0 || height <= 0) return;
+
+      // Update the bitmap and composition in one draw, without a React commit.
+      if (canvas.width !== width) canvas.width = width;
+      if (canvas.height !== height) canvas.height = height;
+      const previewFrame = getPreviewFrame(canvasSize, canvas);
       const selectedDrawClipId = interaction?.clipId ?? selectedClipId;
       const lastCanvasSize = lastPreviewCanvasSizeRef.current;
       if (
@@ -1112,7 +1112,7 @@ export function PreviewPanel({
     [
       activeVideoClips,
       activeVisualClips,
-      previewFrame,
+      canvasSize,
       previewObjectUrls,
       selectedClipId,
       textStyleEdit,
@@ -1201,33 +1201,23 @@ export function PreviewPanel({
     drawPreviewRef.current(interactionRef.current);
   }, [
     activeVisualConfigurationKey,
-    previewCanvasSize.height,
-    previewCanvasSize.width,
+    canvasSize,
     previewObjectUrls,
     selectedClipId,
     theme,
   ]);
 
-  useEffect(() => {
-    const element = previewContainerRef.current;
-    if (!element || typeof ResizeObserver === 'undefined') return undefined;
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
 
-    const observer = new ResizeObserver(([entry]) => {
-      if (!entry) return;
-
-      const height = Math.round(entry.contentRect.height);
-      const width = Math.round(entry.contentRect.width);
-      if (height <= 0 || width <= 0) return;
-
-      setPreviewContainerSize((current) =>
-        current?.height === height && current.width === width
-          ? current
-          : { height, width },
-      );
-    });
-
-    observer.observe(element);
-
+    const redraw = () => drawPreviewRef.current(interactionRef.current);
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', redraw);
+      return () => window.removeEventListener('resize', redraw);
+    }
+    const observer = new ResizeObserver(redraw);
+    observer.observe(canvas);
     return () => observer.disconnect();
   }, []);
 
@@ -1520,6 +1510,7 @@ export function PreviewPanel({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const previewFrame = getPreviewFrame(canvasSize, canvas);
     const point = getCanvasPoint(canvas, event, previewFrame);
     const selectedTransform = selectedActiveClip
       ? getTimelineClipTransform(selectedActiveClip)
@@ -1577,6 +1568,7 @@ export function PreviewPanel({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const previewFrame = getPreviewFrame(canvasSize, canvas);
     if (!interaction) {
       const point = getCanvasPoint(canvas, event, previewFrame);
       const selectedCursor = selectedActiveClip
@@ -1644,6 +1636,7 @@ export function PreviewPanel({
     event.preventDefault();
     event.currentTarget.releasePointerCapture(event.pointerId);
     interactionRef.current = null;
+    const previewFrame = getPreviewFrame(canvasSize, event.currentTarget);
     const endPoint = getCanvasPoint(event.currentTarget, event, previewFrame);
     event.currentTarget.style.cursor = interaction.resizable
       ? getPreviewCursor(endPoint, interaction.transform, previewFrame.scale)
@@ -1689,71 +1682,61 @@ export function PreviewPanel({
 
   return (
     <section className='ec-preview-panel'>
-      <div className='ec-preview-panel__viewport'>
-        <div
-          ref={previewContainerRef}
-          className='ec-preview-panel__canvas-wrap'
-        >
-          <canvas
-            ref={canvasRef}
-            aria-label='视频预览'
-            className='ec-preview-panel__canvas'
-            height={Math.round(previewCanvasSize.height)}
-            onPointerCancel={cancelPreviewInteraction}
-            onPointerDown={startPreviewInteraction}
-            onPointerLeave={resetPreviewCursor}
-            onPointerMove={movePreviewInteraction}
-            onPointerUp={endPreviewInteraction}
-            width={Math.round(previewCanvasSize.width)}
-          />
-          {(mediaError || playbackWarning || fontWarning) && (
-            <p className='ec-preview-panel__error' role='status'>
-              {mediaError
-                ? `无法加载部分媒体：${mediaError}`
-                : (playbackWarning ?? fontWarning)}
-            </p>
-          )}
-          <div aria-hidden className='ec-preview-panel__media'>
-            {previewMediaClips.map((clip) => {
-              const isActive = activeClipIds.has(clip.id);
-              return (
-                <PreviewMediaElement
-                  key={clip.id}
-                  clip={clip}
-                  isActive={isActive}
-                  muted={
-                    !isActive ||
-                    Boolean(trackById.get(clip.trackId)?.muted) ||
-                    clip.volume === 0
-                  }
-                  onElementChange={setClipMediaElement}
-                  onLoadedMetadata={handleLoadedMediaMetadata}
-                  onVisualChange={drawCurrentPreview}
-                  src={previewObjectUrls[clip.src]}
-                />
-              );
-            })}
-            {previewImageClips.map((clip) => (
-              <PreviewImageElement
+      <div className='ec-preview-panel__canvas-wrap'>
+        <canvas
+          ref={canvasRef}
+          aria-label='视频预览'
+          className='ec-preview-panel__canvas'
+          onPointerCancel={cancelPreviewInteraction}
+          onPointerDown={startPreviewInteraction}
+          onPointerLeave={resetPreviewCursor}
+          onPointerMove={movePreviewInteraction}
+          onPointerUp={endPreviewInteraction}
+        />
+        {(mediaError || playbackWarning || fontWarning) && (
+          <p className='ec-preview-panel__error' role='status'>
+            {mediaError
+              ? `无法加载部分媒体：${mediaError}`
+              : (playbackWarning ?? fontWarning)}
+          </p>
+        )}
+        <div aria-hidden className='ec-preview-panel__media'>
+          {previewMediaClips.map((clip) => {
+            const isActive = activeClipIds.has(clip.id);
+            return (
+              <PreviewMediaElement
                 key={clip.id}
                 clip={clip}
-                onDecodeError={handleImageDecodeError}
-                onElementChange={setClipImageElement}
+                isActive={isActive}
+                muted={
+                  !isActive ||
+                  Boolean(trackById.get(clip.trackId)?.muted) ||
+                  clip.volume === 0
+                }
+                onElementChange={setClipMediaElement}
+                onLoadedMetadata={handleLoadedMediaMetadata}
                 onVisualChange={drawCurrentPreview}
                 src={previewObjectUrls[clip.src]}
               />
-            ))}
-          </div>
+            );
+          })}
+          {previewImageClips.map((clip) => (
+            <PreviewImageElement
+              key={clip.id}
+              clip={clip}
+              onDecodeError={handleImageDecodeError}
+              onElementChange={setClipImageElement}
+              onVisualChange={drawCurrentPreview}
+              src={previewObjectUrls[clip.src]}
+            />
+          ))}
         </div>
       </div>
-      <CanvasRatioPanel />
-      {selectedClipId !== null && (
-        <FloatingInspector
-          key={selectedClipId}
-          previewTiming={clipTimingPreview}
-          previewTransform={liveTransform}
-        />
-      )}
+      <PreviewInspectors
+        previewTiming={clipTimingPreview}
+        previewTransform={liveTransform}
+        selectedClipId={selectedClipId}
+      />
     </section>
   );
 }

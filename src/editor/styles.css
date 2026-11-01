@@ -395,19 +395,9 @@
   background: var(--ec-preview-surface);
 }
 
-.ec-preview-panel__viewport,
 .ec-preview-panel__canvas-wrap {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  background: var(--ec-preview-surface);
-}
-
-.ec-preview-panel__canvas-wrap {
-  position: relative;
+  position: absolute;
+  inset: 0;
 }
 
 .ec-preview-panel__canvas {
@@ -436,6 +426,26 @@
   margin: 0;
   color: #ffafaf;
   font-size: 12px;
+}
+
+.ec-preview-inspectors {
+  position: absolute;
+  inset: 0;
+  container-name: easecut-inspectors;
+  container-type: inline-size;
+  pointer-events: none;
+}
+
+/* Hide the opposite rail during layout, before the observer synchronizes state. */
+@container easecut-inspectors (width < 702px) {
+  .ec-preview-inspectors[data-active-side='left'] > .ec-floating-inspector[data-side='right'],
+  .ec-preview-inspectors[data-active-side='right'] > .ec-floating-inspector[data-side='left'] {
+    display: none;
+  }
+}
+
+.ec-floating-inspector[hidden] {
+  display: none;
 }
 
 .ec-floating-inspector {
@@ -782,7 +792,7 @@
   display: flex;
   height: 360px;
   min-height: 210px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--ec-border);

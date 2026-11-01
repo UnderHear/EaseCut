@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { Profiler } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { secondsToMicroseconds } from '../core/time';
@@ -227,6 +228,7 @@ describe('PreviewPanel', () => {
     value: boolean;
   }>;
   let resizeObserverCallback: ResizeObserverCallbackMock | null;
+  let disconnectResizeObserver: ReturnType<typeof vi.fn>;
   let seekingMediaElements: WeakSet<HTMLMediaElement>;
   let strokeRectMock: ReturnType<typeof vi.fn>;
 
@@ -261,6 +263,7 @@ describe('PreviewPanel', () => {
     preservesPitchByMedia = new WeakMap();
     preservesPitchWrites = [];
     resizeObserverCallback = null;
+    disconnectResizeObserver = vi.fn();
     seekingMediaElements = new WeakSet();
     strokeRectMock = createCanvasCallMock('strokeRect');
     acquireObjectUrlMock.mockClear();
@@ -304,15 +307,29 @@ describe('PreviewPanel', () => {
     Object.defineProperty(globalThis, 'ResizeObserver', {
       configurable: true,
       value: class ResizeObserverMock {
+        callback: ResizeObserverCallbackMock;
+
         constructor(callback: ResizeObserverCallbackMock) {
-          resizeObserverCallback = callback;
+          this.callback = callback;
         }
 
         disconnect = vi.fn();
 
-        observe = vi.fn();
+        observe = (target: Element) => {
+          if (!(target instanceof HTMLCanvasElement)) return;
+          resizeObserverCallback = this.callback;
+          disconnectResizeObserver = this.disconnect;
+        };
       },
     });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(
+        0,
+        0,
+        DEFAULT_COMPOSITION_CANVAS_SIZE.width,
+        DEFAULT_COMPOSITION_CANVAS_SIZE.height,
+      ),
+    );
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(((
       contextId,
     ) =>
@@ -455,10 +472,19 @@ describe('PreviewPanel', () => {
     }
   });
 
-  const triggerPreviewResize = (width: number, height: number) => {
+  const triggerPreviewResize = (
+    width: number,
+    height: number,
+    assertSynchronousUpdate?: () => void,
+  ) => {
     if (!resizeObserverCallback) {
       throw new Error('ResizeObserver was not created');
     }
+
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    vi.mocked(canvas.getBoundingClientRect).mockReturnValue(
+      new DOMRect(0, 0, width, height),
+    );
 
     act(() => {
       resizeObserverCallback?.([
@@ -476,6 +502,7 @@ describe('PreviewPanel', () => {
           },
         } as ResizeObserverEntry,
       ]);
+      assertSynchronousUpdate?.();
     });
   };
   const mockWidePreviewRect = (canvas: HTMLCanvasElement) => {
@@ -543,6 +570,105 @@ describe('PreviewPanel', () => {
           kind === 'fillRect' && hasRectArgs(args, [0, 0, 1600, 900]),
       ),
     ).toBe(true);
+  });
+
+  it('redraws each resize before the observer returns without a React commit', async () => {
+    const onRender = vi.fn();
+    renderWithEditorProviders(
+      <Profiler id='preview' onRender={onRender}>
+        <PreviewPanel />
+      </Profiler>,
+    );
+    await waitFor(() => expect(drawImageMock).toHaveBeenCalled());
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    onRender.mockClear();
+
+    for (const [width, height, frame] of [
+      [1600, 720, [160, 0, 1280, 720]],
+      [1400, 720, [60, 0, 1280, 720]],
+      [800, 720, [0, 135, 800, 450]],
+    ] as const) {
+      drawImageMock.mockClear();
+      triggerPreviewResize(width, height, () => {
+        expect(canvas.width).toBe(width);
+        expect(canvas.height).toBe(height);
+        expect(drawImageMock).toHaveBeenCalledWith(
+          expect.any(HTMLVideoElement),
+          ...frame,
+        );
+      });
+    }
+    expect(onRender).not.toHaveBeenCalled();
+  });
+
+  it('does not clear the bitmap again when a resize reports unchanged dimensions', () => {
+    renderWithEditorProviders(<PreviewPanel />);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    const setWidth = vi.spyOn(canvas, 'width', 'set');
+    const setHeight = vi.spyOn(canvas, 'height', 'set');
+
+    triggerPreviewResize(1280, 720);
+    triggerPreviewResize(1280, 720);
+
+    expect(setWidth).not.toHaveBeenCalled();
+    expect(setHeight).not.toHaveBeenCalled();
+  });
+
+  it('keeps the bitmap while hidden and redraws when the preview becomes visible', async () => {
+    renderWithEditorProviders(<PreviewPanel />);
+    await waitFor(() => expect(drawImageMock).toHaveBeenCalled());
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    drawImageMock.mockClear();
+
+    triggerPreviewResize(0, 0);
+    expect(canvas.width).toBe(1280);
+    expect(canvas.height).toBe(720);
+    expect(drawImageMock).not.toHaveBeenCalled();
+
+    triggerPreviewResize(1600, 720);
+    expect(drawImageMock).toHaveBeenCalledWith(
+      expect.any(HTMLVideoElement),
+      160, 0, 1280, 720,
+    );
+  });
+
+  it('redraws a changed composition ratio within the current viewport without a resize', async () => {
+    renderWithEditorProviders(<PreviewPanel />);
+    await waitFor(() => expect(drawImageMock).toHaveBeenCalled());
+    triggerPreviewResize(1600, 720);
+    drawCalls = [];
+
+    act(() => testTimelineStore.getState().commitCanvasSize('9:16'));
+
+    expect(
+      drawCalls.some(
+        ({ args, kind }) =>
+          kind === 'fillRect' && hasRectArgs(args, [597.5, 0, 405, 720]),
+      ),
+    ).toBe(true);
+  });
+
+  it('disconnects the resize observer on unmount', () => {
+    const { unmount } = renderWithEditorProviders(<PreviewPanel />);
+    unmount();
+    expect(disconnectResizeObserver).toHaveBeenCalledOnce();
+  });
+
+  it('redraws on window resize without ResizeObserver and removes the listener on unmount', () => {
+    Reflect.deleteProperty(globalThis, 'ResizeObserver');
+    const removeEventListener = vi.spyOn(window, 'removeEventListener');
+    const { unmount } = renderWithEditorProviders(<PreviewPanel />);
+    const canvas = screen.getByLabelText('视频预览') as HTMLCanvasElement;
+    vi.mocked(canvas.getBoundingClientRect).mockReturnValue(
+      new DOMRect(0, 0, 1600, 900),
+    );
+
+    fireEvent(window, new Event('resize'));
+    expect(canvas.width).toBe(1600);
+    expect(canvas.height).toBe(900);
+
+    unmount();
+    expect(removeEventListener).toHaveBeenCalledWith('resize', expect.any(Function));
   });
 
   it('draws active clips by track order so later tracks overlay earlier tracks', async () => {

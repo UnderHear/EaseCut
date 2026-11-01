@@ -2,7 +2,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
-  useEffect,
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -80,14 +80,18 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
   const [preferredHeight, setPreferredHeight] = useState(
     DEFAULT_TIMELINE_PANEL_HEIGHT_PX,
   );
-  const [maximumHeight, setMaximumHeight] = useState(
-    DEFAULT_TIMELINE_PANEL_HEIGHT_PX,
-  );
   const [isResizing, setIsResizing] = useState(false);
-  const panelHeight = clampTimelinePanelHeight(
-    preferredHeight,
-    maximumHeight,
-  );
+
+  const commitHeight = (height: number) => {
+    const container = panelRef.current?.parentElement;
+    if (!container) return;
+    setPreferredHeight(
+      clampTimelinePanelHeight(
+        height,
+        measureMaximumTimelinePanelHeight(container),
+      ),
+    );
+  };
 
   const cancelScheduledHeight = () => {
     if (animationFrameRef.current !== null) {
@@ -104,21 +108,18 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
     }
     const pendingHeight = pendingHeightRef.current;
     pendingHeightRef.current = null;
-    if (pendingHeight !== null) setPreferredHeight(pendingHeight);
+    if (pendingHeight !== null) commitHeight(pendingHeight);
   };
 
   const scheduleHeight = (height: number) => {
-    pendingHeightRef.current = clampTimelinePanelHeight(
-      height,
-      maximumHeight,
-    );
+    pendingHeightRef.current = height;
     if (animationFrameRef.current !== null) return;
 
     animationFrameRef.current = window.requestAnimationFrame(() => {
       animationFrameRef.current = null;
       const pendingHeight = pendingHeightRef.current;
       pendingHeightRef.current = null;
-      if (pendingHeight !== null) setPreferredHeight(pendingHeight);
+      if (pendingHeight !== null) commitHeight(pendingHeight);
     });
   };
 
@@ -156,12 +157,14 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
     event: PointerEvent<HTMLButtonElement>,
   ) => {
     if (!event.isPrimary || event.button !== 0) return;
+    const panel = panelRef.current;
+    if (!panel) return;
 
     event.preventDefault();
     resizeGestureRef.current = {
       pointerId: event.pointerId,
       startClientY: event.clientY,
-      startHeight: panelHeight,
+      startHeight: panel.getBoundingClientRect().height,
       startPreferredHeight: preferredHeight,
     };
     setIsResizing(true);
@@ -183,6 +186,11 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
   };
 
   const handleResizeKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const panel = panelRef.current;
+    const container = panel?.parentElement;
+    if (!panel || !container) return;
+    const panelHeight = Math.round(panel.getBoundingClientRect().height);
+    const maximumHeight = measureMaximumTimelinePanelHeight(container);
     let nextHeight: number | null = null;
     switch (event.key) {
       case 'ArrowUp':
@@ -203,32 +211,46 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
 
     event.preventDefault();
     cancelScheduledHeight();
-    setPreferredHeight(
-      clampTimelinePanelHeight(nextHeight, maximumHeight),
-    );
+    commitHeight(nextHeight);
   };
 
-  useLayoutEffect(() => {
-    const container = panelRef.current?.parentElement;
-    if (!container) return undefined;
+  const syncResizeHandle = useCallback(() => {
+    const panel = panelRef.current;
+    const handle = resizeHandleRef.current;
+    const container = panel?.parentElement;
+    if (!panel || !handle || !container) return;
+    const height = Math.round(panel.getBoundingClientRect().height);
+    if (height <= 0) return;
 
-    const updateMaximumHeight = () => {
-      setMaximumHeight(measureMaximumTimelinePanelHeight(container));
-    };
-    updateMaximumHeight();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateMaximumHeight);
-      return () => window.removeEventListener('resize', updateMaximumHeight);
-    }
-
-    const observer = new ResizeObserver(updateMaximumHeight);
-    observer.observe(container);
-    return () => observer.disconnect();
+    // CSS owns the actual height; observation only updates accessibility metadata.
+    handle.setAttribute('aria-valuenow', String(height));
+    handle.setAttribute(
+      'aria-valuemax',
+      String(measureMaximumTimelinePanelHeight(container)),
+    );
+    handle.setAttribute('aria-valuetext', `${height} 像素`);
   }, []);
 
-  useEffect(
-    () => () => {
+  useLayoutEffect(syncResizeHandle, [preferredHeight, syncResizeHandle]);
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const container = panel?.parentElement;
+    if (!panel || !container) return undefined;
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', syncResizeHandle);
+      return () => window.removeEventListener('resize', syncResizeHandle);
+    }
+
+    const observer = new ResizeObserver(syncResizeHandle);
+    observer.observe(container);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [syncResizeHandle]);
+
+  useLayoutEffect(() => {
+    const releaseGesture = () => {
       if (animationFrameRef.current !== null) {
         window.cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
@@ -236,6 +258,7 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
       pendingHeightRef.current = null;
       const gesture = resizeGestureRef.current;
       const handle = resizeHandleRef.current;
+      resizeGestureRef.current = null;
       if (
         gesture &&
         handle &&
@@ -244,20 +267,27 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
       ) {
         handle.releasePointerCapture(gesture.pointerId);
       }
-      resizeGestureRef.current = null;
-    },
-    [],
-  );
+      return gesture;
+    };
+    const cancelResize = () => {
+      const gesture = releaseGesture();
+      if (!gesture) return;
+      setPreferredHeight(gesture.startPreferredHeight);
+      setIsResizing(false);
+    };
+    window.addEventListener('blur', cancelResize);
+    return () => {
+      window.removeEventListener('blur', cancelResize);
+      releaseGesture();
+    };
+  }, []);
 
   return (
     <>
       <button
         aria-label='调整时间线面板高度'
         aria-orientation='horizontal'
-        aria-valuemax={maximumHeight}
         aria-valuemin={MIN_TIMELINE_PANEL_HEIGHT_PX}
-        aria-valuenow={panelHeight}
-        aria-valuetext={`${panelHeight} 像素`}
         className='ec-timeline-panel__resize-handle'
         data-resizing={isResizing ? 'true' : undefined}
         onKeyDown={handleResizeKeyDown}
@@ -281,7 +311,7 @@ function ResizableTimelinePanel({ children }: ResizableTimelinePanelProps) {
         className='ec-timeline-panel'
         data-resizing={isResizing ? 'true' : undefined}
         ref={panelRef}
-        style={{ height: panelHeight }}
+        style={{ height: preferredHeight }}
       >
         {children}
       </section>

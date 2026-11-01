@@ -6,6 +6,7 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState, type ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { secondsToMicroseconds } from '../core/time';
@@ -132,6 +133,22 @@ const getFirstMediaClip = () => {
   return clip;
 };
 
+function InspectorFixture(props: Pick<
+  ComponentProps<typeof FloatingInspector>,
+  'previewTiming' | 'previewTransform'
+>) {
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  return (
+    <FloatingInspector
+      {...props}
+      hidden={false}
+      isPanelOpen={isPanelOpen}
+      onClose={() => setIsPanelOpen(false)}
+      onOpen={() => setIsPanelOpen(true)}
+    />
+  );
+}
+
 describe('FloatingInspector', () => {
   beforeEach(() => {
     resetTestTimelineStore();
@@ -151,7 +168,7 @@ describe('FloatingInspector', () => {
   });
 
   it('renders selected clip properties instead of static placeholder controls', () => {
-    const { container } = renderWithEditorProviders(<FloatingInspector />);
+    const { container } = renderWithEditorProviders(<InspectorFixture />);
 
     expect(
       screen.getByRole('complementary', { name: '基础属性面板' }),
@@ -193,7 +210,7 @@ describe('FloatingInspector', () => {
 
   it('renders matching live clip timing without committing it to the store', () => {
     renderWithEditorProviders(
-      <FloatingInspector
+      <InspectorFixture
         previewTiming={{
           clipId: videoClip.id,
           durationUs: secondsToMicroseconds(3.25),
@@ -214,7 +231,7 @@ describe('FloatingInspector', () => {
       tracks: [audioTrack],
     });
 
-    const { container } = renderWithEditorProviders(<FloatingInspector />);
+    const { container } = renderWithEditorProviders(<InspectorFixture />);
     const rail = screen.getByRole('navigation', { name: '属性分类' });
 
     expect(
@@ -243,7 +260,7 @@ describe('FloatingInspector', () => {
 
   it('commits transform and clip volume edits through the timeline store', async () => {
     const user = userEvent.setup();
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
 
     const xInput = screen.getByLabelText('X 位置');
     await user.clear(xInput);
@@ -271,7 +288,7 @@ describe('FloatingInspector', () => {
       selectedClipId: imageClip.id,
       tracks: [videoTrack],
     });
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
 
     expect(screen.getByText('图片')).toBeInTheDocument();
     expect(screen.getByText('still.png')).toBeInTheDocument();
@@ -293,7 +310,7 @@ describe('FloatingInspector', () => {
 
   it('commits a typed fixed speed and updates the timeline duration once', async () => {
     const user = userEvent.setup();
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
     await user.click(screen.getByRole('button', { name: '变速' }));
 
     const speedInput = screen.getByLabelText('播放速度');
@@ -313,7 +330,7 @@ describe('FloatingInspector', () => {
 
   it('keeps range input changes local until one pointer gesture commits', async () => {
     const user = userEvent.setup();
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
     await user.click(screen.getByRole('button', { name: '变速' }));
     const slider = screen.getByLabelText('播放速度滑块');
 
@@ -332,7 +349,7 @@ describe('FloatingInspector', () => {
 
   it('restores the original slider value when its pointer gesture is cancelled', async () => {
     const user = userEvent.setup();
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
     await user.click(screen.getByRole('button', { name: '变速' }));
     const slider = screen.getByLabelText('播放速度滑块');
 
@@ -348,7 +365,7 @@ describe('FloatingInspector', () => {
 
   it('switches sections and restores the selected clip properties', async () => {
     const user = userEvent.setup();
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
 
     {
       const sectionName = '变速';
@@ -376,7 +393,7 @@ describe('FloatingInspector', () => {
 
   it('closes only the panel and reopens it from the rail', async () => {
     const user = userEvent.setup();
-    const { container } = renderWithEditorProviders(<FloatingInspector />);
+    const { container } = renderWithEditorProviders(<InspectorFixture />);
     const closeButton = screen.getByRole('button', {
       name: '关闭属性面板',
     });
@@ -422,7 +439,7 @@ describe('FloatingInspector', () => {
       selectedClipId: textClip.id,
       tracks: [textTrack],
     });
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
 
     const rail = screen.getByRole('navigation', { name: '属性分类' });
     expect(within(rail).getAllByRole('button')).toHaveLength(1);
@@ -536,7 +553,7 @@ describe('FloatingInspector', () => {
       selectedClipId: textClip.id,
       tracks: [textTrack],
     });
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
     const colorInput = screen.getByLabelText('字体颜色');
 
     fireEvent.focus(colorInput);
@@ -645,7 +662,7 @@ describe('FloatingInspector', () => {
       selectedClipId: textClip.id,
       tracks: [textTrack],
     });
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
 
     await user.click(screen.getByRole('button', { name: '下划线' }));
     expect(testTimelineStore.getState().clips[0]).toMatchObject({
@@ -710,7 +727,7 @@ describe('FloatingInspector', () => {
         '字体加载失败，请重新选择字体。',
       ),
     );
-    renderWithEditorProviders(<FloatingInspector />);
+    renderWithEditorProviders(<InspectorFixture />);
 
     await user.click(screen.getByRole('button', { name: '粗体' }));
 

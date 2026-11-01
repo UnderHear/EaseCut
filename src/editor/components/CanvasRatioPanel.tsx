@@ -7,7 +7,7 @@ import {
   Square,
   SquareDashed,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import {
   COMPOSITION_CANVAS_PRESETS,
@@ -17,7 +17,10 @@ import {
 } from '../core/canvas-size';
 import { useTimelineStore } from '../store/timeline-store-context';
 import type { TimelineCanvasSize } from '../types';
-import { FloatingInspectorShell } from './FloatingInspectorShell';
+import {
+  FloatingInspectorShell,
+  type FloatingInspectorControls,
+} from './FloatingInspectorShell';
 
 type CanvasRatioOption = {
   icon: ReactNode;
@@ -46,8 +49,12 @@ const createPresetOption = (
   size: COMPOSITION_CANVAS_PRESETS[preset],
 });
 
-export function CanvasRatioPanel() {
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
+export function CanvasRatioPanel({
+  hidden,
+  isPanelOpen,
+  onClose,
+  onOpen,
+}: FloatingInspectorControls) {
   const canvasSelection = useTimelineStore((state) => state.canvasSelection);
   const commitCanvasSize = useTimelineStore((state) => state.commitCanvasSize);
   const originalCanvasSize = useTimelineStore(
@@ -93,14 +100,15 @@ export function CanvasRatioPanel() {
     <FloatingInspectorShell
       ariaLabel='画布比例面板'
       closeLabel='关闭画布比例面板'
+      hidden={hidden}
       isPanelOpen={isPanelOpen}
       navigationLabel='画布设置'
-      onClose={() => setIsPanelOpen(false)}
+      onClose={onClose}
       railItems={
         <button
           aria-current={isPanelOpen ? 'page' : undefined}
           className={`ec-floating-inspector__rail-item${isPanelOpen ? ' ec-is-active' : ''}`}
-          onClick={() => setIsPanelOpen(true)}
+          onClick={onOpen}
           type='button'
         >
           <Ratio aria-hidden='true' size={20} />
