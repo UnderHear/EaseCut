@@ -23,6 +23,16 @@ body,
   background: #101010;
 }
 
+.ec-demo__github-link {
+  position: absolute;
+  top: 32px;
+  right: 32px;
+}
+
+.ec-demo__github-link img {
+  filter: brightness(0) invert(1);
+}
+
 .ec-demo__open-editor-btn {
   position: absolute;
   left: 50%;

@@ -100,6 +100,18 @@ export function DemoApp() {
 
   return (
     <main className='ec-demo'>
+      <a
+        className='ec-demo__github-link'
+        href='https://github.com/UnderHear/EaseCut'
+        target='_blank'
+      >
+        <img
+          src='https://simpleicons.org/icons/github.svg'
+          alt='Github icon'
+          width={24}
+          height={24}
+        />
+      </a>
       <button className='ec-demo__open-editor-btn'
         onClick={() => setIsEditorOpen(true)}>点我打开编辑器！
       </button>
